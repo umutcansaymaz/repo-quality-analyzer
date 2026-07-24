@@ -1473,14 +1473,14 @@ function LLMSettingsSection() {
         {fields.includes("temperature") && (
           <div>
             <Label className="mb-2 block">{t("settings.llm.temperature")}</Label>
-            <Input value={temperature} onChange={(e) => setTemperature(e.target.value)} type="number" min="0" max="2" step="0.1" />
+            <Input value={temperature} onChange={(e) => setTemperature(e.target.value)} type="text" inputMode="decimal" />
           </div>
         )}
 
         {fields.includes("maxTokens") && (
           <div>
             <Label className="mb-2 block">{t("settings.llm.maxTokens")}</Label>
-            <Input value={maxTokens} onChange={(e) => setMaxTokens(e.target.value)} type="number" min="1" />
+            <Input value={maxTokens} onChange={(e) => setMaxTokens(e.target.value)} type="text" inputMode="numeric" />
           </div>
         )}
 
