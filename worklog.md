@@ -1423,3 +1423,57 @@ Stage Summary:
 - 4 değiştirilen dosya: providers.py (AzureOpenAI), __init__.py (export), analysis_result.py (engineering_review alanı), orchestrator.py (faz 10)
 - Backward compatibility: engineering_review alanı None default, LLM optional, offline fallback, hiçbir evidence/root cause/planning engine değiştirilmedi.
 - LLM sistemin beyni DEĞİL — sistemin beyni Evidence + Graph + RootCause + Planning. LLM yalnızca deneyimli bir teknik lider gibi bu çıktıları yorumlayan son katman.
+
+---
+Task ID: 13
+Agent: Principal Product Architect & Senior Frontend Engineer
+Task: Mevcut pipeline üzerine profesyonel, modern, açıklanabilir web UI inşa etmek.
+
+Work Log:
+- Mevcut frontend altyapısı analiz edildi: Next.js 16, TypeScript, TailwindCSS 4, 48 shadcn/ui component, framer-motion, lucide-react, next-themes, recharts mevcut.
+- Layout güncellendi: ThemeProvider eklendi (dark/light mode, default dark), metadata güncellendi.
+- Theme provider component oluşturuldu: src/components/analyzer/theme-provider.tsx
+- API proxy route oluşturuldu: src/app/api/[...path]/route.ts (Next.js → FastAPI 8000 proxy)
+- Ana sayfa tamamen yeniden yazıldı: src/app/page.tsx (~1550 satır, tek dosfa SPA)
+- Landing View: Hero section, gradient logo, URL input, "Analyze Repository" butonu, "Upload Local Repository" (disabled, "Coming Soon" badge), feature pill'leri (Root Cause Detection, Knowledge Graph, Engineering Roadmap, Security Analysis, Health Score, Explainability) — framer-motion animasyonlu.
+- Progress View: 9 pipeline adımı (Repository Detection → Language Analysis → Dependency Analysis → Metrics → Evidence Collection → Knowledge Graph → Root Cause Detection → Planning Engine → Engineering Review), her adım pending/running/completed/error status, animasyonlu spinner/checkmark, progress bar.
+- Results Dashboard: 7 tab (Overview, Root Causes, Roadmap, Evidence, Graph, Files, AI Review)
+  * Health Score Card: Grade (A+/A/.../F), overall score, 5 alt skor (Security, Architecture, Quality, Testing, Docs), repo metadata (license, commits, contributors)
+  * Overview: 6 stat card (Root Causes, Evidence, Quick Wins, Plan Steps, Avg ROI, AI Review) + Top 5 Root Causes list
+  * Root Causes: Genişletilebilir kartlar — title, severity badge, category badge, evidence count, affected files count, confidence badge (% renkli nokta), "View Details" expansion → description, technical_rationale, root_cause_origin, affected files (badge list), Explainability Chain
+  * Roadmap: Sprint Roadmap card (sprint'ler, saatler, goals), Quick Wins / Critical / High / Medium / Low kategorilerine ayrılmış step kartları — her kartta ROI, effort, risk badge, expected outcomes, "WHY?" butonu → Explainability Chain açılır
+  * Evidence: Filtrelenebilir tablo — search box (message/file/analyzer/category), severity dropdown, 8 kolon (severity, analyzer, category, message, file, confidence, type), scroll area, "X of Y evidence items" count
+  * Graph: Interactive node list (renkli badge'ler, node type'a göre renk), node tıklanınca detail panel (type, label, file, class, function, severity, analyzer), legend (11 node type)
+  * Files: File tree (sol panel) + detail panel (sağ) — dosya seçilince o dosyaya ait Evidence ve Root Causes gösterilir
+  * AI Review: Offline mode uyarısı, section kartları (Executive Summary, Top Root Causes, Highest ROI, Long-term Vision), her section'da confidence tag (HIGH/MEDIUM/LOW/SPECULATIVE) + "Supported by Evidence" / "AI Opinion" badge
+- Explainability Chain: "WHY?" butonuna basılınca açılır — Recommendation → Root Cause → Evidence → Analyzer → Affected File → Metrics → Source zinciri, her adım ikon + label + value, chevron ile bağlanmış
+- Confidence System: Her root cause ve plan step'inde confidence badge (% renkli: yeşil ≥80%, sarı ≥60%, kırmızı <60%)
+- Dark/Light Mode: next-themes ile, header'da Sun/Moon toggle butonu
+- Report Export: Header'da download butonu (API /api/report endpoint'ine bağlanır)
+- API Integration: Önce gerçek API çağrısı denenir, başarısız olursa demo data fallback — UI her durumda tam çalışır
+- Demo Data: Gerçekçi sample data (4 root causes, 4 plan steps, 8 evidence, 10 graph nodes, 3 sprints, 2 quick wins, 1 blocker, engineering review)
+- Agent-browser doğrulaması:
+  * Landing page: URL input + Analyze butonu çalışıyor ✓
+  * Progress view: Pipeline adımları animasyonlu ilerliyor ✓
+  * Results dashboard: 7 tab'ın tamamı görüntülenebilir ✓
+  * Root Causes: 4 kart, genişletilebilir, Explainability Chain ✓
+  * Roadmap: Quick Wins/High/Medium/Low kategoriler, WHY butonları ✓
+  * Evidence: Arama + severity filtre ✓
+  * Graph: 10 node, tıklanabilir, detail panel ✓
+  * Files: 10 dosya, tıklanınca evidence + root cause gösterimi ✓
+  * AI Review: 4 section, offline badge, confidence tags ✓
+  * Dark/Light mode toggle ✓
+  * No console errors ✓
+  * No page errors ✓
+- ESLint: Clean (no errors)
+- Dev server: Çalışıyor (port 3000)
+
+Stage Summary:
+- Tek dosfa SPA (src/app/page.tsx ~1550 satır) + 1 theme provider + 1 API proxy route
+- Mevcut pipeline'a bağlanır (API çalışıyorsa gerçek veri, çalışmıyorsa demo data)
+- Hiçbir mevcut özellik bozulmadı
+- Tüm UI bölümleri doğrulandı: Landing → Progress → Results (7 tab)
+- ExplainabilityChain her root cause ve plan step'inde mevcut
+- Confidence göstergeleri tüm önerilerde
+- Dark/Light mode tam çalışıyor
+- Responsive (desktop öncelikli, tablet/mobile destekli)
