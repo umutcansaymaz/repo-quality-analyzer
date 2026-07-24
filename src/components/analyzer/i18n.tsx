@@ -328,6 +328,10 @@ const translations: Record<Language, TranslationDict> = {
     "files.evidenceCount": "Evidence count",
     "files.topFiles": "Top files by evidence",
 
+    // Evidence — sortable columns
+    "evidence.sortBy": "Click to sort by {col}",
+    "evidence.sorted": "Sorted by {col} ({dir})",
+
     // Roadmap filters
     "roadmap.filterPriority": "Priority",
     "roadmap.filterRisk": "Risk",
@@ -375,6 +379,8 @@ const translations: Record<Language, TranslationDict> = {
     "history.hoursAgo": "{h}h ago",
     "history.exportJson": "Export all (JSON)",
     "history.exportedJson": "History exported as JSON",
+    "history.fullBackup": "Full backup (with results)",
+    "history.exportedFull": "Full backup exported as JSON",
     "history.reanalyze": "Re-analyze",
     "history.reanalyzing": "Re-analyzing…",
     "health.grade": "Grade",
@@ -731,6 +737,10 @@ const translations: Record<Language, TranslationDict> = {
     "files.evidenceCount": "Kanıt sayısı",
     "files.topFiles": "Kanıta göre en çok dosyalar",
 
+    // Kanıtlar — sıralanabilir kolonlar
+    "evidence.sortBy": "{col} ile sıralamak için tıklayın",
+    "evidence.sorted": "{col} ({dir}) göre sıralı",
+
     // Roadmap filters
     "roadmap.filterPriority": "Öncelik",
     "roadmap.filterRisk": "Risk",
@@ -778,6 +788,8 @@ const translations: Record<Language, TranslationDict> = {
     "history.hoursAgo": "{h} sa önce",
     "history.exportJson": "Tümünü dışa aktar (JSON)",
     "history.exportedJson": "Geçmiş JSON olarak dışa aktarıldı",
+    "history.fullBackup": "Tam yedek (sonuçlarla)",
+    "history.exportedFull": "Tam yedek JSON olarak dışa aktarıldı",
     "history.reanalyze": "Yeniden analiz et",
     "history.reanalyzing": "Yeniden analiz ediliyor…",
     "health.grade": "Not",

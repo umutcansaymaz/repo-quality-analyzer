@@ -2104,3 +2104,53 @@ Stage Summary:
   3. (Low) "Full backup" history export option (include result payloads, not just metadata).
   4. (Low) Evidence table: add column sorting (click header to sort by severity/confidence/analyzer).
   5. (Low) Files tab: make the "Top files by evidence" bars clickable to select that file in the list.
+
+---
+Task ID: 25
+Agent: Senior Full-Stack Engineer (cron web-dev-review round 10)
+Task: QA via agent-browser + VLM, add Evidence table column sorting + Full backup history export.
+
+Work Log:
+- Worklog reviewed (Tasks 1-24): Next.js 16 "AI Software Architect" repo analyzer. Mock API online. Prior phases: 7-tab dashboard, landing, history drawer (reopen + re-analyze + JSON export), compare dialog (3 diff sections), graph node drag + edge weight, humanized categories, Settings fixes, RoiRefactoringBody fallback, Evidence alignment, Files tooltip + top files, General tab clickable cards. Top recommendations: accessibility audit, graph snap-to-grid, full backup export, evidence column sorting, clickable top-files bars.
+- QA performed via agent-browser + VLM (z-ai vision) on Overview + Root Causes tabs:
+  * VLM flagged "AI Review stat card shows Offline" (by design — LLM status indicator), "duplicate search inputs" (header global search + Root Causes filter search — different purposes, acceptable), "lc truncation" (VLM OCR error — actual text is "low").
+  * No critical bugs found — app is stable. Proceeded with new features.
+- Phase 1 — i18n: 6 new keys (TR+EN) — evidence.sortBy, evidence.sorted, history.fullBackup, history.exportedFull.
+- Phase 2 — Evidence table column sorting (NEW FEATURE):
+  * Added `sortCol` state (null | "severity" | "analyzer" | "category" | "confidence") + `sortDir` state ("asc" | "desc").
+  * `toggleSort(col)`: if same column, flip direction; if new column, set desc.
+  * `filtered` useMemo now sorts after filtering: severity uses sevRank (critical=4...info=0), confidence uses numeric comparison, analyzer/category use localeCompare. Direction applied via `sortDir === "asc" ? -cmp : cmp`.
+  * New `EvidenceSortHeader` component (defined OUTSIDE EvidenceSection to satisfy ESLint react-hooks/static-components): renders a button with label + ChevronRight icon that rotates 90° (desc) / -90° (asc) when active, hidden when inactive.
+  * Headers: Severity, Analyzer, Category, Confidence are now sortable buttons. Message, File, Type remain static text.
+  * Tooltip: `t("evidence.sortBy").replace("{col}", label)` — "Click to sort by Severity" etc.
+  * Verified: clicking Severity → critical appears first (was high); clicking Confidence → 100% entries appear first.
+  * Bug fixed during dev: initial SortHeader was defined inside EvidenceSection → ESLint error "react-hooks/static-components". Fixed by extracting to a top-level component that receives sortCol/sortDir/onToggle/t as props.
+- Phase 3 — Full backup history export (NEW FEATURE):
+  * New "Full backup (with results)" button in HistorySheet footer (between Export all and Clear all).
+  * Exports the COMPLETE history entries including result payloads (not just metadata). The existing "Export all (JSON)" strips the `result` field; the full backup keeps it.
+  * Filename: `analysis-full-backup-YYYY-MM-DD.json`.
+  * Database icon used to distinguish from the Download icon of the metadata export.
+  * SheetFooter changed to `flex-row flex-wrap` so the 3 buttons wrap on narrow screens.
+  * i18n: history.fullBackup + history.exportedFull keys.
+  * Verified: clicking → toast "Full backup exported as JSON".
+- Verification (agent-browser, 1440×900):
+  * Evidence sorting: Severity button click → critical first ✓, Confidence button click → 100% first ✓, headers render as buttons with chevron icons ✓
+  * Full backup: button present ✓, toast "Full backup exported as JSON" ✓
+  * Turkish: "Tümünü dışa aktar (JSON)" ✓, "Tam yedek (sonuçlarla)" ✓, "Tümünü temizle" ✓, "Önem"/"Analizör" evidence headers ✓
+  * Zero page errors, zero console errors
+- ESLint: Clean (0 errors after EvidenceSortHeader extraction)
+
+Stage Summary:
+- Current project status: Frontend is polished and feature-complete. Evidence table now supports column sorting (click any of Severity/Analyzer/Category/Confidence headers to sort, click again to reverse direction). History drawer has a new "Full backup" export option that includes complete result payloads. Mock API online. All 7 dashboard tabs rich. Zero runtime errors.
+- Completed modifications: 1 file modified (page.tsx — EvidenceSortHeader component + sort state/logic, Full backup button + handler). 1 file modified (i18n.tsx — 6 new keys ×2 langs). No new files.
+- Verification results: agent-browser full QA passed. Evidence sorting verified (severity → critical first, confidence → 100% first). Full backup export verified (toast appears). Turkish translations complete. ESLint clean. Zero runtime errors.
+- Unresolved issues / risks:
+  * Full backup includes complete result payloads — for 20 history entries with large real-backend results, the JSON file could be very large (MBs). Acceptable for a "backup" feature.
+  * Evidence sort doesn't persist across tab switches (state resets when leaving and returning to the Evidence tab). Acceptable — most users sort, scan, then move on.
+  * The SortHeader chevron is always rotated 90° (pointing right/down) even when inactive — just hidden via opacity-0. This is a minor visual detail.
+- Priority recommendations for next phase:
+  1. (Medium) Accessibility audit: ARIA labels on WHY? toggle, graph nodes, evidence sort headers, compare dialog.
+  2. (Medium) Graph: node drag snap-to-grid option + edge weight from numeric field when available.
+  3. (Low) Files tab: make the "Top files by evidence" bars clickable to select that file in the list.
+  4. (Low) Evidence sort persistence: remember sort state across tab switches (lift to ResultsDashboard or localStorage).
+  5. (Low) "Import history" feature: allow importing a previously-exported full backup JSON to restore history.

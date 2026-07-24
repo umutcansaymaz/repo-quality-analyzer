@@ -1878,17 +1878,67 @@ function RoadmapStepCard({ step }: { step: any }) {
 // Evidence Section
 // ---------------------------------------------------------------------------
 
+// Sortable column header — a button that toggles sort direction when clicked.
+// Defined outside EvidenceSection so it isn't re-created on every render
+// (ESLint react-hooks/static-components).
+function EvidenceSortHeader({
+  col, label, sortCol, sortDir, onToggle, t,
+}: {
+  col: "severity" | "analyzer" | "category" | "confidence";
+  label: string;
+  sortCol: string | null;
+  sortDir: "asc" | "desc";
+  onToggle: (col: "severity" | "analyzer" | "category" | "confidence") => void;
+  t: (k: string) => string;
+}) {
+  const active = sortCol === col;
+  return (
+    <button
+      onClick={() => onToggle(col)}
+      className={`flex items-center gap-1 text-xs font-medium ${active ? "text-foreground" : "text-muted-foreground"} hover:text-foreground`}
+      title={t("evidence.sortBy").replace("{col}", label)}
+    >
+      {label}
+      <ChevronRight className={`h-3 w-3 transition-transform ${active ? (sortDir === "asc" ? "-rotate-90" : "rotate-90") : "rotate-90 opacity-0"} ${active ? "opacity-100" : ""}`} />
+    </button>
+  );
+}
+
 function EvidenceSection({ data }: { data: any }) {
   const { t } = useI18n();
   const evidence = data?.evidence?.evidence || [];
   const [search, setSearch] = React.useState("");
   const [filterSeverity, setFilterSeverity] = React.useState("all");
+  const [sortCol, setSortCol] = React.useState<"severity" | "analyzer" | "category" | "confidence" | null>(null);
+  const [sortDir, setSortDir] = React.useState<"asc" | "desc">("desc");
 
-  const filtered = React.useMemo(() => evidence.filter((ev: any) => {
-    const matchSearch = !search || ev.message?.toLowerCase().includes(search.toLowerCase()) || ev.file_path?.toLowerCase().includes(search.toLowerCase()) || ev.analyzer?.toLowerCase().includes(search.toLowerCase()) || ev.category?.toLowerCase().includes(search.toLowerCase());
-    const matchSeverity = filterSeverity === "all" || ev.severity === filterSeverity;
-    return matchSearch && matchSeverity;
-  }), [evidence, search, filterSeverity]);
+  const toggleSort = (col: "severity" | "analyzer" | "category" | "confidence") => {
+    if (sortCol === col) {
+      setSortDir(sortDir === "asc" ? "desc" : "asc");
+    } else {
+      setSortCol(col);
+      setSortDir("desc");
+    }
+  };
+
+  const filtered = React.useMemo(() => {
+    const result = evidence.filter((ev: any) => {
+      const matchSearch = !search || ev.message?.toLowerCase().includes(search.toLowerCase()) || ev.file_path?.toLowerCase().includes(search.toLowerCase()) || ev.analyzer?.toLowerCase().includes(search.toLowerCase()) || ev.category?.toLowerCase().includes(search.toLowerCase());
+      const matchSeverity = filterSeverity === "all" || ev.severity === filterSeverity;
+      return matchSearch && matchSeverity;
+    });
+    if (sortCol) {
+      const sevRank: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1, info: 0 };
+      result.sort((a: any, b: any) => {
+        let cmp = 0;
+        if (sortCol === "severity") cmp = (sevRank[(b.severity || "").toLowerCase()] || 0) - (sevRank[(a.severity || "").toLowerCase()] || 0);
+        else if (sortCol === "confidence") cmp = (b.confidence || 0) - (a.confidence || 0);
+        else cmp = String(a[sortCol] || "").localeCompare(String(b[sortCol] || ""));
+        return sortDir === "asc" ? -cmp : cmp;
+      });
+    }
+    return result;
+  }, [evidence, search, filterSeverity, sortCol, sortDir]);
 
   if (evidence.length === 0) return <EmptyState icon={<Beaker className="h-12 w-12" />} title={t("evidence.noEvidence")} />;
 
@@ -1912,14 +1962,14 @@ function EvidenceSection({ data }: { data: any }) {
         </Select>
       </div>
       <div className="rounded-lg border">
-        <div className="grid grid-cols-12 gap-2 border-b bg-muted/50 p-3 text-xs font-medium text-muted-foreground">
-          <div className="col-span-1">{t("evidence.severity")}</div>
-          <div className="col-span-2">{t("evidence.analyzer")}</div>
-          <div className="col-span-2">{t("evidence.category")}</div>
-          <div className="col-span-3">{t("evidence.message")}</div>
-          <div className="col-span-2">{t("evidence.file")}</div>
-          <div className="col-span-1 text-right">{t("evidence.confidence")}</div>
-          <div className="col-span-1 text-right">{t("evidence.type")}</div>
+        <div className="grid grid-cols-12 gap-2 border-b bg-muted/50 p-3">
+          <div className="col-span-1"><EvidenceSortHeader col="severity" label={t("evidence.severity")} sortCol={sortCol} sortDir={sortDir} onToggle={toggleSort} t={t} /></div>
+          <div className="col-span-2"><EvidenceSortHeader col="analyzer" label={t("evidence.analyzer")} sortCol={sortCol} sortDir={sortDir} onToggle={toggleSort} t={t} /></div>
+          <div className="col-span-2"><EvidenceSortHeader col="category" label={t("evidence.category")} sortCol={sortCol} sortDir={sortDir} onToggle={toggleSort} t={t} /></div>
+          <div className="col-span-3 text-xs font-medium text-muted-foreground">{t("evidence.message")}</div>
+          <div className="col-span-2 text-xs font-medium text-muted-foreground">{t("evidence.file")}</div>
+          <div className="col-span-1 flex justify-end"><EvidenceSortHeader col="confidence" label={t("evidence.confidence")} sortCol={sortCol} sortDir={sortDir} onToggle={toggleSort} t={t} /></div>
+          <div className="col-span-1 text-right text-xs font-medium text-muted-foreground">{t("evidence.type")}</div>
         </div>
         <ScrollArea className="max-h-[500px]">
           {filtered.map((ev: any, i: number) => (
@@ -3332,7 +3382,7 @@ function HistorySheet({
         )}
 
         {entries.length > 0 && (
-          <SheetFooter className="flex-row gap-2">
+          <SheetFooter className="flex-row flex-wrap gap-2">
             <Button
               variant="outline" size="sm"
               onClick={() => {
@@ -3347,6 +3397,22 @@ function HistorySheet({
               }}
             >
               <Download className="mr-1.5 h-3.5 w-3.5" /> {t("history.exportJson")}
+            </Button>
+            <Button
+              variant="outline" size="sm"
+              onClick={() => {
+                // Full backup: includes the complete result payloads (larger file).
+                const blob = new Blob([JSON.stringify(entries, null, 2)], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `analysis-full-backup-${new Date().toISOString().slice(0, 10)}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+                toast.success(t("history.exportedFull"));
+              }}
+            >
+              <Database className="mr-1.5 h-3.5 w-3.5" /> {t("history.fullBackup")}
             </Button>
             <Button
               variant="outline" size="sm" className="text-muted-foreground hover:text-destructive"
