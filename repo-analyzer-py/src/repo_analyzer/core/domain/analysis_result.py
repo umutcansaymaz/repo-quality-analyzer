@@ -113,6 +113,11 @@ class AnalysisResult(BaseModel):
     # Backward compatible: defaults to None, existing consumers are unaffected.
     engineering_plan: Any | None = None
 
+    # LLM engineering review (structured review of the engineering plan).
+    # Populated by EngineeringReviewer after the planning phase completes.
+    # Backward compatible: defaults to None, existing consumers are unaffected.
+    engineering_review: Any | None = None
+
     @property
     def total_findings(self) -> int:
         """Total number of findings across all categories."""

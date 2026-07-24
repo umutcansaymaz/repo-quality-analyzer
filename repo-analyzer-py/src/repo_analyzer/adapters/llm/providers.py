@@ -366,6 +366,66 @@ class OllamaProvider(BaseLLMProvider):
         yield self.complete(prompt, system=system, **kwargs)
 
 
+class AzureOpenAIProvider(BaseLLMProvider):
+    """Azure OpenAI provider (SDK imported lazily).
+
+    Requires ``api_key``, ``azure_endpoint``, and ``api_version`` options.
+    """
+
+    @property
+    def provider_name(self) -> str:
+        return "azure_openai"
+
+    def complete(
+        self,
+        prompt: str,
+        *,
+        system: str | None = None,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        **kwargs: Any,
+    ) -> str:
+        try:
+            from openai import AzureOpenAI
+        except ImportError as exc:
+            raise AIException(
+                "openai package is not installed (required for Azure OpenAI)",
+                provider="azure_openai",
+                model=self._model,
+            ) from exc
+        api_key = self._options.get("api_key")
+        azure_endpoint = self._options.get("azure_endpoint")
+        api_version = self._options.get("api_version", "2024-02-15-preview")
+        client = AzureOpenAI(
+            api_key=api_key,
+            azure_endpoint=azure_endpoint,
+            api_version=api_version,
+        )
+        messages: list[dict[str, str]] = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+        try:
+            response = client.chat.completions.create(
+                model=self._model,
+                messages=messages,
+                max_tokens=max_tokens or 4096,
+                temperature=temperature if temperature is not None else 0.3,
+            )
+        except Exception as exc:
+            raise AIException(
+                f"Azure OpenAI completion failed: {exc}",
+                provider="azure_openai",
+                model=self._model,
+            ) from exc
+        return response.choices[0].message.content or ""
+
+    def complete_stream(
+        self, prompt: str, *, system: str | None = None, **kwargs: Any
+    ) -> Iterator[str]:
+        yield self.complete(prompt, system=system, **kwargs)
+
+
 class LLMProviderFactory:
     """Factory that builds :class:`LLMPort` instances by provider name."""
 
@@ -376,6 +436,7 @@ class LLMProviderFactory:
         "gemini": GeminiProvider,
         "openrouter": OpenRouterProvider,
         "ollama": OllamaProvider,
+        "azure_openai": AzureOpenAIProvider,
     }
 
     @classmethod
@@ -418,5 +479,6 @@ __all__ = [
     "GeminiProvider",
     "OpenRouterProvider",
     "OllamaProvider",
+    "AzureOpenAIProvider",
     "LLMProviderFactory",
 ]

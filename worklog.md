@@ -1381,3 +1381,45 @@ Stage Summary:
 - Backward compatibility: engineering_plan alanı None default, engine hatası non-fatal, hiçbir root cause engine/graph builder/evidence builder/analyzer değiştirilmedi.
 - Performans: sadece in-memory RootCauseCollection üzerinde çalışıyor, repository re-scan yok, graph re-build yok, evidence re-build yok.
 - Gelecekte LLM bu çıktıları kullanarak: planning step'leri doğal dile çevirip geliştiriciye sunabilir, trade-off alternatiflerini detaylandırabilir, sprint planını takım toplantısında sunabilir, ROI skorlarını zamanla takip ederek iyileşmeyi ölçebilir.
+
+---
+Task ID: 12
+Agent: Principal AI Architect (LLM Decision Layer)
+Task: Mevcut mühendislik çıktılarını yorumlayan LLM Decision Layer eklemek.
+
+Work Log:
+- Mevcut kod tabanı tamamen analiz edildi: LLMPort, 6 provider (Mock/OpenAI/Anthropic/Gemini/OpenRouter/Ollama), LLMProviderFactory, mevcut ContextBuilder (raw analyzer verisi gönderiyor), mevcut PromptBuilder (problem bulma istiyor), mevcut AICommentEngine, orchestrator fazları (0-9), Evidence/RootCause/Planning modelleri incelendi.
+- Yeni dosyalar:
+  * src/repo_analyzer/core/evidence/engineering_review_models.py — EngineeringLLMReview, ReviewSection, ChallengeItem, EngineeringRecommendation, ReviewConfidence, ReviewSectionType
+  * src/repo_analyzer/review/ai/engineering_context_builder.py — EngineeringContextBuilder (Evidence/RootCause/Planning'den context üretir, raw analyzer verisi GÖNDERMEZ)
+  * src/repo_analyzer/review/ai/engineering_prompt_builder.py — EngineeringPromptBuilder (review ister, problem bulMAZ, hallucination koruması, challenge mode)
+  * src/repo_analyzer/review/ai/engineering_reviewer.py — EngineeringReviewer (LLM çağrısı + offline fallback + response parsing + challenge extraction)
+  * tests/unit/test_engineering_review.py — 42 unit test
+- Değiştirilen dosyalar:
+  * src/repo_analyzer/adapters/llm/providers.py — AzureOpenAIProvider eklendi (7 sağlayıcı total)
+  * src/repo_analyzer/adapters/llm/__init__.py — AzureOpenAIProvider export edildi
+  * src/repo_analyzer/core/domain/analysis_result.py — engineering_review: Any | None = None alanı eklendi (backward compatible)
+  * src/repo_analyzer/core/orchestrator.py — Faz 10 (LLM engineering review) eklendi (non-breaking try/except, LLM optional)
+- LLM Decision Layer Modeli:
+  * EngineeringLLMReview: sections, challenges, recommendations, model_info, offline flag, token usage, statistics — frozen=True
+  * ReviewSection: section_type (10 tür), title, body, confidence (HIGH/MEDIUM/LOW/SPECULATIVE), supporting_evidence_ids, supporting_step_ids
+  * ChallengeItem: target_step_id, challenge_type (too_aggressive/too_conservative/insufficient_evidence/alternative_approach/risk_underestimated), description, alternative
+  * EngineeringRecommendation: title, description, priority, confidence, rationale, linked_step_ids, linked_root_cause_ids
+- EngineeringContextBuilder: 9 bölüm — repository, evidence_summary, root_causes, impact_scores, engineering_plan, quick_wins, risk_analysis, trade_offs. Raw analyzer verisi, file snippet, AST gönderilmez. Sadece işlenmiş mühendislik çıktıları.
+- EngineeringPromptBuilder: System prompt 6 kural içerir — (1) pre-processed çıktıları review et, raw code analiz etme; (2) yeni teknik gerçek icat etme; (3) plan'ı challenge et; (4) confidence tag kullan; (5) concrete ol; (6) injection koruması. User prompt 10 bölüm ister: Executive Summary, Architecture Review, Top Root Causes, Highest ROI, Risk Assessment, Recommendations, Trade-off Analysis, Migration Advice, Long-term Vision, Challenge.
+- EngineeringReviewer: LLM optional — llm=None ise deterministic offline fallback. LLM failure/timeout → fallback. Response parsing: regex ile section/challenge/recommendation extraction. Confidence tag parsing. Offline fallback: plan ve root cause'dan summary, top root causes, highest ROI, risk assessment, long-term vision üretir.
+- Hallucination Koruması: System prompt "NEVER invent new technical facts" + "insufficient evidence" söyle. Her section confidence tag taşır. LLM'e raw code gönderilmez → code okuyup uydurma yapamaz.
+- Offline Mode: LLM yok → EngineeringReviewer._offline_review() deterministic review üretir. Sistem tamamen çalışır, LLM sadece zenginleştirme yapar.
+- Provider Abstraction: 7 sağlayıcı (Mock, OpenAI, Anthropic, Gemini, OpenRouter, Ollama, AzureOpenAI). LLMProviderFactory.register() ile yeni sağlayıcı ekleme. Core katmanı LLMPort'a bağımlı, somut sağlayıcıya değil.
+- Orchestrator: Faz 10 (LLM engineering review) — non-breaking, LLM optional, hata olursa engineering_review None kalır.
+- Lint: ruff check → All checks passed.
+- Type check: mypy --strict → 195 files, 0 errors.
+- Test: 651 passed / coverage 84.67%.
+  * test_engineering_review.py: 42 test (provider selection, context builder, prompt builder, reviewer with mock LLM, offline mode, error handling, adapter switching, model properties)
+
+Stage Summary:
+- LLM Decision Layer mevcut mimariye entegre edildi, hiçbir mevcut özellik bozulmadı.
+- 4 yeni dosya: engineering_review_models.py (6 model + 2 enum), engineering_context_builder.py, engineering_prompt_builder.py, engineering_reviewer.py, test_engineering_review.py (42 test)
+- 4 değiştirilen dosya: providers.py (AzureOpenAI), __init__.py (export), analysis_result.py (engineering_review alanı), orchestrator.py (faz 10)
+- Backward compatibility: engineering_review alanı None default, LLM optional, offline fallback, hiçbir evidence/root cause/planning engine değiştirilmedi.
+- LLM sistemin beyni DEĞİL — sistemin beyni Evidence + Graph + RootCause + Planning. LLM yalnızca deneyimli bir teknik lider gibi bu çıktıları yorumlayan son katman.

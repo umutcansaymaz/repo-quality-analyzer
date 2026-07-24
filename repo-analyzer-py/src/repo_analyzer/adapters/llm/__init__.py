@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from repo_analyzer.adapters.llm.providers import (
     AnthropicProvider,
+    AzureOpenAIProvider,
     BaseLLMProvider,
     GeminiProvider,
     LLMProviderFactory,
@@ -23,5 +24,6 @@ __all__ = [
     "GeminiProvider",
     "OpenRouterProvider",
     "OllamaProvider",
+    "AzureOpenAIProvider",
     "LLMProviderFactory",
 ]

@@ -247,6 +247,25 @@ class Orchestrator:
                 _logger.warning("Engineering planning failed: %s", exc)
                 result.add_error({"phase": "planning", "error": str(exc)})
 
+            # Phase 10: LLM engineering review.
+            # Non-breaking: if it fails, engineering_review stays None.
+            # The LLM is optional — offline mode produces a fallback review.
+            try:
+                from repo_analyzer.review.ai.engineering_reviewer import (
+                    EngineeringReviewer,
+                )
+
+                reviewer = EngineeringReviewer(llm=self._llm)
+                result.engineering_review = reviewer.review(result)
+                if progress:
+                    if result.engineering_review and result.engineering_review.offline:
+                        progress.info("Engineering review (offline fallback)")
+                    else:
+                        progress.success("Engineering review complete")
+            except Exception as exc:
+                _logger.warning("Engineering review failed: %s", exc)
+                result.add_error({"phase": "llm_review", "error": str(exc)})
+
             if cancel_event and cancel_event.is_set():
                 result.add_error({"phase": "post", "error": "cancelled"})
             result.mark_completed()
