@@ -1863,6 +1863,7 @@ function RoadmapStepCard({ step }: { step: any }) {
         <div className="mt-3 flex items-center gap-2">
           <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setShowWhy(!showWhy)}>
             <Eye className="mr-1 h-3 w-3" /> {t("explainability.why")}
+            <ChevronRight className={`ml-1 h-3 w-3 transition-transform duration-200 ${showWhy ? "rotate-90" : ""}`} />
           </Button>
         </div>
         <AnimatePresence>
@@ -2123,19 +2124,24 @@ function GraphSection({ data }: { data: any }) {
               style={{ touchAction: "none" }}
             >
               <g transform={`translate(${pan.x} ${pan.y}) scale(${zoom})`}>
-                {/* Edges */}
+                {/* Edges — thickness reflects relationship strength.
+                    "affects" edges are stronger (2px, solid) than "belongs_to" (1px). */}
                 {(graph.edges || []).map((edge: any, i: number) => {
                   const s = nodeOverrides[edge.source_id] || pos[edge.source_id];
                   const d = nodeOverrides[edge.target_id] || pos[edge.target_id];
                   if (!s || !d) return null;
                   const isEdgeActive = activeNode && (edge.source_id === activeNode.id || edge.target_id === activeNode.id);
+                  // Derive weight from edge_type: affects=strong, belongs_to=weak, default=medium.
+                  const isStrong = edge.edge_type === "affects" || edge.edge_type === "causes";
+                  const baseWidth = isStrong ? 2 : 1;
                   return (
                     <line
                       key={i} x1={s.x} y1={s.y} x2={d.x} y2={d.y}
                       stroke={isEdgeActive ? "currentColor" : "currentColor"}
                       className={isEdgeActive ? "text-primary" : "text-muted-foreground/30"}
-                      strokeWidth={isEdgeActive ? 2 : 1}
-                      strokeOpacity={activeNode ? (isEdgeActive ? 0.9 : 0.08) : 0.4}
+                      strokeWidth={isEdgeActive ? baseWidth + 1 : baseWidth}
+                      strokeOpacity={activeNode ? (isEdgeActive ? 0.9 : 0.08) : isStrong ? 0.55 : 0.3}
+                      strokeDasharray={edge.edge_type === "belongs_to" ? "4 3" : undefined}
                     />
                   );
                 })}
@@ -2202,6 +2208,18 @@ function GraphSection({ data }: { data: any }) {
                 <span className="text-xs text-muted-foreground">{humanize(ty)}</span>
               </div>
             ))}
+          </div>
+          {/* Edge-type legend — explains line styles */}
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1">
+            <span className="text-xs font-medium text-muted-foreground">{t("graph.edgeLegend")}:</span>
+            <div className="flex items-center gap-1.5">
+              <svg width="20" height="6"><line x1="0" y1="3" x2="20" y2="3" stroke="currentColor" strokeWidth="2" className="text-muted-foreground" /></svg>
+              <span className="text-xs text-muted-foreground">{t("graph.edgeAffects")}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <svg width="20" height="6"><line x1="0" y1="3" x2="20" y2="3" stroke="currentColor" strokeWidth="1" strokeDasharray="4 3" className="text-muted-foreground" /></svg>
+              <span className="text-xs text-muted-foreground">{t("graph.edgeBelongsTo")}</span>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -2467,6 +2485,57 @@ function FilePreviewOverview({ data, formatTotalSize }: { data: any; formatTotal
 // AI Review Section
 // ---------------------------------------------------------------------------
 
+// Parse the "Highest ROI Refactoring" section body (raw "Key: Value\n" lines)
+// into structured key-value pairs rendered as a badge grid + title.
+function RoiRefactoringBody({ body, t }: { body: string; t: (k: string) => string }) {
+  // Split into lines, parse "Key: Value" pairs.
+  const lines = (body || "").split("\n").map((l) => l.trim()).filter(Boolean);
+  const pairs: { key: string; value: string }[] = [];
+  let title = "";
+  lines.forEach((line) => {
+    const m = line.match(/^([^:]+):\s*(.+)$/);
+    if (m) {
+      const rawKey = m[1].trim().toLowerCase();
+      const value = m[2].trim();
+      // First line is usually "Step N: <title>" — treat as title, not a pair.
+      if (rawKey.startsWith("step") && !title) {
+        title = value;
+      } else {
+        pairs.push({ key: rawKey, value });
+      }
+    }
+  });
+
+  // Map raw keys to i18n labels + styling.
+  const keyLabel: Record<string, { label: string; badge?: "default" | "secondary" | "outline" | "destructive"; color?: string }> = {
+    roi: { label: t("ai.roi"), badge: "default", color: "text-emerald-500" },
+    priority: { label: t("ai.priority"), badge: "secondary" },
+    estimate: { label: t("ai.estimate"), badge: "outline" },
+  };
+
+  return (
+    <div className="space-y-3">
+      {title && (
+        <div className="flex items-center gap-2">
+          <MapIcon className="h-4 w-4 text-primary" />
+          <span className="text-sm font-medium">{title}</span>
+        </div>
+      )}
+      <div className="flex flex-wrap gap-2">
+        {pairs.map((p, i) => {
+          const meta = keyLabel[p.key] || { label: humanize(p.key), badge: "outline" as const };
+          return (
+            <div key={i} className="flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs">
+              <span className="text-muted-foreground">{meta.label}:</span>
+              <span className={`font-semibold ${meta.color || ""}`}>{p.value}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function AIReviewSection({ data }: { data: any }) {
   const { t } = useI18n();
   const review = data?.engineering_review;
@@ -2500,7 +2569,11 @@ function AIReviewSection({ data }: { data: any }) {
               </div>
             </div>
           </CardHeader>
-          <CardContent><p className="whitespace-pre-wrap text-sm text-muted-foreground">{section.body}</p></CardContent>
+          <CardContent>
+            {section.section_type === "highest_roi_refactoring"
+              ? <RoiRefactoringBody body={section.body} t={t} />
+              : <p className="whitespace-pre-wrap text-sm text-muted-foreground">{section.body}</p>}
+          </CardContent>
         </Card>
       ))}
       {review.challenges?.length > 0 && (

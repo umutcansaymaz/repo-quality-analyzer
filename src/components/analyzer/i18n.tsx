@@ -309,6 +309,9 @@ const translations: Record<Language, TranslationDict> = {
     "graph.fit": "Fit to screen",
     "graph.legend": "Legend",
     "graph.search": "Search nodes...",
+    "graph.edgeLegend": "Edges",
+    "graph.edgeAffects": "Affects (strong)",
+    "graph.edgeBelongsTo": "Belongs to (weak)",
 
     // Files extras
     "files.search": "Filter files...",
@@ -401,6 +404,12 @@ const translations: Record<Language, TranslationDict> = {
     "compare.evidence": "Evidence",
     "compare.roadmap": "Roadmap Steps",
     "compare.quickWins": "Quick Wins",
+
+    // AI Review — parsed ROI fields
+    "ai.roi": "ROI",
+    "ai.priority": "Priority",
+    "ai.estimate": "Estimate",
+    "ai.step": "Step",
 
     // Footer
     "footer.builtWith": "Built with Next.js, TypeScript, Tailwind CSS, and shadcn/ui",
@@ -701,6 +710,9 @@ const translations: Record<Language, TranslationDict> = {
     "graph.fit": "Ekrana sığdır",
     "graph.legend": "Lejant",
     "graph.search": "Düğüm ara...",
+    "graph.edgeLegend": "Kenarlar",
+    "graph.edgeAffects": "Etkiler (güçlü)",
+    "graph.edgeBelongsTo": "Ait (zayıf)",
 
     // Files extras
     "files.search": "Dosya filtrele...",
@@ -793,6 +805,12 @@ const translations: Record<Language, TranslationDict> = {
     "compare.evidence": "Kanıtlar",
     "compare.roadmap": "Yol Haritası Adımları",
     "compare.quickWins": "Hızlı Kazanımlar",
+
+    // AI İncelemesi — ayrıştırılmış ROI alanları
+    "ai.roi": "ROI",
+    "ai.priority": "Öncelik",
+    "ai.estimate": "Tahmini",
+    "ai.step": "Adım",
 
     // Footer
     "footer.builtWith": "Next.js, TypeScript, Tailwind CSS ve shadcn/ui ile yapıldı",
