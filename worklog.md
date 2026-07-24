@@ -98,3 +98,43 @@ Stage Summary:
 - Test: 394 passed / coverage %87.72
 - Kalite: ruff + mypy --strict + black temiz, %100 type hint
 - CLI: repo-analyzer analyze <url> gerçek analiz yapıyor, --output JSON desteği
+
+---
+Task ID: 4
+Agent: Staff Software Engineer (main)
+Task: Review ve AI yorum katmanının implement edilmesi (Prompt 1-3'e sadık). Markdown/HTML/PDF rapor üretilmedi; yalnızca AIReview modeli oluşturuldu.
+
+Work Log:
+- Yeni domain model: review_outputs.py (RiskLevel, Grade A+/A/.../F, SecurityFindingDetail, SecurityReview, CodeSmellFinding, CodeQualityReview, ArchitectureObservation, ArchitectureReview, FileReview, DirectoryReview, ProjectReview, RiskItem, RiskSummary, TechnicalDebtItem, TechnicalDebt, RefactorItem, RefactorPlan, QuickWin, ExtendedHealthScore).
+- AIReview modeli genişletildi: project_review, directory_reviews, file_reviews, security_review, architecture_review, code_quality_review, technical_debt, risk_summary, health_score, refactor_plan, quick_wins alanları eklendi.
+- SecurityReviewEngine: 3 katman — (1) Bandit SAST, (2) detect-secrets, (3) 17 custom regex kuralı (hardcoded password/token/JWT, AWS/OpenAI/Stripe/GitHub key, SSH key, .env leak, eval/exec/pickle/yaml.load/shell=True, SQL injection, weak random, debug mode). Her bulgu: title, category, severity, CVSS tahmini, risk_level, file, line, code_snippet, why_risky, real_world_risk, solution, safe_code_example, references, tool, confidence içerir. OWASP Top-10 coverage + security score (0-100).
+- CodeQualityEngine: 20+ smell — God Class, Long Method, High Complexity, Dead Code, Magic Numbers, Duplicate Code, Low Cohesion, High Coupling, Anemic Model. Her smell: impact + recommendation + effort.
+- ArchitectureReviewEngine: layer separation, dependency direction (circular), modularity (coupling/cohesion), SOLID (SRP), DRY, KISS, YAGNI, DI, abstraction, composition vs inheritance. Her observation: assessment + impact + recommendation.
+- FileReviewEngine: her önemli dosya için purpose, responsibilities, code_quality, strengths, weaknesses, risks, refactor_suggestions, priority, estimated_effort, maintenance_cost.
+- DirectoryReviewEngine: her klasör için purpose, organization_assessment, dependency_assessment, size_assessment, should_split, split_recommendation.
+- ProjectReviewEngine: code_readability, maintainability, onboarding_difficulty, testability, sustainability, architectural_maturity, technical_debt_summary, development_velocity, strengths, weaknesses.
+- HealthScoreReviewEngine: 10 alt skor (security, architecture, maintainability, performance, documentation, testing, developer_experience, scalability, code_quality, overall) + A+/A/A-/B+/.../F harf notu.
+- RiskEngine: tüm bulguları Critical/High/Medium/Low bucket'larına ayırır; her risk: probability, impact, fix_cost, recommended_timeline.
+- TechnicalDebtEngine: 5 kategori (architecture/code/documentation/testing/security debt); her item: estimated_hours, estimated_developers, priority.
+- RefactorEngine: 5 kategori (Quick Wins, High Impact, Long-Term, Breaking Changes, Architecture Improvements) + QuickWin listesi (effort_minutes).
+- LLM Provider Abstraction: 6 sağlayıcı (MockLLMProvider, OpenAIProvider, AnthropicProvider, GeminiProvider, OpenRouterProvider, OllamaProvider) + LLMProviderFactory (register/create/available_providers). Strategy + Factory pattern. SDK'lar lazily imported.
+- ContextBuilder: önemli dosya seçimi (SLOC + function count ranking), snippet cap (2KB), token budget (max_tokens/max_files), token estimate.
+- PromptBuilder: dinamik prompt (repository/metrics/findings/files/instructions), prompt injection sanitization (</system> tag removal, null byte removal), system prompt (Staff Engineer role).
+- AICommentEngine: tüm deterministic review motorlarını çalıştırır → ContextBuilder → PromptBuilder → LLM çağrısı (mockable) → AIReview assembly. LLM başarısız olursa deterministic fallback.
+- Orchestrator: faz 5 (review) eklendi — llm parametresi ile AICommentEngine çalıştırır, hata yalıtımı.
+- CLI analyze: MockLLMProvider ile review fazı her zaman çalışır, summary table'a review çıktıları (health score, security score, code quality, architecture, tech debt, risks, quick wins) + AI commentary panel eklendi.
+- Testler: test_review_engines.py (37 test) — security/quality/architecture/file/directory/project/health/risk/debt/refactor/context/prompt/AI engine + LLM factory全覆盖. LLM çağrıları MockLLMProvider ile mock'landı.
+- Lint: ruff check src tests → All checks passed.
+- Format: ruff format → temiz.
+- Type check: mypy --config-file mypy.ini src tests → Success: no issues found in 167 source files.
+- Test: 431 passed / coverage 85.31% (≥85 hedefi).
+- Gerçek repo doğrulama: pallets/click → Architecture 84/100, Tech debt 51 saat, 11 high risk, 20 quick win, AI commentary gösterildi. octocat/Hello-World → Health score 76.2/100 (C).
+
+Stage Summary:
+- 10+ review motoru + LLM abstraction + AI comment engine implement edildi.
+- Tüm review çıktıları merkezi AIReview modeline aktarılıyor.
+- Her bulgu mühendislik bağlamı içerir: nedeni, etkisi, riski, çözümü, önceliği.
+- Markdown/HTML/PDF rapor bilinçle YAPILMADI (sonraki faz).
+- Test: 431 passed / coverage 85.31%
+- Kalite: ruff + mypy --strict + black temiz, %100 type hint
+- CLI: repo-analyzer analyze <url> artık review çıktısı + AI commentary gösteriyor

@@ -50,6 +50,29 @@ from repo_analyzer.core.domain.repository import (
     Repository,
     RepositoryRef,
 )
+from repo_analyzer.core.domain.review_outputs import (
+    ArchitectureObservation,
+    ArchitectureReview,
+    CodeQualityReview,
+    CodeSmellFinding,
+    DirectoryReview,
+    ExtendedHealthScore,
+    FileReview,
+    ProjectReview,
+    QuickWin,
+    RefactorItem,
+    RefactorPlan,
+    RiskItem,
+    RiskLevel,
+    RiskSummary,
+    SecurityFindingDetail,
+    SecurityReview,
+    TechnicalDebt,
+    TechnicalDebtItem,
+)
+from repo_analyzer.core.domain.review_outputs import (
+    Grade as ReviewGrade,
+)
 from repo_analyzer.core.domain.security_finding import (
     Confidence,
     SecurityCategory,
@@ -114,6 +137,26 @@ __all__ = [
     "DocumentationReport",
     "TestAnalysis",
     "GraphReport",
+    # review outputs
+    "RiskLevel",
+    "ReviewGrade",
+    "SecurityFindingDetail",
+    "SecurityReview",
+    "CodeSmellFinding",
+    "CodeQualityReview",
+    "ArchitectureObservation",
+    "ArchitectureReview",
+    "FileReview",
+    "DirectoryReview",
+    "ProjectReview",
+    "RiskItem",
+    "RiskSummary",
+    "TechnicalDebtItem",
+    "TechnicalDebt",
+    "RefactorItem",
+    "RefactorPlan",
+    "QuickWin",
+    "ExtendedHealthScore",
     # config snapshot
     "ConfigSnapshot",
     # cache

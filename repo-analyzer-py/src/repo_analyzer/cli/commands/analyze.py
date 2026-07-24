@@ -61,11 +61,17 @@ def run_analyze(
 
     # Set up cache + orchestrator.
     cache_adapter = SQLiteCacheAdapter(f"{config.cache.dir}/cache.db")
+    # The review phase always runs with at least the MockLLMProvider so the
+    # deterministic review engines produce structured output. When
+    # ``config.ai.enabled`` is True a real provider can be injected instead.
+    from repo_analyzer.adapters.llm import MockLLMProvider
+
     orchestrator = Orchestrator(
         cache_adapter,
         max_workers=4,
         clone_depth=config.vcs.clone_depth,
         timeout=config.vcs.timeout_sec,
+        llm=MockLLMProvider(),
     )
 
     ui.print("")
@@ -172,6 +178,31 @@ def _render_summary(console: Console, result: object) -> None:
         if tests.estimated_coverage is not None:
             table.add_row("Est. coverage", f"{tests.estimated_coverage:.1f}%")
 
+    # Review (AI).
+    review = getattr(result, "ai_review", None)
+    if review:
+        if review.health_score:
+            table.add_row(
+                "Health score",
+                f"{review.health_score.overall:.1f}/100 ({review.health_score.grade.value})",
+            )
+        if review.security_review:
+            table.add_row("Security score", f"{review.security_review.security_score:.1f}/100")
+            table.add_row("Security findings", str(len(review.security_review.findings)))
+        if review.code_quality_review:
+            table.add_row("Code quality", f"{review.code_quality_review.quality_score:.1f}/100")
+        if review.architecture_review:
+            table.add_row(
+                "Architecture", f"{review.architecture_review.architecture_score:.1f}/100"
+            )
+        if review.technical_debt:
+            table.add_row("Tech debt (hrs)", f"{review.technical_debt.total_estimated_hours:.0f}")
+        if review.risk_summary:
+            table.add_row("Critical risks", str(len(review.risk_summary.critical)))
+            table.add_row("High risks", str(len(review.risk_summary.high)))
+        if review.refactor_plan:
+            table.add_row("Quick wins", str(len(review.quick_wins)))
+
     # Status.
     status = getattr(result, "status", None)
     if status:
@@ -181,6 +212,17 @@ def _render_summary(console: Console, result: object) -> None:
         table.add_row("Errors", str(len(errors)))
 
     console.print(table)
+
+    # Render the AI commentary panel if available.
+    if review and review.metadata.get("commentary"):
+        console.print(
+            Panel(
+                review.metadata["commentary"],
+                title="[title]AI Engineering Review[/title]",
+                border_style="info",
+                expand=False,
+            )
+        )
 
 
 __all__ = ["run_analyze"]

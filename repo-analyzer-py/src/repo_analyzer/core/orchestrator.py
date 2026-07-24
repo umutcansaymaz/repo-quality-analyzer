@@ -41,8 +41,10 @@ from repo_analyzer.core.domain.analysis_result import AnalysisResult
 from repo_analyzer.core.domain.repository import Repository
 from repo_analyzer.core.ports.analyzer_port import AnalyzerPort
 from repo_analyzer.core.ports.cache_port import CachePort
+from repo_analyzer.core.ports.llm_port import LLMPort
 from repo_analyzer.infrastructure.logging import get_logger
 from repo_analyzer.infrastructure.progress import ProgressUI
+from repo_analyzer.review import AICommentEngine
 
 _logger = get_logger(__name__)
 
@@ -57,6 +59,7 @@ class Orchestrator:
         max_workers: int = 4,
         clone_depth: int = 1,
         timeout: int = 120,
+        llm: LLMPort | None = None,
     ) -> None:
         self._cache = cache
         self._max_workers = max(1, max_workers)
@@ -68,6 +71,10 @@ class Orchestrator:
             ),
         )
         self._analyzers: list[AnalyzerPort] = self._default_analyzers()
+        self._llm = llm
+        self._review_engine: AICommentEngine | None = None
+        if llm is not None:
+            self._review_engine = AICommentEngine(llm)
 
     def _default_analyzers(self) -> list[AnalyzerPort]:
         return [
@@ -124,6 +131,20 @@ class Orchestrator:
                     result.add_error({"phase": phase, "error": "cancelled"})
                     break
                 self._run_phase(phases[phase], resolved, workspace, result, progress)
+
+            # Phase 5: review (deterministic engines + optional LLM).
+            if self._review_engine is not None:
+                if progress:
+                    progress.info("Running review phase...")
+                try:
+                    result.ai_review = self._review_engine.review(result, workspace)
+                    if progress:
+                        progress.success("Review complete")
+                except Exception as exc:
+                    _logger.warning("Review phase failed: %s", exc)
+                    result.add_error({"phase": "review", "error": str(exc)})
+                    if progress:
+                        progress.warning(f"Review phase failed: {exc}")
 
             result.mark_completed()
         except Exception as exc:

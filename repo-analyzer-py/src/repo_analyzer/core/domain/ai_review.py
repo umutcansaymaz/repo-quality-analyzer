@@ -1,4 +1,10 @@
-"""AI-review domain model."""
+"""AI-review domain model.
+
+The :class:`AIReview` is the central output of the review phase. It bundles
+every structured review (security, code quality, architecture, file/directory
+/project, risk, technical debt, refactor) plus the LLM-generated engineering
+commentary.
+"""
 
 from __future__ import annotations
 
@@ -7,6 +13,19 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from repo_analyzer.core.domain.review_outputs import (
+    ArchitectureReview,
+    CodeQualityReview,
+    DirectoryReview,
+    ExtendedHealthScore,
+    FileReview,
+    ProjectReview,
+    QuickWin,
+    RefactorPlan,
+    RiskSummary,
+    TechnicalDebt,
+)
 
 
 class Priority(str, Enum):
@@ -51,9 +70,13 @@ class Recommendation(BaseModel):
 
 
 class AIReview(BaseModel):
-    """An AI-generated review of a repository analysis."""
+    """An AI-generated review of a repository analysis.
 
-    model_config = ConfigDict(extra="forbid")
+    Bundles the structured reviews produced by the deterministic engines with
+    the LLM-generated engineering commentary.
+    """
+
+    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
     id: UUID = Field(default_factory=uuid4)
     summary: str = ""
@@ -65,10 +88,34 @@ class AIReview(BaseModel):
     generated_at: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
+    # Structured review outputs.
+    project_review: ProjectReview | None = None
+    directory_reviews: list[DirectoryReview] = Field(default_factory=list)
+    file_reviews: list[FileReview] = Field(default_factory=list)
+    security_review: SecurityReview | None = None
+    architecture_review: ArchitectureReview | None = None
+    code_quality_review: CodeQualityReview | None = None
+    technical_debt: TechnicalDebt | None = None
+    risk_summary: RiskSummary | None = None
+    health_score: ExtendedHealthScore | None = None
+    refactor_plan: RefactorPlan | None = None
+    quick_wins: list[QuickWin] = Field(default_factory=list)
+
     @field_validator("summary")
     @classmethod
     def _strip_summary(cls, value: str) -> str:
         return value.strip()
 
 
-__all__ = ["AIReview", "ModelInfo", "Priority", "Recommendation"]
+# Late import to avoid a circular dependency at module-load time.
+from repo_analyzer.core.domain.review_outputs import SecurityReview  # noqa: E402
+
+AIReview.model_rebuild()
+
+
+__all__ = [
+    "AIReview",
+    "ModelInfo",
+    "Priority",
+    "Recommendation",
+]

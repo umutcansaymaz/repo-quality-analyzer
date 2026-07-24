@@ -61,6 +61,8 @@ ignore = [
 [lint.per-file-ignores]
 "tests/**" = ["S", "SLF", "PT", "E501", "N802", "SIM117"]
 "tests/**/__init__.py" = ["F401"]
+"src/repo_analyzer/review/**" = ["E501"]
+"src/repo_analyzer/adapters/llm/**" = ["E501"]
 
 [lint.isort]
 known-first-party = ["repo_analyzer"]
