@@ -106,17 +106,27 @@ def analyze(
     config_path: Path | None = ConfigOption,
     verbose: bool = VerboseOption,
     debug: bool = DebugOption,
+    output: Path | None = typer.Option(
+        None,
+        "--output",
+        "-o",
+        help="Write the JSON AnalysisResult to this path.",
+        exists=False,
+        dir_okay=False,
+        resolve_path=False,
+    ),
+    no_cache: bool = typer.Option(False, "--no-cache", help="Bypass the clone cache."),
 ) -> None:
-    """Initialize the analyzer pipeline for a repository.
+    """Run the full analysis pipeline for a repository.
 
-    At this infrastructure stage no analysis is performed: the command
-    validates the repository URL, loads configuration, sets up logging and
-    prints a confirmation that the pipeline has been initialized.
+    Clones the repository (using cache when available) and runs all built-in
+    analyzers. The structured result is printed as a summary table and can
+    optionally be saved as JSON via ``--output``.
     """
     from repo_analyzer.cli.commands.analyze import run_analyze
 
     config = _build_config(config_path, verbose, debug)
-    run_analyze(console, config, repository)
+    run_analyze(console, config, repository, output=output)
 
 
 @app.command()

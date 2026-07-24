@@ -50,11 +50,12 @@ class TestGitHubRepositoryProvider:
         with pytest.raises(RepositoryNotFoundException):
             provider.resolve(repo)
 
-    def test_clone_not_implemented(self, tmp_path: Path) -> None:
-        """Clone should raise at the infrastructure stage."""
-        provider = GitHubRepositoryProvider()
-        repo = parse_repository_url("https://github.com/o/r")
-        with pytest.raises(RepositoryException):
+    @pytest.mark.network
+    def test_clone_nonexistent_repo_raises(self, tmp_path: Path) -> None:
+        """Cloning a non-existent repo should raise RepositoryException."""
+        provider = GitHubRepositoryProvider(timeout=15)
+        repo = parse_repository_url("https://github.com/o/this-repo-does-not-exist-xyz")
+        with pytest.raises((RepositoryException,)):
             provider.clone(repo, tmp_path / "dest")
 
     def test_list_branches_returns_empty(self) -> None:

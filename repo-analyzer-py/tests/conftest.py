@@ -46,3 +46,17 @@ def env_cache_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[P
 def sample_repository_url() -> str:
     """A sample public GitHub URL."""
     return "https://github.com/octocat/Hello-World"
+
+
+@pytest.fixture()
+def sample_workspace() -> Path:
+    """The path to the bundled sample-repo fixture (with .git history)."""
+    return Path(__file__).parent / "fixtures" / "sample_repo"
+
+
+@pytest.fixture()
+def sample_repo(sample_workspace: Path):  # type: ignore[no-untyped-def]
+    """A parsed :class:`Repository` for the sample fixture."""
+    from repo_analyzer.core.domain.repository import parse_repository_url
+
+    return parse_repository_url("https://github.com/test/sample-repo")

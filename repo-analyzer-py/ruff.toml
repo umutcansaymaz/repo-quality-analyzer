@@ -44,16 +44,22 @@ ignore = [
     "TC001",  # move application import into type-checking block
     "TC002",  # move third-party import into type-checking block
     "TC003",  # move standard-library import into type-checking block
+    "SIM102", # nested if (kept for readability with comments)
+    "SIM103", # return condition directly (explicit branches clearer)
     "SIM105", # use contextlib.suppress (less readable for defensive cleanup)
     "RUF001", # ambiguous unicode char (intentional icon glyphs)
+    "RUF002", # ambiguous unicode in docstrings (intentional math symbols)
+    "RUF005", # list concatenation (readable as-is)
     "RUF022", # __all__ sorting (manual order preferred for readability)
     "RUF046", # int() already integer (intentional clamping for clarity)
     "N818",   # exception suffix Exception vs Error (SDD mandates *Exception)
     "A002",   # builtin shadowing (format/id are accepted API names)
+    "B007",   # unused loop var (os.walk convention)
+    "B008",   # typer.Option in defaults (Typer idiom)
 ]
 
 [lint.per-file-ignores]
-"tests/**" = ["S", "SLF", "PT", "E501"]
+"tests/**" = ["S", "SLF", "PT", "E501", "N802", "SIM117"]
 "tests/**/__init__.py" = ["F401"]
 
 [lint.isort]

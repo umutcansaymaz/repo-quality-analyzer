@@ -8,6 +8,21 @@ carry no external dependencies.
 from __future__ import annotations
 
 from repo_analyzer.core.domain.ai_review import AIReview, ModelInfo, Recommendation
+from repo_analyzer.core.domain.analysis_outputs import (
+    ComplexityReport,
+    DependencyAnalysis,
+    DocumentationReport,
+    FileInventory,
+    FileMetrics,
+    GitAnalysis,
+    GraphReport,
+    ImportAnalysis,
+    LanguageDistribution,
+    MetricsReport,
+    RepositoryMetadata,
+    SymbolCollection,
+    TestAnalysis,
+)
 from repo_analyzer.core.domain.analysis_result import AnalysisResult, AnalysisStatus
 from repo_analyzer.core.domain.architecture_finding import (
     ArchitectureFinding,
@@ -85,6 +100,20 @@ __all__ = [
     # analysis result
     "AnalysisResult",
     "AnalysisStatus",
+    # analysis outputs
+    "FileInventory",
+    "RepositoryMetadata",
+    "LanguageDistribution",
+    "SymbolCollection",
+    "ImportAnalysis",
+    "DependencyAnalysis",
+    "FileMetrics",
+    "MetricsReport",
+    "ComplexityReport",
+    "GitAnalysis",
+    "DocumentationReport",
+    "TestAnalysis",
+    "GraphReport",
     # config snapshot
     "ConfigSnapshot",
     # cache

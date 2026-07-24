@@ -1,4 +1,11 @@
-"""Analysis-result aggregate model."""
+"""Analysis-result aggregate model.
+
+This is the central object produced by the orchestrator and consumed by the
+report generators. It bundles every kind of finding plus all structured
+analysis outputs (file inventory, language distribution, AST symbols,
+import / dependency graphs, metrics, complexity, git stats, documentation,
+tests and graph-engine output).
+"""
 
 from __future__ import annotations
 
@@ -10,6 +17,20 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel, ConfigDict, Field
 
 from repo_analyzer.core.domain.ai_review import AIReview
+from repo_analyzer.core.domain.analysis_outputs import (
+    ComplexityReport,
+    DependencyAnalysis,
+    DocumentationReport,
+    FileInventory,
+    GitAnalysis,
+    GraphReport,
+    ImportAnalysis,
+    LanguageDistribution,
+    MetricsReport,
+    RepositoryMetadata,
+    SymbolCollection,
+    TestAnalysis,
+)
 from repo_analyzer.core.domain.architecture_finding import ArchitectureFinding
 from repo_analyzer.core.domain.dependency import Dependency
 from repo_analyzer.core.domain.health_score import HealthScore
@@ -34,10 +55,10 @@ class AnalysisResult(BaseModel):
 
     This is the object produced by the orchestrator and consumed by the
     report generators. It bundles every kind of finding plus the computed
-    health score and the optional AI review.
+    health score, the optional AI review and all structured analysis outputs.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
     id: UUID = Field(default_factory=uuid4)
     repository: Repository
@@ -46,6 +67,7 @@ class AnalysisResult(BaseModel):
     finished_at: datetime | None = None
     commit_sha: str | None = None
 
+    # Findings.
     security_findings: list[SecurityFinding] = Field(default_factory=list)
     issues: list[Issue] = Field(default_factory=list)
     metrics: list[Metric] = Field(default_factory=list)
@@ -53,6 +75,20 @@ class AnalysisResult(BaseModel):
     architecture: ArchitectureFinding | None = None
     health_score: HealthScore | None = None
     ai_review: AIReview | None = None
+
+    # Structured analysis outputs.
+    repository_metadata: RepositoryMetadata | None = None
+    file_inventory: FileInventory | None = None
+    language_distribution: LanguageDistribution | None = None
+    symbols: SymbolCollection | None = None
+    import_analysis: ImportAnalysis | None = None
+    dependency_analysis: DependencyAnalysis | None = None
+    metrics_report: MetricsReport | None = None
+    complexity_report: ComplexityReport | None = None
+    git_analysis: GitAnalysis | None = None
+    documentation_report: DocumentationReport | None = None
+    test_analysis: TestAnalysis | None = None
+    graph_report: GraphReport | None = None
 
     metadata: dict[str, Any] = Field(default_factory=dict)
     errors: list[dict[str, Any]] = Field(default_factory=list)

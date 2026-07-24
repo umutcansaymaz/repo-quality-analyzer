@@ -26,18 +26,27 @@ class DefaultRepositoryProviderFactory(RepositoryProviderFactory):
     ``True`` from :meth:`RepositoryProvider.can_handle` is selected.
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        clone_depth: int = 1,
+        partial_clone: bool = True,
+        timeout: int = 120,
+    ) -> None:
         self._providers: list[RepositoryProvider] = []
-        # Register built-in providers.
-        self.register(GitHubRepositoryProvider())
+        self._clone_depth = clone_depth
+        self._partial_clone = partial_clone
+        self._timeout = timeout
+        self.register(
+            GitHubRepositoryProvider(
+                clone_depth=clone_depth,
+                partial_clone=partial_clone,
+                timeout=timeout,
+            )
+        )
 
     def register(self, provider: RepositoryProvider) -> None:
-        """Register a provider.
-
-        Args:
-            provider: The provider to register. Idempotent — registering the
-                same provider instance twice has no effect.
-        """
+        """Register a provider."""
         if provider in self._providers:
             return
         _logger.debug("Registering repository provider %s", type(provider).__name__)

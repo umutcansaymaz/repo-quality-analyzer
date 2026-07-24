@@ -59,3 +59,42 @@ Stage Summary:
 - Test: 276 passed / coverage 91.80%
 - Kalite: ruff + mypy --strict + black temiz, %100 type hint
 - Mimari: SDD'deki Hexagonal + Plugin + Modular Monolith + Pipeline uygulanmış; analiz motorları/AI/security AST/rapor içerikleri sonraki fazlara bırakılmış (sadece altyapı).
+
+---
+Task ID: 3
+Agent: Staff Software Engineer (main)
+Task: Analiz motorlarının implement edilmesi (Prompt 1 SDD + Prompt 2 altyapıya sadık). AI/rapor/security-AST/PDF-HTML hariç; tüm analiz motorları çalışır durum.
+
+Work Log:
+- Yeni domain modelleri: analysis_outputs.py (FileInventory, RepositoryMetadata, LanguageDistribution, SymbolCollection, ImportAnalysis, DependencyAnalysis, FileMetrics, MetricsReport, ComplexityReport, GitAnalysis, DocumentationReport, TestAnalysis, GraphReport).
+- AnalysisResult modeli genişletildi: tüm analiz çıktıları için alanlar eklendi (repository_metadata, file_inventory, language_distribution, symbols, import_analysis, dependency_analysis, metrics_report, complexity_report, git_analysis, documentation_report, test_analysis, graph_report).
+- BaseAnalyzer abstract base sınıfı oluşturuldu (metadata/initialize/dispose boilerplate).
+- Repository Clone Engine: GitHubRepositoryProvider gerçek git clone yapıyor (HTTPS/SSH/Token/SSH-Agent), shallow+partial clone, timeout, ls-remote ile commit SHA resolve, branch/tag listeleme, hata → exception mapping (auth/not-found/timeout). CloneService: cache lookup, retry (exponential backoff), cancellation (threading.Event), progress, temp directory, cleanup.
+- Repository Detector: git shortlog/rev-list/branch/tag ile contributors, default branch, tags, total commits, total branches, last commit SHA+date; LICENSE dosya tespiti (MIT/Apache/GPL/BSD); README path; dir size.
+- File System Scanner: os.walk + gitignore filtering, empty/binary/generated/duplicate/symlink/hidden detection, extension distribution, largest files/directories, SHA-256 duplicate grouping, binary heuristic (null byte + non-text ratio).
+- Language Detector: 17 dil (Python/JS/TS/Go/Rust/Java/Kotlin/Swift/C/C++/C#/PHP/Ruby/Shell/YAML/JSON/Markdown), extension + shebang detection, LOC counting, percentage distribution.
+- AST Parser: tree-sitter (tree_sitter_language_pack) ile Python/JS/TS/Go/Rust/Java/Kotlin/C/C++/C# parse; function/class/method/interface/struct/enum/constant/decorator/annotation/imports/exports/inheritance extraction; regex fallback (Ruby/PHP).
+- Import Analyzer: Python ast + JS/TS regex; unused/circular/duplicate import detection; most-imported modules; external/internal classification; import graph.
+- Dependency Analyzer: 8 manifest parser (requirements.txt, pyproject.toml, package.json, Cargo.toml, go.mod, composer.json, pom.xml, build.gradle); unused/duplicate detection; dependency graph.
+- Metric Engine: LOC/SLOC/comment/blank lines, comment ratio, function/class count, avg function/class length, avg nesting (Python ast); per-file + aggregate.
+- Complexity Analyzer: Radon ile cyclomatic complexity (cc_visit + cc_rank), maintainability index (mi_visit), class complexity, top 50 functions/classes, average complexity.
+- Git Analyzer: git log parse (author/date/files), most-changed files, most-active directories/contributors, commit distribution, hotspot analysis.
+- Documentation Analyzer: README inspection (installation/usage/API/contribution/wiki), LICENSE/CHANGELOG/CONTRIBUTING file detection, Python docstring coverage.
+- Test Analyzer: framework detection (pytest/unittest/jest/vitest/mocha/rspec/go-testing), test file detection (test_*/_test.*), test function count, fixture/mock detection, coverage from coverage.xml/coverage-final.json.
+- Graph Engine: NetworkX ile import/directory/module/dependency graph, cycle detection (nx.simple_cycles).
+- Orchestrator: clone → 5 faz (0-4) pipeline, faz içi paralel (ThreadPoolExecutor), hata yalıtımı (başarısız analyzer skip + errors'a kayıt), AnalysisResult'a merge.
+- CLI analyze komutu: gerçek analiz yapıyor, --output (JSON) + --no-cache flags, Rich summary table (repository metadata, files, languages, metrics, complexity, dependencies, docs, tests, status).
+- Testler: 394 test passed (network testler deselected), coverage %87.72 (≥85 hedefi). Test dosyaları: test_analyzers.py (52), test_analyzer_edge_cases.py (25), test_manifests.py (32), test_clone_service.py (26), test_orchestrator.py (6) + mevcut 276 test güncellendi.
+- Test fixture: tests/fixtures/sample_repo/ (Python modülü + testler + README + LICENSE + CHANGELOG + requirements.txt + pyproject.toml + package.json + git history).
+- Lint: ruff check src tests → All checks passed.
+- Format: ruff format → 140 files formatted.
+- Type check: mypy --config-file mypy.ini src tests → Success: no issues found in 139 source files.
+- Gerçek repo doğrulama: pallets/click reposu üzerinde analiz başarıyla çalıştı (165 dosya, 1748 fonksiyon, 176 sınıf, avg complexity 3.27, 11 bağımlılık, 34 test dosyası, pytest/unittest/mocha tespit edildi, README %75, docstring %28).
+
+Stage Summary:
+- 12 analiz motoru + clone engine + orchestrator implement edildi.
+- Analiz çıktıları merkezi AnalysisResult modeline aktarılıyor (SDD gereği).
+- AI yorumu, PDF/HTML rapor, LLM, Bandit/detect-secrets bilinçli olarak YAPILMADI (sonraki faz).
+- Test: 394 passed / coverage %87.72
+- Kalite: ruff + mypy --strict + black temiz, %100 type hint
+- CLI: repo-analyzer analyze <url> gerçek analiz yapıyor, --output JSON desteği
