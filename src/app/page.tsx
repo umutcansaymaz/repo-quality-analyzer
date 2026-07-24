@@ -71,6 +71,7 @@ import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import { LanguageProvider, useI18n, type Language } from "@/components/analyzer/i18n";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, Legend } from "recharts";
+import { generateDemoData } from "@/lib/demo-data";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -440,7 +441,9 @@ function AppContent() {
       if (apiRes) {
         try {
           const data = await apiRes.json();
-          const resultRes = await apiFetch(`/api/result/${data.job_id}`);
+          // Pass repo as a query param so the mock /api/result route can
+          // regenerate the demo result if the job isn't in its in-memory store.
+          const resultRes = await apiFetch(`/api/result/${data.job_id}?repo=${encodeURIComponent(repoUrl)}`);
           resultData = await resultRes.json();
         } catch {
           resultData = getDemoData(repoUrl);
@@ -2828,12 +2831,15 @@ function ReportExport({ data }: { data: any }) {
 
   const handleExport = async (format: string) => {
     try {
-      const res = await apiFetch("/api/report", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ job_id: data?.id || "latest", format }) });
+      const res = await apiFetch("/api/report", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ job_id: data?.id || "latest", format, repository_url: data?.repository?.url || "" }) });
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `report.${format === "md" ? "md" : format}`;
+      // Use the filename from Content-Disposition if present, otherwise guess.
+      const cd = res.headers.get("Content-Disposition") || "";
+      const m = cd.match(/filename="([^"]+)"/);
+      a.download = m ? m[1] : `report.${format === "md" ? "md" : format}`;
       a.click();
       URL.revokeObjectURL(url);
       toast.success(`${t("report.exported")} ${format.toUpperCase()}`);
@@ -2850,7 +2856,6 @@ function ReportExport({ data }: { data: any }) {
         <div className="absolute right-0 top-full mt-1 z-50 rounded-lg border bg-background shadow-lg">
           <div className="p-1">
             <button onClick={() => handleExport("html")} className="flex w-full items-center gap-2 rounded px-3 py-1.5 text-sm hover:bg-muted">HTML</button>
-            <button onClick={() => handleExport("pdf")} className="flex w-full items-center gap-2 rounded px-3 py-1.5 text-sm hover:bg-muted">PDF</button>
             <button onClick={() => handleExport("md")} className="flex w-full items-center gap-2 rounded px-3 py-1.5 text-sm hover:bg-muted">Markdown</button>
             <button onClick={() => handleExport("json")} className="flex w-full items-center gap-2 rounded px-3 py-1.5 text-sm hover:bg-muted">JSON</button>
           </div>
@@ -3088,90 +3093,10 @@ function riskVariant(risk: string): any {
 }
 
 // ---------------------------------------------------------------------------
-// Demo Data (used when API is unavailable)
+// Demo Data — delegated to the shared module so the mock API routes and the
+// client-side fallback use the exact same generator.
 // ---------------------------------------------------------------------------
 
 function getDemoData(repoUrl: string): any {
-  const owner = repoUrl.split("/").slice(-2)[0] || "example";
-  const name = repoUrl.split("/").slice(-1)[0]?.replace(".git", "") || "repo";
-  return {
-    id: "demo-001", status: "completed",
-    repository: { url: repoUrl, owner, name, host: "github.com", access: "public" },
-    repository_metadata: { name, owner, description: "Demo repository", default_branch: "main", license: "MIT", total_commits: 142, total_branches: 3, contributors: ["alice", "bob", "charlie"], size_bytes: 245000 },
-    ai_review: { health_score: { overall: 72.5, grade: "B-", security: 85.0, architecture: 65.0, maintainability: 70.0, performance: 75.0, documentation: 55.0, testing: 60.0, developer_experience: 68.0, scalability: 72.0, code_quality: 71.0 }, security_review: { security_score: 85.0, findings: [], overall_severity: "info" } },
-    root_causes: {
-      root_causes: [
-        { id: "rc-1", category: "god_class", title: "God Class: UserService", severity: "high", confidence: 0.85, description: "UserService accumulates multiple responsibilities.", technical_rationale: "4 distinct symptom types detected from 3 analyzers.", root_cause_origin: "Organic growth without refactoring.", affected_files: ["src/services/user_service.py", "src/api/user_routes.py"], affected_classes: ["UserService"], affected_modules: ["services.user"], evidence_count: 8, evidence_links: [{ evidence_id: "ev-1", contribution: 0.9, reason: "High complexity" }, { evidence_id: "ev-2", contribution: 0.8, reason: "Long method" }, { evidence_id: "ev-3", contribution: 0.7, reason: "Large file" }] },
-        { id: "rc-2", category: "circular_dependency", title: "Circular Dependency: auth ↔ user", severity: "high", confidence: 0.92, description: "Circular dependency between auth and user modules.", technical_rationale: "Import graph contains a cycle.", root_cause_origin: "Modules added without checking import direction.", affected_files: ["src/auth/service.py", "src/user/service.py"], affected_modules: ["auth", "user"], evidence_count: 3, evidence_links: [{ evidence_id: "ev-4", contribution: 1.0, reason: "Direct cycle" }] },
-        { id: "rc-3", category: "tight_coupling", title: "Tight Coupling: Database Layer", severity: "medium", confidence: 0.75, description: "Multiple services directly depend on the database client.", technical_rationale: "Graph analysis shows excessive dependency edges.", root_cause_origin: "Direct dependencies instead of abstractions.", affected_files: ["src/services/user_service.py", "src/services/order_service.py"], affected_modules: ["services"], evidence_count: 5, evidence_links: [{ evidence_id: "ev-5", contribution: 0.8, reason: "measures coupling" }] },
-        { id: "rc-4", category: "shotgun_surgery", title: "Shotgun Surgery: logging changes", severity: "low", confidence: 0.68, description: "Logging changes require modifications across 8 files.", technical_rationale: "Finding appears in 8 different files.", root_cause_origin: "Copy-paste without extracting a utility.", affected_files: ["src/api/users.py", "src/api/orders.py", "src/api/products.py", "src/api/payments.py", "src/services/user_service.py"], affected_modules: ["api", "services"], evidence_count: 8, evidence_links: [{ evidence_id: "ev-6", contribution: 0.7, reason: "systemic pattern" }] },
-      ],
-      relationships: [{ source_root_cause_id: "rc-1", target_root_cause_id: "rc-3", relationship_type: "causes", detail: "God Class causes tight coupling" }],
-      statistics: { total_root_causes: 4, average_confidence: 0.80, by_category_counts: { god_class: 1, circular_dependency: 1, tight_coupling: 1, shotgun_surgery: 1 }, by_severity_counts: { high: 2, medium: 1, low: 1 } },
-    },
-    engineering_plan: {
-      steps: [
-        { id: "step-1", step_number: 1, title: "Split God Class: UserService into focused services", technical_description: "Extract auth, profile, notifications, and settings into separate services.", root_cause_id: "rc-1", root_cause_category: "god_class", priority: "high", roi: 2.25, estimate: { hours: 40, display: "5 days", developers: 2, confidence: 0.5 }, risk: "high", risk_reason: "Large-scale refactoring.", expected_outcomes: ["Improved maintainability (+90%)", "Improved testability (+80%)"], prerequisites: [], alternatives: [{ id: "alt-1", name: "Extract Class", description: "Split into focused classes.", advantages: ["Clear responsibilities", "Easier to test"], disadvantages: ["More files to manage"], risk: "medium", maintenance_cost: "low", performance_impact: "neutral", migration_difficulty: "medium" }, { id: "alt-2", name: "Facade + Delegate", description: "Keep as facade, delegate internally.", advantages: ["Backward compatible", "Gradual migration"], disadvantages: ["Facade still exists"], risk: "low", maintenance_cost: "medium", performance_impact: "neutral", migration_difficulty: "low" }], affected_files: ["src/services/user_service.py"] },
-        { id: "step-2", step_number: 2, title: "Break circular dependency: auth ↔ user", technical_description: "Extract shared logic into a new lower-level module.", root_cause_id: "rc-2", root_cause_category: "circular_dependency", priority: "high", roi: 3.54, estimate: { hours: 24, display: "3 days", developers: 1, confidence: 0.5 }, risk: "high", risk_reason: "Changes affect critical paths.", expected_outcomes: ["Improved maintainability (+85%)", "Improved testability (+80%)"], prerequisites: ["step-1"], alternatives: [], affected_files: ["src/auth/service.py", "src/user/service.py"] },
-        { id: "step-3", step_number: 3, title: "Introduce repository interface for database access", technical_description: "Create an abstract repository interface and use DI.", root_cause_id: "rc-3", root_cause_category: "tight_coupling", priority: "medium", roi: 1.88, estimate: { hours: 24, display: "3 days", developers: 1, confidence: 0.5 }, risk: "medium", risk_reason: "Moderate changes.", expected_outcomes: ["Improved testability (+70%)", "Improved maintainability (+75%)"], prerequisites: ["step-1"], alternatives: [], affected_files: ["src/services/user_service.py", "src/services/order_service.py"] },
-        { id: "step-4", step_number: 4, title: "Extract shared logging utility", technical_description: "Create a centralized logging wrapper.", root_cause_id: "rc-4", root_cause_category: "shotgun_surgery", priority: "low", roi: 5.42, estimate: { hours: 4, display: "4 hours", developers: 1, confidence: 0.7 }, risk: "low", risk_reason: "Low risk; isolated changes.", expected_outcomes: ["Reduced technical debt", "Consistent logging"], prerequisites: [], alternatives: [], affected_files: ["src/api/users.py", "src/api/orders.py"] },
-      ],
-      roadmap: { sprints: [{ sprint_number: 1, title: "Sprint 1: Critical Refactoring", step_ids: ["step-1"], total_estimated_hours: 40, goals: ["Split God Class"], steps: [] }, { sprint_number: 2, title: "Sprint 2: Architecture Fixes", step_ids: ["step-2", "step-3"], total_estimated_hours: 48, goals: ["Break circular dependency", "Introduce repository interface"], steps: [] }, { sprint_number: 3, title: "Sprint 3: Cleanup & Maintenance", step_ids: ["step-4"], total_estimated_hours: 4, goals: ["Extract shared logging utility"], steps: [] }], total_estimated_hours: 92, total_steps: 4, summary: "3 sprint(s) covering 4 step(s), ~92 engineer-hours total." },
-      quick_wins: [{ id: "qw-1", title: "Extract shared logging utility", description: "Create a centralized logging wrapper.", effort_minutes: 240, benefit: "Benefit score: 65/100", planning_step_id: "step-4", root_cause_id: "rc-4" }, { id: "qw-2", title: "Remove unused imports", description: "5 unused imports detected.", effort_minutes: 15, benefit: "Quick fix: dead_code", planning_step_id: null, root_cause_id: null }],
-      blockers: [{ id: "blk-1", blocker_root_cause_id: "rc-1", blocked_root_cause_ids: ["rc-3"], reason: "God Class must be addressed first.", planning_step_id: "step-1" }],
-      statistics: { total_steps: 4, total_quick_wins: 2, total_blockers: 1, average_roi: 3.27, priority_counts: { high: 2, medium: 1, low: 1 }, risk_counts: { high: 2, medium: 1, low: 1 } },
-    },
-    evidence: {
-      evidence: [
-        { id: "ev-1", analyzer: "complexity-analyzer", finding_type: "complexity", severity: "high", confidence: 1.0, category: "cyclomatic_complexity", file_path: "src/services/user_service.py", line: 45, class_name: "UserService", function_name: "process_user", message: "High complexity: process_user (CC=41)", tags: ["complexity", "E"], metrics: { complexity: 41, rank: "E" } },
-        { id: "ev-2", analyzer: "code-quality-engine", finding_type: "code_quality", severity: "medium", confidence: 0.8, category: "long_method", file_path: "src/services/user_service.py", line: 45, class_name: "UserService", function_name: "process_user", message: "Long method: process_user", tags: ["long_method", "high"] },
-        { id: "ev-3", analyzer: "metrics-engine", finding_type: "metric", severity: "medium", confidence: 1.0, category: "large_file", file_path: "src/services/user_service.py", message: "Large file (650 SLOC)", tags: ["large_file"], metrics: { sloc: 650 } },
-        { id: "ev-4", analyzer: "import-analyzer", finding_type: "import", severity: "high", confidence: 1.0, category: "circular_import", message: "Circular import: auth → user → auth", tags: ["circular_import"] },
-        { id: "ev-5", analyzer: "architecture-review-engine", finding_type: "architecture", severity: "medium", confidence: 0.7, category: "high_coupling", file_path: "src/services/user_service.py", message: "High coupling (0.85)", tags: ["high_coupling"] },
-        { id: "ev-6", analyzer: "import-analyzer", finding_type: "import", severity: "low", confidence: 0.9, category: "unused_import", file_path: "src/api/users.py", message: "Unused import: os", tags: ["unused_import", "dead_code"] },
-        { id: "ev-7", analyzer: "security-engine", finding_type: "security", severity: "critical", confidence: 0.9, category: "hardcoded_password", file_path: "src/config.py", line: 10, message: "Hardcoded Password", tags: ["hardcoded_password"] },
-        { id: "ev-8", analyzer: "test-coverage-analyzer", finding_type: "test", severity: "medium", confidence: 0.9, category: "low_coverage", message: "Low test coverage: 35%", tags: ["testing", "low_coverage"], metrics: { estimated_coverage: 35 } },
-      ],
-      relationships: [],
-      statistics: { total_evidence: 8, by_type_counts: { complexity: 1, code_quality: 1, metric: 1, import: 2, architecture: 1, security: 1, test: 1 }, by_severity_counts: { critical: 1, high: 2, medium: 3, low: 2 }, by_analyzer_counts: { "complexity-analyzer": 1, "code-quality-engine": 1, "metrics-engine": 1, "import-analyzer": 2, "architecture-review-engine": 1, "security-engine": 1, "test-coverage-analyzer": 1 } },
-    },
-    knowledge_graph: {
-      nodes: [
-        { id: "n1", node_type: "repository", label: `${owner}/${name}`, key: "repo:1" },
-        { id: "n2", node_type: "file", label: "src/services/user_service.py", key: "file:1", file_path: "src/services/user_service.py" },
-        { id: "n3", node_type: "file", label: "src/api/users.py", key: "file:2", file_path: "src/api/users.py" },
-        { id: "n4", node_type: "class", label: "UserService", key: "class:1", file_path: "src/services/user_service.py", class_name: "UserService" },
-        { id: "n5", node_type: "function", label: "process_user", key: "func:1", file_path: "src/services/user_service.py", function_name: "process_user" },
-        { id: "n6", node_type: "module", label: "services.user", key: "module:1", module: "services.user" },
-        { id: "n7", node_type: "module", label: "auth", key: "module:2", module: "auth" },
-        { id: "n8", node_type: "security_finding", label: "Hardcoded Password", key: "ev:7", file_path: "src/config.py", severity: "critical", evidence_id: "ev-7", metadata: { analyzer: "security-engine" } },
-        { id: "n9", node_type: "metric_finding", label: "High complexity: process_user", key: "ev:1", file_path: "src/services/user_service.py", severity: "high", evidence_id: "ev-1", metadata: { analyzer: "complexity-analyzer" } },
-        { id: "n10", node_type: "dependency", label: "requests", key: "dep:1", metadata: {} },
-      ],
-      edges: [
-        { id: "e1", source_id: "n2", target_id: "n1", edge_type: "belongs_to" },
-        { id: "e2", source_id: "n3", target_id: "n1", edge_type: "belongs_to" },
-        { id: "e3", source_id: "n4", target_id: "n2", edge_type: "belongs_to" },
-        { id: "e4", source_id: "n5", target_id: "n2", edge_type: "belongs_to" },
-        { id: "e5", source_id: "n9", target_id: "n5", edge_type: "affects" },
-        { id: "e6", source_id: "n8", target_id: "n2", edge_type: "affects" },
-      ],
-      total_nodes: 10, total_edges: 6,
-    },
-    file_inventory: { total_files: 24, total_directories: 8, total_bytes: 245000, files: ["src/services/user_service.py", "src/api/users.py", "src/api/orders.py", "src/auth/service.py", "src/user/service.py", "src/config.py", "src/models/user.py", "src/utils/helpers.py", "tests/test_user_service.py", "README.md"] },
-    engineering_review: {
-      offline: true,
-      sections: [
-        { section_type: "executive_summary", title: "Executive Summary", body: "Root cause analysis identified 4 architectural root cause(s) with an average confidence of 80%. The engineering plan proposes 4 refactoring step(s) across 3 sprint(s), totaling approximately 92 engineer-hours. 2 quick win(s) identified.", confidence: "high" },
-        { section_type: "top_root_causes", title: "Top Root Causes", body: "- God Class: UserService (high, 85%)\n- Circular Dependency: auth ↔ user (high, 92%)\n- Tight Coupling: Database Layer (medium, 75%)\n- Shotgun Surgery: logging changes (low, 68%)", confidence: "high" },
-        { section_type: "highest_roi_refactoring", title: "Highest ROI Refactoring", body: "Step 4: Extract shared logging utility\nROI: 5.42\nPriority: low\nEstimate: 4 hours", confidence: "high" },
-        { section_type: "long_term_vision", title: "Long-term Vision", body: "The team should aim to decompose large classes/services into focused, single-responsibility components over the next 6 months.", confidence: "low" },
-      ],
-      challenges: [],
-      recommendations: [],
-      model_info: { provider: "offline", model: "deterministic-fallback" },
-      prompt_tokens: 0, completion_tokens: 0,
-      statistics: { total_sections: 4, total_challenges: 0, offline: true },
-    },
-  };
+  return generateDemoData(repoUrl);
 }
