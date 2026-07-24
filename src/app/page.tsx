@@ -354,10 +354,20 @@ function AppContent() {
   const [showShortcuts, setShowShortcuts] = React.useState(false);
   const [showHistory, setShowHistory] = React.useState(false);
   const [showCompare, setShowCompare] = React.useState(false);
+  const [showOnboarding, setShowOnboarding] = React.useState(false);
   const searchInputRef = React.useRef<HTMLInputElement>(null);
   const historyEntries = useHistoryEntries();
 
   React.useEffect(() => setMounted(true), []);
+
+  // Show onboarding wizard on first launch (when localStorage flag is not set).
+  React.useEffect(() => {
+    if (!mounted) return;
+    try {
+      const done = localStorage.getItem("ra-onboarding-complete");
+      if (!done) setShowOnboarding(true);
+    } catch { /* ignore */ }
+  }, [mounted]);
 
   // Keyboard shortcuts:
   //  ?       → open shortcuts help
@@ -739,6 +749,21 @@ function AppContent() {
       {/* Keyboard shortcuts help dialog */}
       <ShortcutsHelpDialog open={showShortcuts} onOpenChange={setShowShortcuts} />
 
+      {/* Onboarding wizard — shown on first launch */}
+      <OnboardingWizard
+        open={showOnboarding}
+        onOpenChange={(v) => {
+          setShowOnboarding(v);
+          if (!v) {
+            try { localStorage.setItem("ra-onboarding-complete", "true"); } catch { /* ignore */ }
+          }
+        }}
+        onComplete={() => {
+          try { localStorage.setItem("ra-onboarding-complete", "true"); } catch { /* ignore */ }
+          setShowOnboarding(false);
+        }}
+      />
+
       {/* Analysis history drawer */}
       <HistorySheet
         open={showHistory}
@@ -766,6 +791,56 @@ function AppContent() {
 function LandingView({ repoUrl, setRepoUrl, onAnalyze }: { repoUrl: string; setRepoUrl: (v: string) => void; onAnalyze: () => void }) {
   const { t } = useI18n();
   const [activeTab, setActiveTab] = React.useState("github");
+  const [localPath, setLocalPath] = React.useState("");
+  const [localError, setLocalError] = React.useState("");
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  // Handle local folder selection.
+  // Uses <input type="file" webkitdirectory> which works across Windows/macOS/Linux.
+  const handleFolderSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setLocalError("");
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    // The first file's webkitRelativePath gives the top-level folder name.
+    // We check if any file is inside a .git directory (indicating a git repo).
+    const allPaths: string[] = [];
+    let hasGitDir = false;
+    for (let i = 0; i < files.length; i++) {
+      const relPath = (files[i] as any).webkitRelativePath || "";
+      allPaths.push(relPath);
+      if (relPath.includes("/.git/") || relPath.includes("/.git")) {
+        hasGitDir = true;
+      }
+    }
+
+    // Extract the top-level folder name from the first file's relative path.
+    const topFolder = allPaths[0]?.split("/")[0] || "";
+    if (!topFolder) {
+      setLocalError(t("local.readError"));
+      return;
+    }
+
+    if (!hasGitDir) {
+      setLocalError(t("local.notGitRepo"));
+      return;
+    }
+
+    // Set a synthetic path that the analysis pipeline can use.
+    // The mock API will use this as the repo identifier.
+    const fullPath = `/local/${topFolder}`;
+    setLocalPath(fullPath);
+    setRepoUrl(fullPath);
+  };
+
+  const handleLocalAnalyze = () => {
+    if (!localPath) {
+      setLocalError(t("local.noFolderSelected"));
+      return;
+    }
+    setLocalError("");
+    onAnalyze();
+  };
 
   const features: { icon: React.ReactNode; title: string; desc: string; accent: string }[] = [
     { icon: <Bug className="h-5 w-5" />,        title: t("landing.feature.rootCausesTitle"),    desc: t("landing.feature.rootCausesDesc"),    accent: "text-rose-500 bg-rose-500/10" },
@@ -804,9 +879,8 @@ function LandingView({ repoUrl, setRepoUrl, onAnalyze }: { repoUrl: string; setR
             <TabsTrigger value="github" className="gap-1.5">
               <Github className="h-4 w-4" /> {t("tabs.github")}
             </TabsTrigger>
-            <TabsTrigger value="local" className="gap-1.5 text-muted-foreground" disabled>
+            <TabsTrigger value="local" className="gap-1.5">
               <FolderOpen className="h-4 w-4" /> {t("tabs.local")}
-              <Badge variant="outline" className="ml-1 text-xs">{t("app.comingSoon")}</Badge>
             </TabsTrigger>
           </TabsList>
           <TabsContent value="github" className="mt-4">
@@ -835,11 +909,61 @@ function LandingView({ repoUrl, setRepoUrl, onAnalyze }: { repoUrl: string; setR
             </div>
           </TabsContent>
           <TabsContent value="local" className="mt-4">
-            <div className="flex flex-col items-center gap-3 rounded-lg border-2 border-dashed p-8 text-center">
+            {/* Hidden file input for folder selection — webkitdirectory works
+                across Windows/macOS/Linux in all modern browsers. */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              // @ts-expect-error — webkitdirectory is a non-standard attribute
+              webkitdirectory=""
+              directory=""
+              multiple
+              className="hidden"
+              onChange={handleFolderSelect}
+            />
+            <div
+              className="flex flex-col items-center gap-3 rounded-lg border-2 border-dashed border-muted-foreground/30 p-8 text-center transition-colors hover:border-primary/40 cursor-pointer"
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add("border-primary"); }}
+              onDragLeave={(e) => { e.currentTarget.classList.remove("border-primary"); }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.currentTarget.classList.remove("border-primary");
+                const items = e.dataTransfer.items;
+                if (items && items.length > 0) {
+                  // Trigger the file input as fallback (drag-drop directory
+                  // access requires additional APIs; the click-to-browse path
+                  // is the primary interaction).
+                  fileInputRef.current?.click();
+                }
+              }}
+            >
               <FolderOpen className="h-10 w-10 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">{t("app.uploadLocal")}</p>
-              <Badge variant="outline">{t("app.comingSoon")}</Badge>
+              <p className="text-sm text-muted-foreground">{localPath ? t("local.folderSelected") : t("local.dragDrop")}</p>
+              {localPath && (
+                <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-1.5 text-sm">
+                  <FolderOpen className="h-4 w-4 text-primary" />
+                  <span className="font-mono text-xs">{localPath}</span>
+                </div>
+              )}
+              <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}>
+                <FolderOpen className="mr-1.5 h-4 w-4" /> {t("local.browse")}
+              </Button>
             </div>
+            {localError && (
+              <div className="mt-3 flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>{localError}</span>
+              </div>
+            )}
+            {localPath && !localError && (
+              <div className="mt-3 flex justify-end">
+                <Button size="lg" className="h-12 px-8 text-base" onClick={handleLocalAnalyze}>
+                  <Sparkles className="mr-2 h-5 w-5" />
+                  {t("app.analyze")}
+                </Button>
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </motion.div>
@@ -988,6 +1112,7 @@ function ResultsDashboard({ data, onReset }: { data: any; onReset: () => void })
         </div>
         {/* Sticky sidebar: Trust Panel stays visible while scrolling long dashboards */}
         <div className="lg:sticky lg:top-20 lg:self-start lg:w-72 space-y-4">
+          <PlatformStatusCard />
           <TrustPanel data={data} />
           <AnalysisMetaCard data={data} />
         </div>
@@ -1299,6 +1424,92 @@ function PipelinePhasesCard({ data }: { data: any }) {
             </div>
           ))}
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Platform Status card — shows health of backend components.
+// Polls /api/health every 30 seconds and displays each component's status.
+function PlatformStatusCard() {
+  const { t } = useI18n();
+  const [health, setHealth] = React.useState<Record<string, { status: string; detail: string }> | null>(null);
+  const [lastChecked, setLastChecked] = React.useState<Date | null>(null);
+  const [refreshing, setRefreshing] = React.useState(false);
+
+  const fetchHealth = React.useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const res = await fetch("/api/health");
+      if (res.ok) {
+        const data = await res.json();
+        setHealth(data.components);
+        setLastChecked(new Date());
+      }
+    } catch {
+      // If health check fails, show all as offline.
+      setHealth(null);
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    fetchHealth();
+    const interval = setInterval(fetchHealth, 30000);
+    return () => clearInterval(interval);
+  }, [fetchHealth]);
+
+  const components = [
+    { key: "backend", label: t("platform.backend") },
+    { key: "python", label: t("platform.python") },
+    { key: "analyzer", label: t("platform.analyzer") },
+    { key: "llm", label: t("platform.llm") },
+    { key: "worker", label: t("platform.worker") },
+    { key: "database", label: t("platform.database") },
+    { key: "api", label: t("platform.api") },
+  ];
+
+  const statusConfig: Record<string, { color: string; label: string; dot: string }> = {
+    online: { color: "text-emerald-500", label: t("platform.online"), dot: "bg-emerald-500" },
+    offline: { color: "text-rose-500", label: t("platform.offline"), dot: "bg-rose-500" },
+    warning: { color: "text-amber-500", label: t("platform.warning"), dot: "bg-amber-500" },
+  };
+
+  const fmtTime = (d: Date) => d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Activity className="h-4 w-4" /> {t("platform.title")}
+          </CardTitle>
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={fetchHealth} disabled={refreshing} title={t("platform.refresh")}>
+            <RotateCcw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} />
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {components.map((comp) => {
+          const data = health?.[comp.key];
+          const status = data?.status || "offline";
+          const cfg = statusConfig[status] || statusConfig.offline;
+          return (
+            <div key={comp.key} className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">{comp.label}</span>
+              <span className="flex items-center gap-1.5">
+                <span className={`h-2 w-2 rounded-full ${cfg.dot}`} />
+                <span className={`font-medium ${cfg.color}`}>{cfg.label}</span>
+              </span>
+            </div>
+          );
+        })}
+        {lastChecked && (
+          <div className="pt-2 border-t text-xs text-muted-foreground/60">
+            {t("platform.lastChecked")}: {fmtTime(lastChecked)}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -3655,6 +3866,264 @@ function CompareDialog({
             )}
           </div>
         )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Onboarding wizard — shown on first launch.
+// Steps: Language → Theme → LLM Provider → API Key → Connection Test → Ready.
+// Uses existing useI18n, useTheme, LLM_PROVIDERS, writeLLMConfig.
+function OnboardingWizard({
+  open, onOpenChange, onComplete,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onComplete: () => void;
+}) {
+  const { t, lang, setLang } = useI18n();
+  const { theme, setTheme } = useTheme();
+  const [step, setStep] = React.useState(0);
+  // Local state for LLM config (mirrors LLMSettingsSection but simplified).
+  const [provider, setProvider] = React.useState("");
+  const [apiKey, setApiKey] = React.useState("");
+  const [model, setModel] = React.useState("");
+  const [testStatus, setTestStatus] = React.useState<"idle" | "testing" | "success" | "failed">("idle");
+
+  const steps = [
+    t("onboarding.stepLanguage"),
+    t("onboarding.stepTheme"),
+    t("onboarding.stepProvider"),
+    t("onboarding.stepApiKey"),
+    t("onboarding.stepTest"),
+    t("onboarding.stepAnalysis"),
+  ];
+  const total = steps.length;
+
+  const handleSkip = () => {
+    onOpenChange(false);
+  };
+
+  const handleNext = () => {
+    if (step < total - 1) {
+      setStep(step + 1);
+    } else {
+      onComplete();
+    }
+  };
+
+  const handleBack = () => {
+    if (step > 0) setStep(step - 1);
+  };
+
+  // Save LLM config when moving past the API key step.
+  const handleSaveAndTest = async () => {
+    if (provider && (provider === "ollama" || apiKey)) {
+      try {
+        writeLLMConfig({ provider, apiKey, model });
+      } catch { /* ignore */ }
+    }
+    // Simulate connection test.
+    setTestStatus("testing");
+    await sleep(1500);
+    const ok = provider === "ollama" || !!apiKey.trim();
+    setTestStatus(ok ? "success" : "failed");
+  };
+
+  const canSkipProvider = step === 2 || step === 3 || step === 4;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Brain className="h-5 w-5 text-primary" />
+            {step === 0 ? t("onboarding.title") : steps[step]}
+          </DialogTitle>
+          <DialogDescription>
+            {step === 0 ? t("onboarding.subtitle") : t("onboarding.step").replace("{current}", String(step + 1)).replace("{total}", String(total))}
+          </DialogDescription>
+        </DialogHeader>
+
+        {/* Progress bar */}
+        <div className="mb-4 flex gap-1.5">
+          {steps.map((_, i) => (
+            <div
+              key={i}
+              className={`h-1.5 flex-1 rounded-full transition-colors ${i <= step ? "bg-primary" : "bg-muted"}`}
+            />
+          ))}
+        </div>
+
+        {/* Step content */}
+        <div className="min-h-[180px]">
+          {step === 0 && (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">{t("onboarding.stepLanguage")}</p>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => setLang("en")}
+                  className={`rounded-lg border p-4 text-center transition-all hover:border-primary/40 hover:shadow-sm ${lang === "en" ? "border-primary ring-1 ring-primary" : ""}`}
+                >
+                  <Globe className="mx-auto mb-2 h-6 w-6 text-primary" />
+                  <span className="text-sm font-medium">English</span>
+                </button>
+                <button
+                  onClick={() => setLang("tr")}
+                  className={`rounded-lg border p-4 text-center transition-all hover:border-primary/40 hover:shadow-sm ${lang === "tr" ? "border-primary ring-1 ring-primary" : ""}`}
+                >
+                  <Globe className="mx-auto mb-2 h-6 w-6 text-primary" />
+                  <span className="text-sm font-medium">Türkçe</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {step === 1 && (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">{t("onboarding.stepTheme")}</p>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => setTheme("dark")}
+                  className={`rounded-lg border p-4 text-center transition-all hover:border-primary/40 hover:shadow-sm ${theme === "dark" ? "border-primary ring-1 ring-primary" : ""}`}
+                >
+                  <Moon className="mx-auto mb-2 h-6 w-6 text-primary" />
+                  <span className="text-sm font-medium">{t("settings.appearance.darkMode")}</span>
+                </button>
+                <button
+                  onClick={() => setTheme("light")}
+                  className={`rounded-lg border p-4 text-center transition-all hover:border-primary/40 hover:shadow-sm ${theme === "light" ? "border-primary ring-1 ring-primary" : ""}`}
+                >
+                  <Sun className="mx-auto mb-2 h-6 w-6 text-primary" />
+                  <span className="text-sm font-medium">{t("settings.appearance.lightMode")}</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {step === 2 && (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">{t("onboarding.stepProvider")}</p>
+              <div className="grid grid-cols-2 gap-2">
+                {LLM_PROVIDERS.map((p) => (
+                  <button
+                    key={p.value}
+                    onClick={() => { setProvider(p.value); setModel(""); setApiKey(""); }}
+                    className={`rounded-lg border p-3 text-left transition-all hover:border-primary/40 hover:shadow-sm ${provider === p.value ? "border-primary ring-1 ring-primary" : ""}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Key className="h-4 w-4 text-primary" />
+                      <span className="text-sm font-medium">{p.label}</span>
+                    </div>
+                    <span className="mt-0.5 block text-xs text-muted-foreground">
+                      {p.fields.includes("apiKey") ? "API Key" : "Local"}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {step === 3 && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">{t("onboarding.stepApiKey")}</p>
+              {provider === "ollama" ? (
+                <div className="space-y-3">
+                  <div>
+                    <Label className="mb-1.5 block text-xs text-muted-foreground">{t("settings.llm.host")}</Label>
+                    <Input value={model ? "" : "http://localhost"} disabled className="h-9 text-sm" />
+                    <p className="mt-1 text-xs text-muted-foreground">{t("settings.llm.host")}: http://localhost:{model ? "" : "11434"}</p>
+                  </div>
+                  <div>
+                    <Label className="mb-1.5 block text-xs text-muted-foreground">{t("settings.llm.model")}</Label>
+                    <Input value={model} onChange={(e) => setModel(e.target.value)} placeholder="llama3, mistral..." className="h-9 text-sm" />
+                  </div>
+                </div>
+              ) : provider ? (
+                <div className="space-y-3">
+                  <div>
+                    <Label className="mb-1.5 block text-xs text-muted-foreground">{t("settings.llm.apiKey")}</Label>
+                    <Input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="sk-..." className="h-9 text-sm" />
+                  </div>
+                  <div>
+                    <Label className="mb-1.5 block text-xs text-muted-foreground">{t("settings.llm.model")}</Label>
+                    <Input value={model} onChange={(e) => setModel(e.target.value)} placeholder="gpt-4o, claude-3-opus..." className="h-9 text-sm" />
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">{t("onboarding.skipProvider")}</p>
+              )}
+            </div>
+          )}
+
+          {step === 4 && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">{t("onboarding.stepTest")}</p>
+              {provider ? (
+                <>
+                  <Button onClick={handleSaveAndTest} disabled={testStatus === "testing"} className="w-full">
+                    {testStatus === "testing" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Key className="mr-2 h-4 w-4" />}
+                    {testStatus === "testing" ? t("platform.refreshing") : t("settings.llm.testConnection")}
+                  </Button>
+                  {testStatus === "success" && (
+                    <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-600 dark:text-emerald-400">
+                      <CheckCircle className="h-4 w-4 shrink-0" />
+                      <span>{t("onboarding.testSuccess")}</span>
+                    </div>
+                  )}
+                  {testStatus === "failed" && (
+                    <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-600 dark:text-amber-400">
+                      <AlertCircle className="h-4 w-4 shrink-0" />
+                      <span>{t("onboarding.testFailed")}</span>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="flex items-center gap-2 rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
+                  <Info className="h-4 w-4 shrink-0" />
+                  <span>{t("onboarding.skipProvider")}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {step === 5 && (
+            <div className="flex flex-col items-center gap-4 py-4 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary/60 shadow-lg shadow-primary/20">
+                <Brain className="h-8 w-8 text-primary-foreground" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold">{t("onboarding.stepAnalysis")}</h3>
+                <p className="mt-1 text-sm text-muted-foreground">{t("onboarding.stepAnalysisDesc")}</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Navigation buttons */}
+        <div className="flex items-center justify-between pt-4 border-t">
+          <div className="flex gap-2">
+            {step > 0 && (
+              <Button variant="ghost" size="sm" onClick={handleBack}>
+                <ArrowLeft className="mr-1 h-4 w-4" /> {t("onboarding.back")}
+              </Button>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Button variant="ghost" size="sm" onClick={handleSkip}>
+              {t("onboarding.skip")}
+            </Button>
+            {step === 4 && testStatus !== "success" && provider && (
+              <Button variant="ghost" size="sm" onClick={handleNext}>
+                {t("onboarding.testSkip")}
+              </Button>
+            )}
+            <Button size="sm" onClick={handleNext}>
+              {step === total - 1 ? t("onboarding.finish") : t("onboarding.next")}
+              {step < total - 1 && <ChevronRight className="ml-1 h-4 w-4" />}
+            </Button>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );

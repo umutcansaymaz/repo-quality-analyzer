@@ -26,6 +26,18 @@ const translations: Record<Language, TranslationDict> = {
     "app.comingSoon": "Coming Soon",
     "app.newAnalysis": "New Analysis",
 
+    // Local Repository
+    "local.selectFolder": "Select Folder",
+    "local.selectPrompt": "Select a local repository folder to analyze",
+    "local.folderSelected": "Folder selected",
+    "local.analyzing": "Analyzing local repository…",
+    "local.notGitRepo": "Selected folder is not a Git repository.",
+    "local.readError": "Repository could not be read.",
+    "local.noFolderSelected": "No folder selected",
+    "local.dragDrop": "Drag and drop a folder here, or click to browse",
+    "local.browse": "Browse",
+    "local.selectedPath": "Selected path",
+
     // Nav
     "nav.settings": "Settings",
     "nav.language": "Language",
@@ -234,6 +246,28 @@ const translations: Record<Language, TranslationDict> = {
     "settings.about.version": "Version",
     "settings.about.description": "AI Software Architect — Professional repository analyzer with evidence-based root cause detection and engineering roadmap generation.",
 
+    // Onboarding Wizard
+    "onboarding.title": "Welcome to AI Software Architect",
+    "onboarding.subtitle": "Let's get you set up in a few quick steps.",
+    "onboarding.skip": "Skip setup",
+    "onboarding.next": "Next",
+    "onboarding.back": "Back",
+    "onboarding.finish": "Finish Setup",
+    "onboarding.step": "Step {current} of {total}",
+    "onboarding.stepLanguage": "Choose your language",
+    "onboarding.stepTheme": "Choose your theme",
+    "onboarding.stepProvider": "Choose an LLM provider",
+    "onboarding.stepApiKey": "Enter your API key",
+    "onboarding.stepTest": "Test connection",
+    "onboarding.stepAnalysis": "Ready to analyze!",
+    "onboarding.stepAnalysisDesc": "Your setup is complete. You can now analyze any repository — GitHub or local.",
+    "onboarding.startAnalysis": "Start First Analysis",
+    "onboarding.skipProvider": "Skip — I'll configure later",
+    "onboarding.testSuccess": "Connection successful!",
+    "onboarding.testFailed": "Connection failed. You can skip this step and try later.",
+    "onboarding.testSkip": "Skip test",
+    "onboarding.optional": "Optional",
+
     // Report
     "report.export": "Export Report",
     "report.exported": "Report exported as",
@@ -424,6 +458,22 @@ const translations: Record<Language, TranslationDict> = {
     "footer.shortcutsHint": "Press",
     "footer.toSeeShortcuts": "for keyboard shortcuts",
     "footer.copyright": "AI Software Architect",
+
+    // Platform Status (Backend Health)
+    "platform.title": "Platform Status",
+    "platform.backend": "Backend",
+    "platform.python": "Python",
+    "platform.analyzer": "Analyzer Engine",
+    "platform.llm": "LLM",
+    "platform.worker": "Worker",
+    "platform.database": "Database",
+    "platform.api": "API",
+    "platform.online": "Online",
+    "platform.offline": "Offline",
+    "platform.warning": "Warning",
+    "platform.lastChecked": "Last checked",
+    "platform.refresh": "Refresh",
+    "platform.refreshing": "Checking…",
   },
 
   tr: {
@@ -434,6 +484,18 @@ const translations: Record<Language, TranslationDict> = {
     "app.uploadLocal": "Yerel Depo Yükle",
     "app.comingSoon": "Yakında",
     "app.newAnalysis": "Yeni Analiz",
+
+    // Yerel Repository
+    "local.selectFolder": "Klasör Seç",
+    "local.selectPrompt": "Analiz etmek için yerel bir depo klasörü seçin",
+    "local.folderSelected": "Klasör seçildi",
+    "local.analyzing": "Yerel depo analiz ediliyor…",
+    "local.notGitRepo": "Seçilen klasör bir Git deposu değil.",
+    "local.readError": "Repository okunamadı.",
+    "local.noFolderSelected": "Klasör seçilmedi",
+    "local.dragDrop": "Bir klasörü sürükleyip bırakın veya gözatmak için tıklayın",
+    "local.browse": "Gözat",
+    "local.selectedPath": "Seçilen yol",
 
     // Nav
     "nav.settings": "Ayarlar",
@@ -643,6 +705,28 @@ const translations: Record<Language, TranslationDict> = {
     "settings.about.version": "Sürüm",
     "settings.about.description": "AI Yazılım Mimarı — Kanıta dayalı kök neden tespiti ve mühendislik yol haritası üretimi ile profesyonel depo analiz aracı.",
 
+    // Kurulum Sihirbazı
+    "onboarding.title": "AI Yazılım Mimarı'na Hoş Geldiniz",
+    "onboarding.subtitle": "Birkaç hızlı adımla sizi hazırlayalım.",
+    "onboarding.skip": "Kurulumu atla",
+    "onboarding.next": "İleri",
+    "onboarding.back": "Geri",
+    "onboarding.finish": "Kurulumu Tamamla",
+    "onboarding.step": "Adım {current} / {total}",
+    "onboarding.stepLanguage": "Dilinizi seçin",
+    "onboarding.stepTheme": "Temanızı seçin",
+    "onboarding.stepProvider": "Bir LLM sağlayıcı seçin",
+    "onboarding.stepApiKey": "API anahtarınızı girin",
+    "onboarding.stepTest": "Bağlantıyı test et",
+    "onboarding.stepAnalysis": "Analize hazır!",
+    "onboarding.stepAnalysisDesc": "Kurulumunuz tamamlandı. Artık herhangi bir depoyu analiz edebilirsiniz — GitHub veya yerel.",
+    "onboarding.startAnalysis": "İlk Analizi Başlat",
+    "onboarding.skipProvider": "Atla — Daha sonra yapılandıracağım",
+    "onboarding.testSuccess": "Bağlantı başarılı!",
+    "onboarding.testFailed": "Bağlantı başarısız. Bu adımı atlayıp daha sonra deneyebilirsiniz.",
+    "onboarding.testSkip": "Testi atla",
+    "onboarding.optional": "İsteğe bağlı",
+
     // Report
     "report.export": "Raporu Dışa Aktar",
     "report.exported": "Rapor dışa aktarıldı:",
@@ -833,6 +917,22 @@ const translations: Record<Language, TranslationDict> = {
     "footer.shortcutsHint": "Klavye kısayolları için",
     "footer.toSeeShortcuts": "tuşuna basın",
     "footer.copyright": "AI Yazılım Mimarı",
+
+    // Platform Durumu (Backend Health)
+    "platform.title": "Platform Durumu",
+    "platform.backend": "Backend",
+    "platform.python": "Python",
+    "platform.analyzer": "Analizör Motoru",
+    "platform.llm": "LLM",
+    "platform.worker": "Worker",
+    "platform.database": "Veritabanı",
+    "platform.api": "API",
+    "platform.online": "Çevrimiçi",
+    "platform.offline": "Çevrimdışı",
+    "platform.warning": "Uyarı",
+    "platform.lastChecked": "Son kontrol",
+    "platform.refresh": "Yenile",
+    "platform.refreshing": "Kontrol ediliyor…",
   },
 };
 

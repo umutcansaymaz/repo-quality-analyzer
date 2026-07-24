@@ -2199,3 +2199,69 @@ Stage Summary:
 - Current project status: İki kullanıcı sorunu düzeltildi. (1) LLM analizi artık çalışıyor — API anahtarı kaydedildiğinde mock API `useLLM: true` ile zenginleştirilmiş bir review üretiyor (offline: false, 7 Türkçe section, challenges, recommendations, token usage). (2) Tüm tanılar ve açıklamalar Türkçeleştirildi — root cause başlıkları, açıklamaları, technical rationale, evidence mesajları, plan step açıklamaları, AI Review section body'leri. `humanize` fonksiyonuna 30+ terimlik Türkçe çeviri tablosu eklendi.
 - Completed modifications: 3 files modified (demo-data.ts — tamamen Türkçeleştirildi + LLM-aware, page.tsx — handleAnalyze LLM config gönderimi + getDemoData LLM-aware + humanize TR_CATEGORY_MAP + filtre dropdown humanize, api/analyze/route.ts — llm_config okuma, api/result/[id]/route.ts — use_llm/provider/model query param'ları).
 - Verification results: agent-browser QA passed. LLM Status "Active" when API key saved. 7 Turkish AI Review sections render. Root cause titles/descriptions in Turkish. Evidence categories in Turkish. Category filter dropdown in Turkish. Zero runtime errors. ESLint clean.
+
+---
+Task ID: 27 (Sprint 8)
+Agent: Principal Software Architect + Staff Frontend Engineer + Senior Backend Engineer
+Task: Sprint 8 — Local Repository, LLM Settings (zaten mevcut), Backend Health Monitoring, Onboarding Wizard.
+
+Work Log:
+- Mevcut kod tabanı analiz edildi:
+  * LLM Settings: ✅ Zaten tamamlanmış (6 provider, masking, Test Connection, localStorage kalıcılığı, provider cards). Hiç değişiklik gerekmedi.
+  * Local Repository: Tab vardı ama disabled ("Coming Soon"). Etkinleştirildi.
+  * Backend Health: Yok. /api/health mock endpoint + Platform Status kartı eklendi.
+  * Onboarding: Yok. İlk açılış sihirbazı eklendi.
+  * Kalıcılık: Tüm ayarlar (dil, tema, LLM config, history) zaten localStorage'da. Onboarding flag eklendi.
+
+- Phase 1 — i18n: 50+ yeni anahtar (TR+EN) — local.*, platform.*, onboarding.*.
+
+- Phase 2 — Local Repository Analysis:
+  * "Yerel Klasör" tab'ı etkinleştirildi (disabled + Coming Soon kaldırıldı).
+  * `<input type="file" webkitdirectory>` ile klasör seçici — Windows/macOS/Linux destekli.
+  * Klasör seçildiğinde `.git` dizini kontrolü yapılır. Git deposu değilse "Seçilen klasör bir Git deposu değil." hatası gösterilir.
+  * Sürükle-bırak alanı + "Gözat" butonu + seçilen yol gösterimi.
+  * Analiz butonu, mevcut pipeline'ı hiç değiştirmeden çalışır (repoUrl = /local/folder-name).
+  * Hata mesajları: "Seçilen klasör bir Git deposu değil.", "Repository okunamadı.", "Klasör seçilmedi."
+
+- Phase 3 — Backend Health Monitoring:
+  * `/api/health` mock endpoint: 7 bileşenin durumunu döndürür (backend, python, analyzer, llm, worker, database, api). Mock modda 6'sı online, database offline.
+  * `PlatformStatusCard` bileşeni: dashboard sağ üst köşedeki sticky sidebar'a eklendi (Trust Panel'in üstünde).
+  * 7 bileşen: her biri renkli nokta (yeşil=online, kırmızı=offline, sarı=warning) + durum etiketi ile gösterilir.
+  * 30 saniyede bir otomatik yenileme + manuel "Yenile" butonu (RotateCcw ikonu, spin animasyonu).
+  * "Son kontrol: HH:MM:SS" zaman damgası.
+
+- Phase 4 — Onboarding Wizard:
+  * `localStorage.getItem("ra-onboarding-complete")` kontrolü — ilk açılışta sihirbaz gösterilir.
+  * 6 adım: Dil → Tema → LLM Provider → API Key → Connection Test → Ready.
+  * Progress bar (6 segment, mevcut adıma kadar dolu).
+  * Her adımda Back/Next/Skip butonları.
+  * Dil seçimi: English/Türkçe kartları (mevcut useI18n).
+  * Tema seçimi: Dark/Light kartları (mevcut useTheme).
+  * LLM Provider seçimi: 6 provider kartı (mevcut LLM_PROVIDERS).
+  * API Key girişi: provider'a göre dinamik form (Ollama için host/port, diğerleri için API key + model).
+  * Connection Test: "Test Connection" butonu → save config → simulate test → success/failed mesajı.
+  * "Testi atla" seçeneği mevcut.
+  * Son adım: "Analize hazır!" + açıklama + "Kurulumu Tamamla" butonu.
+  * Tamamlandığında `localStorage.setItem("ra-onboarding-complete", "true")` — bir daha gösterilmez.
+  * Mevcut bileşenler yeniden kullanıldı: Dialog, Button, Input, Label, LLM_PROVIDERS, writeLLMConfig.
+
+- Phase 5 — Kalıcılık kontrolü:
+  * Dil: localStorage "ra-language" ✅ (zaten mevcut)
+  * Tema: localStorage "theme" (next-themes) ✅ (zaten mevcut)
+  * LLM config: localStorage "ra-llm-config" ✅ (zaten mevcut)
+  * History: localStorage "ra-analysis-history" ✅ (zaten mevcut)
+  * Onboarding: localStorage "ra-onboarding-complete" ✅ (yeni eklendi)
+  * Hiçbir ayar yalnızca geçici React state'inde bırakılmadı.
+
+- Verification (agent-browser, 1440×900):
+  * Onboarding: ilk açılışta sihirbaz gösterildi ✓, Türkçe seçildi ✓, 6 adım geçildi ✓, "Kurulumu Tamamla" → landing'e dönüldü ✓, flag "true" olarak kaydedildi ✓, tekrar gösterilmedi ✓
+  * Local Repository: "Yerel Klasör" tab etkin ✓ (Coming Soon yok), sürükle-bırak alanı + "Gözat" butonu ✓
+  * Platform Status: sidebar'da "Platform Durumu" kartı ✓, 7 bileşen (Backend: Çevrimiçi, Python: Çevrimiçi, Analizör Motoru: Çevrimiçi, LLM: Çevrimiçi, Worker: Çevrimiçi, Veritabanı: Çevrimdışı, API: Çevrimiçi) ✓, "Son kontrol: HH:MM:SS" ✓, "Yenile" butonu ✓
+  * LLM Settings: zaten çalışıyor ✓ (önceki sprintlerden)
+  * Zero page errors, zero console errors
+- ESLint: Clean (0 errors)
+
+Stage Summary:
+- Current project status: Sprint 8 tamamlandı. 4 özellik entegre edildi: (1) Yerel Repository Analizi — klasör seçici + .git kontrolü, (2) LLM Settings — zaten mevcuttu, değişiklik gerekmedi, (3) Backend Health Monitoring — /api/health + Platform Status kartı + 30sn auto-refresh, (4) Onboarding Wizard — 6 adımlı sihirbaz + localStorage kalıcılığı. Tüm ayarlar localStorage'da kalıcı. Mevcut pipeline'a dokunulmadı. Yeni analyzer yazılmadı. TR/EN i18n korundu.
+- Completed modifications: 3 files modified (page.tsx — Local repo tab + folder picker, PlatformStatusCard, OnboardingWizard; i18n.tsx — 50+ yeni anahtar), 1 new file (api/health/route.ts). No backend pipeline changes. No new analyzer.
+- Verification results: agent-browser QA passed. Onboarding wizard 6 steps verified. Local repo tab enabled + folder picker renders. Platform Status card shows 7 components with correct status. All settings persist in localStorage. ESLint clean. Zero runtime errors.
