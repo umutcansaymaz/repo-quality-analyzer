@@ -1622,3 +1622,70 @@ Stage Summary:
   3. (Medium) Analysis history drawer — persist last N analyses to localStorage, quick re-open.
   4. (Low) Export charts as PNG (recharts supports toDataURL).
   5. (Low) Accessibility audit — ensure all new controls have proper ARIA labels and keyboard focus rings.
+
+---
+Task ID: 17
+Agent: Senior Frontend Engineer (cron web-dev-review round 2)
+Task: QA via agent-browser + VLM, fix Graph/Files/Roadmap visual issues, add real graph visualization + file explorer enhancements + roadmap filters.
+
+Work Log:
+- Worklog reviewed (Tasks 1-16): Next.js 16 "AI Software Architect" repo analyzer frontend. Backend down → demo data. Prior phase added charts, root-cause filters, keyboard shortcuts, copy-markdown, analysis-meta.
+- QA performed via agent-browser + VLM (z-ai vision) on Roadmap/Graph/Files tabs:
+  * Graph tab: VLM flagged "missing graph — only floating pills, no edges/spatial structure". Verified in code: GraphSection was a flat flex-wrap of colored pill buttons, no SVG, no edges drawn. REAL BUG.
+  * Files tab: VLM flagged "no search/filter, no file-type distinction, empty right panel wastes space". Verified: FileExplorerSection had no search, single generic icon, empty-state was a one-line placeholder. REAL ISSUE.
+  * Roadmap tab: VLM flagged "WHY? toggles may be empty". Verified: WHY? toggle calls ExplainabilityChain which renders content — NOT a bug. But no filtering existed (priority recommendation from Task 16).
+- Phase 2 — Graph: complete rewrite of GraphSection:
+  * Real SVG `<svg>` canvas (viewBox 760×480) replacing the flat pill list.
+  * Deterministic clustered circular layout: nodes grouped by node_type, each type placed on its own angular sector, nodes within a sector spread along an arc. No random → stable across renders.
+  * Edges drawn as SVG `<line>` between source/target node positions.
+  * Node sizing by connection count (radius 6-16, more connections = bigger).
+  * Hover highlight: hovering a node dims unrelated nodes/edges to 8-25% opacity, highlights connected nodes + edges in primary color, shows a ring around highlighted nodes.
+  * Click selection: selected node gets white stroke ring; details panel updates.
+  * Zoom controls: + / - / fit / reset buttons (zoom 0.4x-2.5x), mouse wheel zoom.
+  * Pan: pointer drag on SVG background moves the graph (pointer capture).
+  * Zoom indicator overlay (bottom-right, "140%").
+  * Node search box: filters nodes by label (non-matching dimmed to 15%).
+  * Legend: only shows node types actually present in the data.
+  * Node labels: shown for hovered/selected/highlighted nodes OR large nodes (radius ≥12), truncated at 22 chars.
+  * Details panel: shows type (colored dot + badge), label, file_path, class, function, severity, analyzer, connected-nodes count.
+- Phase 3 — Files: enhanced FileExplorerSection:
+  * Search/filter input in the file list header (filters by filename).
+  * File-type icons by extension: 🐍 for .py, "TS"/"JS" mono text, FileText for .md, "{}" for .json, "Y"/"T" for yaml/toml, generic FileCode2 fallback.
+  * Per-file evidence count badge (secondary badge, right-aligned).
+  * Estimated file size display (distributes total_bytes weighted by evidence count, formatted B/KB/MB).
+  * Selected file gets ring-1 ring-primary/30 highlight.
+  * Result count shown when filtering ("X of Y items").
+  * Empty-state replaced with rich FilePreviewOverview: 6 stat tiles (Total files, Total size, Root causes, Evidence, Plan steps, Nodes) + file-type breakdown badges (top 6 extensions with counts). No more wasted right-panel space.
+  * Section headers renamed: "Roadmap" → "Recommendations", "Graph" → "Graph connections" for clarity.
+- Phase 4 — Roadmap: added filter bar to RoadmapSection:
+  * 3 dropdowns: Priority (all/critical/high/medium/low/info), Risk (all/critical/high/medium/low/minimal), Sprint (all/Sprint N/none).
+  * Sprint lookup built from roadmap.sprints[].step_ids.
+  * Result count "{count} of {total} steps".
+  * Clear-filters button (appears when any filter active).
+  * Empty state when no match.
+  * Quick wins hidden when priority/risk filters are active (they don't carry those fields).
+  * Sprint cards get hover:shadow-sm for polish.
+- i18n: 25 new keys (TR+EN) — graph.zoomIn/zoomOut/reset/fit/highlightConnected/edges/legend/search, files.search/size/type/items/preview/previewDesc/totalFiles/totalSize/rootCauses/recommendations/graphConnections, roadmap.filterPriority/filterRisk/filterSprint/allPriorities/allRisks/allSprints/results/clearFilters.
+- New icons imported: Plus, Minus, Maximize, RotateCcw (lucide-react).
+- Verification (agent-browser, 1440×900):
+  * Graph: SVG renders 22 circles + 7 lines ✓, clustered layout ✓, zoom controls (140% after 2 zoom-ins, reset to 100%) ✓, node search ✓, node click → details panel "Connected nodes: 1" ✓, legend ✓ (VLM confirmed all 6 features)
+  * Files: "Filter files..." search ✓, "Repository overview" empty-state with 6 stat tiles ✓, file-type icons (🐍 for .py) ✓, evidence count badges ✓ (VLM confirmed), search "auth" → 1 file ✓, file click → Root causes (1) + Recommendations (1) ✓
+  * Roadmap: 3 filter dropdowns ✓, priority=high → "2 of 6 steps" in "High Priority (2)" ✓, WHY? toggle → Explainability Chain renders ✓
+  * Turkish: Yakınlaş/Uzaklaş/Sıfırla/Düğüm ara/Lejant/Düğüm Detayları ✓, Dosya filtrele/Depo özeti/Toplam dosya/Toplam boyut ✓, Öncelik/Tüm Öncelikler/Tüm Riskler/Tüm Sprintler/"6 adımın 6 tanesi" ✓, no raw translation keys
+  * Zero page errors, zero console errors
+- ESLint: Clean (0 errors)
+
+Stage Summary:
+- Current project status: Frontend stable and significantly more capable. All 7 dashboard tabs now have rich interactions: Overview (charts), Root Causes (filters + copy-markdown), Roadmap (priority/risk/sprint filters), Evidence (search + severity filter), Graph (real SVG visualization with zoom/pan/hover), Files (search + type icons + overview), AI Review (3-state badge). Backend still down → demo data, but all features work on demo data and will work on real data when backend comes online (field names match the demo schema).
+- Completed modifications: 2 files (page.tsx ~+450 lines, i18n.tsx +25 keys ×2 langs). No new files. No backend changes.
+- Verification results: agent-browser full QA passed. VLM visual review confirmed Graph has real SVG visualization (nodes + edges + layout + controls + search + legend), Files has search + type icons + overview, Roadmap has working filters. ESLint clean. Zero runtime errors. TR/EN i18n complete for all new features.
+- Unresolved issues / risks:
+  * Backend (FastAPI :8000) still down — biggest risk. All features tested on demo data only.
+  * Graph layout is deterministic clustered (not physics-based force simulation) — good for stability but less "organic". Acceptable for up to 200 nodes.
+  * File sizes are estimated (demo data has total_bytes but not per-file sizes) — weighted by evidence count. When real backend provides per-file sizes, the `fileSize()` function should be updated to use real values.
+- Priority recommendations for next phase:
+  1. (High) Bring backend online OR mock /api/analyze + /api/result/:id in Next.js API routes so real data flows through all the new visualizations.
+  2. (Medium) Analysis history drawer — persist last N analyses to localStorage with repo URL + timestamp, quick re-open from a header drawer.
+  3. (Medium) Graph: add node drag (reposition individual nodes) + edge weight visualization (thicker lines for stronger relationships).
+  4. (Low) Export charts/graph as PNG — recharts supports toDataURL for charts; SVG graph can be serialized.
+  5. (Low) Accessibility audit on new graph controls (ARIA labels for zoom buttons, keyboard nav for nodes).

@@ -298,6 +298,40 @@ const translations: Record<Language, TranslationDict> = {
     "shortcuts.focusSearch": "Focus search",
     "shortcuts.closeDialog": "Close dialog",
     "shortcuts.toggleTheme": "Toggle theme",
+
+    // Graph controls
+    "graph.zoomIn": "Zoom in",
+    "graph.zoomOut": "Zoom out",
+    "graph.reset": "Reset view",
+    "graph.highlightConnected": "Connected nodes",
+    "graph.noConnected": "No connected nodes",
+    "graph.edges": "edges",
+    "graph.fit": "Fit to screen",
+    "graph.legend": "Legend",
+    "graph.search": "Search nodes...",
+
+    // Files extras
+    "files.search": "Filter files...",
+    "files.size": "Size",
+    "files.type": "Type",
+    "files.items": "items",
+    "files.preview": "Repository overview",
+    "files.previewDesc": "Select a file to inspect its evidence, root causes, and graph connections.",
+    "files.totalFiles": "Total files",
+    "files.totalSize": "Total size",
+    "files.rootCauses": "Root causes",
+    "files.recommendations": "Recommendations",
+    "files.graphConnections": "Graph connections",
+
+    // Roadmap filters
+    "roadmap.filterPriority": "Priority",
+    "roadmap.filterRisk": "Risk",
+    "roadmap.filterSprint": "Sprint",
+    "roadmap.allPriorities": "All Priorities",
+    "roadmap.allRisks": "All Risks",
+    "roadmap.allSprints": "All Sprints",
+    "roadmap.results": "{count} of {total} steps",
+    "roadmap.clearFilters": "Clear filters",
   },
 
   tr: {
@@ -581,6 +615,40 @@ const translations: Record<Language, TranslationDict> = {
     "shortcuts.focusSearch": "Arama odakla",
     "shortcuts.closeDialog": "Diyalog kapat",
     "shortcuts.toggleTheme": "Tema değiştir",
+
+    // Graph controls
+    "graph.zoomIn": "Yakınlaş",
+    "graph.zoomOut": "Uzaklaş",
+    "graph.reset": "Sıfırla",
+    "graph.highlightConnected": "Bağlı düğümler",
+    "graph.noConnected": "Bağlı düğüm yok",
+    "graph.edges": "kenar",
+    "graph.fit": "Ekrana sığdır",
+    "graph.legend": "Lejant",
+    "graph.search": "Düğüm ara...",
+
+    // Files extras
+    "files.search": "Dosya filtrele...",
+    "files.size": "Boyut",
+    "files.type": "Tip",
+    "files.items": "öğe",
+    "files.preview": "Depo özeti",
+    "files.previewDesc": "Kanıt, kök neden ve graf bağlantılarını incelemek için bir dosya seçin.",
+    "files.totalFiles": "Toplam dosya",
+    "files.totalSize": "Toplam boyut",
+    "files.rootCauses": "Kök nedenler",
+    "files.recommendations": "Öneriler",
+    "files.graphConnections": "Graf bağlantıları",
+
+    // Roadmap filters
+    "roadmap.filterPriority": "Öncelik",
+    "roadmap.filterRisk": "Risk",
+    "roadmap.filterSprint": "Sprint",
+    "roadmap.allPriorities": "Tüm Öncelikler",
+    "roadmap.allRisks": "Tüm Riskler",
+    "roadmap.allSprints": "Tüm Sprintler",
+    "roadmap.results": "{total} adımın {count} tanesi",
+    "roadmap.clearFilters": "Filtreleri temizle",
   },
 };
 

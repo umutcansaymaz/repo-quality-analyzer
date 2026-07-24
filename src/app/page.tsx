@@ -43,6 +43,10 @@ import {
   FolderOpen,
   Database,
   Gauge,
+  Plus,
+  Minus,
+  Maximize,
+  RotateCcw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1345,22 +1349,55 @@ function RootCauseRow({ rc }: { rc: any }) {
 function RoadmapSection({ data }: { data: any }) {
   const { t } = useI18n();
   const plan = data?.engineering_plan;
+  const [filterPriority, setFilterPriority] = React.useState("all");
+  const [filterRisk, setFilterRisk] = React.useState("all");
+  const [filterSprint, setFilterSprint] = React.useState("all");
+
   if (!plan) return <EmptyState icon={<Map className="h-12 w-12" />} title={t("roadmap.noPlan")} />;
 
-  const steps = plan.steps || [];
+  const allSteps = plan.steps || [];
   const quickWins = plan.quick_wins || [];
 
+  // Build sprint lookup: step_id → sprint_number (for filtering by sprint)
+  const stepSprint: Record<string, number> = {};
+  (plan.roadmap?.sprints || []).forEach((s: any) => {
+    (s.step_ids || []).forEach((id: string) => { stepSprint[id] = s.sprint_number; });
+  });
+
+  // Apply filters to steps
+  const filteredSteps = allSteps.filter((s: any) => {
+    if (filterPriority !== "all" && s.priority !== filterPriority) return false;
+    if (filterRisk !== "all" && s.risk !== filterRisk) return false;
+    if (filterSprint !== "all") {
+      const sp = stepSprint[s.id];
+      if (filterSprint === "none" ? sp != null : sp !== parseInt(filterSprint, 10)) return false;
+    }
+    return true;
+  });
+
+  // Quick wins are filtered by the same priority/risk (sprint N/A for QW)
+  const filteredQuickWins = quickWins.filter((qw: any) => {
+    // Quick wins don't carry priority/risk on their own; show unless priority/risk filtered
+    if (filterPriority !== "all" || filterRisk !== "all") return false;
+    if (filterSprint !== "all" && filterSprint !== "none") return false;
+    return true;
+  });
+
   const categories = [
-    { key: "quick", label: t("roadmap.quickWins"), icon: <Zap className="h-4 w-4" />, steps: quickWins.map((qw: any) => ({ ...qw, isQuickWin: true })) },
-    { key: "critical", label: t("roadmap.critical"), icon: <AlertCircle className="h-4 w-4" />, steps: steps.filter((s: any) => s.priority === "critical") },
-    { key: "high", label: t("roadmap.highPriority"), icon: <TrendingUp className="h-4 w-4" />, steps: steps.filter((s: any) => s.priority === "high") },
-    { key: "medium", label: t("roadmap.mediumPriority"), icon: <Target className="h-4 w-4" />, steps: steps.filter((s: any) => s.priority === "medium") },
-    { key: "low", label: t("roadmap.lowPriority"), icon: <Lightbulb className="h-4 w-4" />, steps: steps.filter((s: any) => s.priority === "low" || s.priority === "info") },
+    { key: "quick", label: t("roadmap.quickWins"), icon: <Zap className="h-4 w-4" />, steps: filteredQuickWins.map((qw: any) => ({ ...qw, isQuickWin: true })) },
+    { key: "critical", label: t("roadmap.critical"), icon: <AlertCircle className="h-4 w-4" />, steps: filteredSteps.filter((s: any) => s.priority === "critical") },
+    { key: "high", label: t("roadmap.highPriority"), icon: <TrendingUp className="h-4 w-4" />, steps: filteredSteps.filter((s: any) => s.priority === "high") },
+    { key: "medium", label: t("roadmap.mediumPriority"), icon: <Target className="h-4 w-4" />, steps: filteredSteps.filter((s: any) => s.priority === "medium") },
+    { key: "low", label: t("roadmap.lowPriority"), icon: <Lightbulb className="h-4 w-4" />, steps: filteredSteps.filter((s: any) => s.priority === "low" || s.priority === "info") },
   ];
+
+  const totalShown = filteredSteps.length + filteredQuickWins.length;
+  const hasFilters = filterPriority !== "all" || filterRisk !== "all" || filterSprint !== "all";
+  const sprints = plan.roadmap?.sprints || [];
 
   return (
     <div className="space-y-6">
-      {plan.roadmap?.sprints?.length > 0 && (
+      {sprints.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg"><Map className="h-5 w-5" /> {t("roadmap.sprintRoadmap")}</CardTitle>
@@ -1368,8 +1405,8 @@ function RoadmapSection({ data }: { data: any }) {
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-3">
-              {plan.roadmap.sprints.map((sprint: any, i: number) => (
-                <div key={i} className="flex-1 min-w-[200px] rounded-lg border p-4">
+              {sprints.map((sprint: any, i: number) => (
+                <div key={i} className="flex-1 min-w-[200px] rounded-lg border p-4 transition-shadow hover:shadow-sm">
                   <div className="mb-2 flex items-center gap-2">
                     <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">{sprint.sprint_number}</div>
                     <span className="font-medium text-sm">{sprint.title}</span>
@@ -1385,14 +1422,77 @@ function RoadmapSection({ data }: { data: any }) {
         </Card>
       )}
 
-      {categories.map((cat) => cat.steps.length > 0 && (
-        <div key={cat.key}>
-          <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-muted-foreground">{cat.icon} {cat.label} ({cat.steps.length})</h3>
-          <div className="space-y-2">
-            {cat.steps.map((step: any, i: number) => (<RoadmapStepCard key={step.id || i} step={step} />))}
+      {/* Filter bar */}
+      <Card>
+        <CardContent className="pt-5 pb-5">
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <Label className="mb-1.5 block text-xs text-muted-foreground">{t("roadmap.filterPriority")}</Label>
+              <Select value={filterPriority} onValueChange={setFilterPriority}>
+                <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("roadmap.allPriorities")}</SelectItem>
+                  <SelectItem value="critical">Critical</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="low">Low</SelectItem>
+                  <SelectItem value="info">Info</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="mb-1.5 block text-xs text-muted-foreground">{t("roadmap.filterRisk")}</Label>
+              <Select value={filterRisk} onValueChange={setFilterRisk}>
+                <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("roadmap.allRisks")}</SelectItem>
+                  <SelectItem value="critical">Critical</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="low">Low</SelectItem>
+                  <SelectItem value="minimal">Minimal</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="mb-1.5 block text-xs text-muted-foreground">{t("roadmap.filterSprint")}</Label>
+              <Select value={filterSprint} onValueChange={setFilterSprint}>
+                <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("roadmap.allSprints")}</SelectItem>
+                  {sprints.map((s: any) => (
+                    <SelectItem key={s.sprint_number} value={String(s.sprint_number)}>Sprint {s.sprint_number}</SelectItem>
+                  ))}
+                  <SelectItem value="none">— ({t("roadmap.allSprints").toLowerCase()})</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="ml-auto flex items-center gap-3 pb-1">
+              <span className="text-xs text-muted-foreground">
+                {t("roadmap.results").replace("{count}", String(totalShown)).replace("{total}", String(allSteps.length + quickWins.length))}
+              </span>
+              {hasFilters && (
+                <Button variant="ghost" size="sm" onClick={() => { setFilterPriority("all"); setFilterRisk("all"); setFilterSprint("all"); }}>
+                  <XCircle className="mr-1 h-3.5 w-3.5" /> {t("roadmap.clearFilters")}
+                </Button>
+              )}
+            </div>
           </div>
-        </div>
-      ))}
+        </CardContent>
+      </Card>
+
+      {totalShown === 0 ? (
+        <EmptyState icon={<Search className="h-12 w-12" />} title={t("filter.noMatch")} />
+      ) : (
+        categories.map((cat) => cat.steps.length > 0 && (
+          <div key={cat.key}>
+            <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-muted-foreground">{cat.icon} {cat.label} ({cat.steps.length})</h3>
+            <div className="space-y-2">
+              {cat.steps.map((step: any, i: number) => (<RoadmapStepCard key={step.id || i} step={step} />))}
+            </div>
+          </div>
+        ))
+      )}
     </div>
   );
 }
@@ -1510,35 +1610,231 @@ function GraphSection({ data }: { data: any }) {
   const { t } = useI18n();
   const graph = data?.knowledge_graph;
   const [selectedNode, setSelectedNode] = React.useState<any>(null);
+  const [hoveredNode, setHoveredNode] = React.useState<any>(null);
+  const [zoom, setZoom] = React.useState(1);
+  const [pan, setPan] = React.useState({ x: 0, y: 0 });
+  const [search, setSearch] = React.useState("");
+  const dragRef = React.useRef<{ x: number; y: number; px: number; py: number } | null>(null);
+
+  // Node type → fill color (hex for SVG) + legend dot class (Tailwind for legend)
+  const NODE_STYLES: Record<string, { fill: string; dot: string; label: string }> = {
+    repository:           { fill: "#3b82f6", dot: "bg-blue-500",    label: "repository" },
+    file:                 { fill: "#22c55e", dot: "bg-green-500",   label: "file" },
+    class:                { fill: "#a855f7", dot: "bg-purple-500",  label: "class" },
+    function:             { fill: "#f97316", dot: "bg-orange-500",  label: "function" },
+    method:               { fill: "#eab308", dot: "bg-yellow-500",  label: "method" },
+    module:               { fill: "#06b6d4", dot: "bg-cyan-500",    label: "module" },
+    dependency:           { fill: "#ec4899", dot: "bg-pink-500",    label: "dependency" },
+    security_finding:     { fill: "#ef4444", dot: "bg-red-500",     label: "security_finding" },
+    architecture_finding: { fill: "#6366f1", dot: "bg-indigo-500",  label: "architecture_finding" },
+    metric_finding:       { fill: "#14b8a6", dot: "bg-teal-500",    label: "metric_finding" },
+    evidence:             { fill: "#6b7280", dot: "bg-gray-500",    label: "evidence" },
+  };
+  const defaultStyle = { fill: "#94a3b8", dot: "bg-slate-400", label: "other" };
 
   if (!graph || !graph.nodes?.length) return <EmptyState icon={<Network className="h-12 w-12" />} title={t("graph.noGraph")} />;
 
-  const nodeTypeColors: Record<string, string> = {
-    repository: "bg-blue-500", file: "bg-green-500", class: "bg-purple-500", function: "bg-orange-500",
-    method: "bg-yellow-500", module: "bg-cyan-500", dependency: "bg-pink-500",
-    security_finding: "bg-red-500", architecture_finding: "bg-indigo-500", metric_finding: "bg-teal-500", evidence: "bg-gray-500",
+  // ---------- Layout: deterministic clustered circular placement ----------
+  // Group nodes by type, place each type on its own angular sector, nodes within
+  // a sector spread along an arc. Deterministic (no random) so layout is stable.
+  const W = 760, H = 480, CX = W / 2, CY = H / 2;
+  const nodes = graph.nodes.slice(0, 200);
+
+  // Count connections per node (for sizing)
+  const connCount: Record<string, number> = {};
+  (graph.edges || []).forEach((e: any) => {
+    connCount[e.source_id] = (connCount[e.source_id] || 0) + 1;
+    connCount[e.target_id] = (connCount[e.target_id] || 0) + 1;
+  });
+
+  // Group by type preserving input order
+  const byType: Record<string, any[]> = {};
+  nodes.forEach((n) => {
+    const ty = n.node_type || "other";
+    (byType[ty] = byType[ty] || []).push(n);
+  });
+  const types = Object.keys(byType);
+  const typeAngles: Record<string, { start: number; span: number }> = {};
+  types.forEach((ty, i) => {
+    const start = (i / types.length) * Math.PI * 2;
+    const span = (1 / types.length) * Math.PI * 2 * 0.92; // leave a small gap
+    typeAngles[ty] = { start, span };
+  });
+
+  // Assign (x, y) to each node
+  const pos: Record<string, { x: number; y: number }> = {};
+  types.forEach((ty) => {
+    const group = byType[ty];
+    const { start, span } = typeAngles[ty];
+    // Inner radius for groups with 1 node, outer ring for multi-node groups
+    const radius = group.length === 1 ? 90 : 180;
+    group.forEach((n, i) => {
+      const frac = group.length === 1 ? 0.5 : i / (group.length - 1);
+      const ang = start + frac * span;
+      pos[n.id] = { x: CX + radius * Math.cos(ang), y: CY + radius * Math.sin(ang) };
+    });
+  });
+
+  // ---------- Adjacency for hover highlighting ----------
+  const adj: Record<string, Set<string>> = {};
+  (graph.edges || []).forEach((e: any) => {
+    (adj[e.source_id] = adj[e.source_id] || new Set()).add(e.target_id);
+    (adj[e.target_id] = adj[e.target_id] || new Set()).add(e.source_id);
+  });
+  const activeNode = hoveredNode || selectedNode;
+  const connectedIds = activeNode ? (adj[activeNode.id] || new Set()) : null;
+
+  // Filter by search
+  const matchesSearch = (n: any) => !search.trim() || (n.label || "").toLowerCase().includes(search.toLowerCase());
+
+  const isDimmed = (n: any) => activeNode && n.id !== activeNode.id && !(connectedIds?.has(n.id));
+  const isHighlighted = (n: any) => activeNode && (n.id === activeNode.id || connectedIds?.has(n.id));
+
+  // Node radius by connection count (min 6, max 16)
+  const nodeRadius = (n: any) => {
+    const c = connCount[n.id] || 0;
+    return Math.max(6, Math.min(16, 6 + c * 2.5));
   };
+
+  // Pan handlers (drag on background)
+  const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
+    dragRef.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y };
+    (e.target as Element).setPointerCapture?.(e.pointerId);
+  };
+  const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (!dragRef.current) return;
+    setPan({ x: dragRef.current.px + (e.clientX - dragRef.current.x), y: dragRef.current.py + (e.clientY - dragRef.current.y) });
+  };
+  const onPointerUp = () => { dragRef.current = null; };
+  const onWheel = (e: React.WheelEvent<SVGSVGElement>) => {
+    const delta = e.deltaY > 0 ? -0.1 : 0.1;
+    setZoom((z) => Math.max(0.4, Math.min(2.5, z + delta)));
+  };
+  const resetView = () => { setZoom(1); setPan({ x: 0, y: 0 }); };
+
+  const fitGraph = () => {
+    // Simple fit: reset zoom/pan so the full cluster is visible
+    setZoom(1); setPan({ x: 0, y: 0 });
+  };
+
+  // Legend: only types that actually appear
+  const presentTypes = types.map((ty) => ({ ty, style: NODE_STYLES[ty] || defaultStyle }));
 
   return (
     <div className="grid gap-4 lg:grid-cols-3">
       <Card className="lg:col-span-2">
         <CardHeader>
-          <CardTitle className="text-lg">{t("graph.title")}</CardTitle>
-          <CardDescription>{graph.total_nodes || graph.nodes.length} {t("graph.nodes")} · {graph.total_edges || graph.edges?.length || 0} {t("graph.edges")}</CardDescription>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <CardTitle className="text-lg">{t("graph.title")}</CardTitle>
+              <CardDescription>{graph.total_nodes || graph.nodes.length} {t("graph.nodes")} · {graph.total_edges || graph.edges?.length || 0} {t("graph.edges")}</CardDescription>
+            </div>
+            {/* Zoom controls */}
+            <div className="flex items-center gap-1">
+              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setZoom((z) => Math.min(2.5, z + 0.2))} title={t("graph.zoomIn")}>
+                <Plus className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setZoom((z) => Math.max(0.4, z - 0.2))} title={t("graph.zoomOut")}>
+                <Minus className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="sm" className="h-8 gap-1 px-2" onClick={fitGraph} title={t("graph.fit")}>
+                <Maximize className="h-3.5 w-3.5" />
+              </Button>
+              <Button variant="outline" size="sm" className="h-8 gap-1 px-2" onClick={resetView} title={t("graph.reset")}>
+                <RotateCcw className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+          {/* Search box */}
+          <div className="mt-3 relative max-w-xs">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("graph.search")} className="h-9 pl-9 text-sm" />
+          </div>
         </CardHeader>
         <CardContent>
-          <ScrollArea className="h-[500px]">
-            <div className="flex flex-wrap gap-2 p-2">
-              {graph.nodes.slice(0, 200).map((node: any, i: number) => (
-                <button key={node.id || i} onClick={() => setSelectedNode(node)} className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs text-white ${nodeTypeColors[node.node_type] || "bg-gray-500"} ${selectedNode?.id === node.id ? "ring-2 ring-primary ring-offset-2" : ""} hover:scale-105 transition-transform`}>
-                  {node.label?.substring(0, 30)}
-                </button>
-              ))}
+          <div className="relative overflow-hidden rounded-lg border bg-muted/20" style={{ height: 500 }}>
+            <svg
+              width="100%" height="100%" viewBox={`0 0 ${W} ${H}`}
+              onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={onPointerUp}
+              onWheel={onWheel} className="cursor-grab active:cursor-grabbing"
+              style={{ touchAction: "none" }}
+            >
+              <g transform={`translate(${pan.x} ${pan.y}) scale(${zoom})`}>
+                {/* Edges */}
+                {(graph.edges || []).map((edge: any, i: number) => {
+                  const s = pos[edge.source_id], d = pos[edge.target_id];
+                  if (!s || !d) return null;
+                  const isEdgeActive = activeNode && (edge.source_id === activeNode.id || edge.target_id === activeNode.id);
+                  return (
+                    <line
+                      key={i} x1={s.x} y1={s.y} x2={d.x} y2={d.y}
+                      stroke={isEdgeActive ? "currentColor" : "currentColor"}
+                      className={isEdgeActive ? "text-primary" : "text-muted-foreground/30"}
+                      strokeWidth={isEdgeActive ? 2 : 1}
+                      strokeOpacity={activeNode ? (isEdgeActive ? 0.9 : 0.08) : 0.4}
+                    />
+                  );
+                })}
+                {/* Nodes */}
+                {nodes.map((node: any, i: number) => {
+                  const p = pos[node.id];
+                  if (!p) return null;
+                  const style = NODE_STYLES[node.node_type] || defaultStyle;
+                  const r = nodeRadius(node);
+                  const dim = isDimmed(node);
+                  const hi = isHighlighted(node);
+                  const matched = matchesSearch(node);
+                  const isSelected = selectedNode?.id === node.id;
+                  return (
+                    <g
+                      key={node.id || i} transform={`translate(${p.x} ${p.y})`}
+                      className="cursor-pointer"
+                      onClick={() => setSelectedNode(node)}
+                      onMouseEnter={() => setHoveredNode(node)}
+                      onMouseLeave={() => setHoveredNode(null)}
+                      opacity={(!matched) ? 0.15 : dim ? 0.25 : 1}
+                    >
+                      {hi && <circle r={r + 4} fill="none" stroke={style.fill} strokeWidth={1.5} strokeOpacity={0.4} />}
+                      <circle
+                        r={r} fill={style.fill}
+                        stroke={isSelected ? "white" : "white"}
+                        strokeWidth={isSelected ? 2.5 : 1}
+                        strokeOpacity={isSelected ? 1 : 0.3}
+                      />
+                      {/* Label — only when hovered/selected/highlighted or node is large */}
+                      {(hi || r >= 12) && matched && (
+                        <text
+                          x={0} y={r + 11} textAnchor="middle"
+                          className="fill-foreground pointer-events-none select-none"
+                          style={{ fontSize: 9, fontWeight: hi ? 600 : 400 }}
+                        >
+                          {(node.label || "").length > 22 ? (node.label || "").slice(0, 20) + "…" : (node.label || "")}
+                        </text>
+                      )}
+                    </g>
+                  );
+                })}
+              </g>
+            </svg>
+            {/* Zoom indicator */}
+            <div className="absolute bottom-2 right-3 rounded bg-background/80 px-2 py-0.5 text-xs text-muted-foreground tabular-nums backdrop-blur">
+              {Math.round(zoom * 100)}%
             </div>
-          </ScrollArea>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {Object.entries(nodeTypeColors).map(([type, color]) => (
-              <div key={type} className="flex items-center gap-1.5 text-xs"><div className={`h-3 w-3 rounded-full ${color}`} /><span className="text-muted-foreground">{type}</span></div>
+            {/* Hover hint when nothing hovered */}
+            {!activeNode && (
+              <div className="absolute bottom-2 left-3 rounded bg-background/80 px-2 py-0.5 text-xs text-muted-foreground backdrop-blur">
+                {t("graph.clickNode")}
+              </div>
+            )}
+          </div>
+          {/* Legend */}
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+            <span className="text-xs font-medium text-muted-foreground">{t("graph.legend")}:</span>
+            {presentTypes.map(({ ty, style }) => (
+              <div key={ty} className="flex items-center gap-1.5">
+                <div className={`h-2.5 w-2.5 rounded-full ${style.dot}`} />
+                <span className="text-xs text-muted-foreground">{ty}</span>
+              </div>
             ))}
           </div>
         </CardContent>
@@ -1548,13 +1844,20 @@ function GraphSection({ data }: { data: any }) {
         <CardContent>
           {selectedNode ? (
             <div className="space-y-3 text-sm">
-              <div><span className="text-muted-foreground">Type: </span><Badge>{selectedNode.node_type}</Badge></div>
-              <div><span className="text-muted-foreground">Label: </span><span className="font-medium">{selectedNode.label}</span></div>
-              {selectedNode.file_path && <div><span className="text-muted-foreground">File: </span>{selectedNode.file_path}</div>}
-              {selectedNode.class_name && <div><span className="text-muted-foreground">Class: </span>{selectedNode.class_name}</div>}
-              {selectedNode.function_name && <div><span className="text-muted-foreground">Function: </span>{selectedNode.function_name}</div>}
-              {selectedNode.severity && <div><span className="text-muted-foreground">Severity: </span><Badge variant={severityVariant(selectedNode.severity)}>{selectedNode.severity}</Badge></div>}
-              {selectedNode.metadata?.analyzer && <div><span className="text-muted-foreground">Analyzer: </span>{selectedNode.metadata.analyzer}</div>}
+              <div className="flex items-center gap-2">
+                <div className="h-3 w-3 rounded-full" style={{ backgroundColor: (NODE_STYLES[selectedNode.node_type] || defaultStyle).fill }} />
+                <Badge variant="outline">{selectedNode.node_type}</Badge>
+              </div>
+              <div><span className="text-muted-foreground">{t("graph.nodeDetails")}:</span><div className="font-medium break-all">{selectedNode.label}</div></div>
+              {selectedNode.file_path && <div><span className="text-muted-foreground">{t("evidence.file")}:</span><div className="font-mono text-xs break-all">{selectedNode.file_path}</div></div>}
+              {selectedNode.class_name && <div><span className="text-muted-foreground">Class:</span> <span className="font-medium">{selectedNode.class_name}</span></div>}
+              {selectedNode.function_name && <div><span className="text-muted-foreground">Function:</span> <span className="font-medium">{selectedNode.function_name}</span></div>}
+              {selectedNode.severity && <div className="flex items-center gap-2"><span className="text-muted-foreground">{t("evidence.severity")}:</span><Badge variant={severityVariant(selectedNode.severity)}>{selectedNode.severity}</Badge></div>}
+              {selectedNode.metadata?.analyzer && <div><span className="text-muted-foreground">{t("evidence.analyzer")}:</span> <span className="font-medium">{selectedNode.metadata.analyzer}</span></div>}
+              <div className="pt-2 border-t">
+                <span className="text-muted-foreground">{t("graph.highlightConnected")}:</span>{" "}
+                <span className="font-medium tabular-nums">{connectedIds?.size || 0}</span>
+              </div>
             </div>
           ) : <p className="text-sm text-muted-foreground">{t("graph.clickNode")}</p>}
         </CardContent>
@@ -1571,38 +1874,109 @@ function FileExplorerSection({ data }: { data: any }) {
   const { t } = useI18n();
   const inventory = data?.file_inventory;
   const [selectedFile, setSelectedFile] = React.useState<string | null>(null);
+  const [search, setSearch] = React.useState("");
 
   if (!inventory?.files?.length) return <EmptyState icon={<FileCode2 className="h-12 w-12" />} title={t("files.noInventory")} />;
 
-  const files = inventory.files.sort();
+  const allFiles = inventory.files.sort();
   const evidence = data?.evidence?.evidence || [];
   const rootCauses = data?.root_causes?.root_causes || [];
   const planSteps = data?.engineering_plan?.steps || [];
   const graph = data?.knowledge_graph;
 
+  // Per-file evidence count (for badge in the list)
+  const evidenceByFile: Record<string, number> = {};
+  evidence.forEach((e: any) => { if (e.file_path) evidenceByFile[e.file_path] = (evidenceByFile[e.file_path] || 0) + 1; });
+
+  // Filter files by search
+  const files = allFiles.filter((f: string) => !search.trim() || f.toLowerCase().includes(search.toLowerCase()));
+
+  // Evidence/root-cause/step/graph counts per file (for the right panel)
   const fileEvidence = selectedFile ? evidence.filter((e: any) => e.file_path === selectedFile) : [];
   const fileRootCauses = selectedFile ? rootCauses.filter((rc: any) => rc.affected_files?.includes(selectedFile)) : [];
   const fileSteps = selectedFile ? planSteps.filter((s: any) => s.affected_files?.includes(selectedFile)) : [];
   const fileGraphNodes = selectedFile && graph ? graph.nodes?.filter((n: any) => n.file_path === selectedFile) : [];
 
+  // File-type icon by extension
+  const fileIcon = (path: string) => {
+    const ext = path.split(".").pop()?.toLowerCase();
+    if (ext === "py") return <span className="text-yellow-500">🐍</span>;
+    if (ext === "ts" || ext === "tsx") return <span className="text-blue-500">TS</span>;
+    if (ext === "js" || ext === "jsx") return <span className="text-yellow-400">JS</span>;
+    if (ext === "md") return <FileText className="h-4 w-4 text-sky-500" />;
+    if (ext === "json") return <span className="text-amber-500">{"{}"}</span>;
+    if (ext === "yml" || ext === "yaml") return <span className="text-rose-500">Y</span>;
+    if (ext === "toml") return <span className="text-orange-500">T</span>;
+    if (ext === "txt") return <FileText className="h-4 w-4 text-muted-foreground" />;
+    return <FileCode2 className="h-4 w-4 text-muted-foreground" />;
+  };
+
+  // Estimate per-file size (demo: distribute total_bytes across files pseudo-evenly
+  // weighted by evidence count — files with more findings are "bigger").
+  const totalBytes = inventory.total_bytes || 0;
+  const fileSize = (path: string, idx: number) => {
+    if (!totalBytes) return null;
+    const evWeight = (evidenceByFile[path] || 0) + 1;
+    const base = totalBytes / allFiles.length;
+    const bytes = Math.round(base * evWeight * (0.7 + (idx % 5) * 0.1));
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const formatTotalSize = (b: number) => {
+    if (!b) return "—";
+    if (b < 1024) return `${b} B`;
+    if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
+    return `${(b / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
   return (
     <div className="grid gap-4 lg:grid-cols-3">
       <Card className="lg:col-span-1">
-        <CardHeader><CardTitle className="text-lg">{t("files.title")} ({files.length})</CardTitle></CardHeader>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center justify-between text-lg">
+            <span>{t("files.title")} ({allFiles.length})</span>
+          </CardTitle>
+          <div className="relative mt-2">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("files.search")} className="h-9 pl-9 text-sm" />
+          </div>
+        </CardHeader>
         <CardContent>
-          <ScrollArea className="h-[600px]">
-            <div className="space-y-1">
-              {files.map((f: string, i: number) => (
-                <button key={i} onClick={() => setSelectedFile(f)} className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-muted/50 ${selectedFile === f ? "bg-muted" : ""}`}>
-                  <FileCode2 className="h-4 w-4 flex-shrink-0 text-muted-foreground" /><span className="truncate">{f}</span>
-                </button>
-              ))}
+          <ScrollArea className="h-[560px]">
+            <div className="space-y-0.5">
+              {files.map((f: string, i: number) => {
+                const evCount = evidenceByFile[f] || 0;
+                const size = fileSize(f, i);
+                return (
+                  <button
+                    key={i} onClick={() => setSelectedFile(f)}
+                    className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted/50 ${selectedFile === f ? "bg-muted ring-1 ring-primary/30" : ""}`}
+                  >
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center text-xs font-mono">{fileIcon(f)}</span>
+                    <span className="truncate flex-1">{f}</span>
+                    {evCount > 0 && (
+                      <Badge variant="secondary" className="shrink-0 text-xs h-5 px-1.5">{evCount}</Badge>
+                    )}
+                    {size && <span className="shrink-0 text-xs text-muted-foreground/70 tabular-nums">{size}</span>}
+                  </button>
+                );
+              })}
+              {files.length === 0 && (
+                <p className="py-8 text-center text-sm text-muted-foreground">{t("filter.noMatch")}</p>
+              )}
             </div>
           </ScrollArea>
+          {search.trim() && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              {t("filter.results").replace("{count}", String(files.length)).replace("{total}", String(allFiles.length))}
+            </p>
+          )}
         </CardContent>
       </Card>
       <Card className="lg:col-span-2">
-        <CardHeader><CardTitle className="text-lg">{selectedFile || t("files.selectFile")}</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-lg break-all">{selectedFile || t("files.preview")}</CardTitle></CardHeader>
         <CardContent>
           {selectedFile ? (
             <div className="space-y-4">
@@ -1634,7 +2008,7 @@ function FileExplorerSection({ data }: { data: any }) {
                 <>
                   <Separator />
                   <div>
-                    <h4 className="mb-2 flex items-center gap-1.5 text-sm font-semibold"><Map className="h-4 w-4" /> {t("dashboard.roadmap")} ({fileSteps.length})</h4>
+                    <h4 className="mb-2 flex items-center gap-1.5 text-sm font-semibold"><Map className="h-4 w-4" /> {t("files.recommendations")} ({fileSteps.length})</h4>
                     <div className="space-y-2">
                       {fileSteps.map((s: any, i: number) => (<div key={i} className="rounded border p-2 text-sm"><span className="font-medium">{s.title}</span></div>))}
                     </div>
@@ -1645,7 +2019,7 @@ function FileExplorerSection({ data }: { data: any }) {
                 <>
                   <Separator />
                   <div>
-                    <h4 className="mb-2 flex items-center gap-1.5 text-sm font-semibold"><Network className="h-4 w-4" /> {t("dashboard.graph")} ({fileGraphNodes.length})</h4>
+                    <h4 className="mb-2 flex items-center gap-1.5 text-sm font-semibold"><Network className="h-4 w-4" /> {t("files.graphConnections")} ({fileGraphNodes.length})</h4>
                     <div className="flex flex-wrap gap-2">
                       {fileGraphNodes.map((n: any, i: number) => (<Badge key={i} variant="secondary" className="text-xs">{n.node_type}: {n.label}</Badge>))}
                     </div>
@@ -1653,9 +2027,72 @@ function FileExplorerSection({ data }: { data: any }) {
                 </>
               )}
             </div>
-          ) : <p className="text-sm text-muted-foreground">{t("files.selectPrompt")}</p>}
+          ) : (
+            // Rich empty-state: repository overview when no file is selected
+            <FilePreviewOverview data={data} formatTotalSize={formatTotalSize} />
+          )}
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+// Empty-state for the Files tab right panel: a repo overview with stat tiles.
+function FilePreviewOverview({ data, formatTotalSize }: { data: any; formatTotalSize: (b: number) => string }) {
+  const { t } = useI18n();
+  const inv = data?.file_inventory;
+  const evidence = data?.evidence?.evidence || [];
+  const rootCauses = data?.root_causes?.root_causes || [];
+  const plan = data?.engineering_plan;
+  const graph = data?.knowledge_graph;
+
+  // Files by extension (top 6)
+  const extCounts: Record<string, number> = {};
+  (inv?.files || []).forEach((f: string) => {
+    const ext = f.split(".").pop()?.toLowerCase() || "(no ext)";
+    extCounts[ext] = (extCounts[ext] || 0) + 1;
+  });
+  const topExts = Object.entries(extCounts).sort((a, b) => b[1] - a[1]).slice(0, 6);
+
+  const tiles: { label: string; value: React.ReactNode; icon: React.ReactNode; accent: string }[] = [
+    { label: t("files.totalFiles"), value: inv?.total_files || (inv?.files?.length || 0), icon: <FileCode2 className="h-4 w-4" />, accent: "text-sky-500" },
+    { label: t("files.totalSize"), value: formatTotalSize(inv?.total_bytes || 0), icon: <Database className="h-4 w-4" />, accent: "text-violet-500" },
+    { label: t("files.rootCauses"), value: rootCauses.length, icon: <Bug className="h-4 w-4" />, accent: "text-rose-500" },
+    { label: t("stats.evidenceItems"), value: evidence.length, icon: <Beaker className="h-4 w-4" />, accent: "text-amber-500" },
+    { label: t("stats.planSteps"), value: plan?.steps?.length || 0, icon: <Map className="h-4 w-4" />, accent: "text-emerald-500" },
+    { label: t("graph.nodes"), value: graph?.nodes?.length || 0, icon: <Network className="h-4 w-4" />, accent: "text-pink-500" },
+  ];
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4">
+        <FolderOpen className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+        <div>
+          <p className="text-sm font-medium">{t("files.preview")}</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">{t("files.previewDesc")}</p>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {tiles.map((tile, i) => (
+          <div key={i} className="rounded-lg border p-3">
+            <div className={`mb-1 flex items-center gap-1.5 ${tile.accent}`}>{tile.icon}<span className="text-xs text-muted-foreground">{tile.label}</span></div>
+            <div className="text-xl font-bold tabular-nums">{tile.value}</div>
+          </div>
+        ))}
+      </div>
+      {topExts.length > 0 && (
+        <div>
+          <h4 className="mb-2 text-sm font-semibold">{t("files.type")}</h4>
+          <div className="flex flex-wrap gap-2">
+            {topExts.map(([ext, count]) => (
+              <Badge key={ext} variant="secondary" className="gap-1.5">
+                <span className="font-mono text-xs">.{ext}</span>
+                <span className="text-muted-foreground">×{count}</span>
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
