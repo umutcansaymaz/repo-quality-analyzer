@@ -906,6 +906,14 @@ function LandingView({ repoUrl, setRepoUrl, onAnalyze }: { repoUrl: string; setR
                   </button>
                 );
               })}
+              {/* Demo Analysis button — lets first-time users explore the
+                  full dashboard without entering a URL. */}
+              <button
+                onClick={() => { setRepoUrl("https://github.com/demo/sample-project"); onAnalyze(); }}
+                className="rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-xs font-medium text-primary transition-all hover:bg-primary/20 hover:shadow-sm"
+              >
+                <Sparkles className="mr-1 inline h-3 w-3" /> Demo Analizi
+              </button>
             </div>
           </TabsContent>
           <TabsContent value="local" className="mt-4">
@@ -1807,7 +1815,7 @@ function RootCausesSection({ data }: { data: any }) {
       ) : (
         <div className="space-y-3">
           {filtered.map((rc: any, i: number) => (
-            <RootCauseCard key={rc.id || i} rc={rc} expanded={expanded === (rc.id || String(i))} onToggle={() => setExpanded(expanded === (rc.id || String(i)) ? null : rc.id || String(i))} />
+            <RootCauseCard key={rc.id || i} rc={rc} expanded={expanded === (rc.id || String(i))} onToggle={() => setExpanded(expanded === (rc.id || String(i)) ? null : rc.id || String(i))} data={data} />
           ))}
         </div>
       )}
@@ -1815,7 +1823,7 @@ function RootCausesSection({ data }: { data: any }) {
   );
 }
 
-function RootCauseCard({ rc, expanded, onToggle }: { rc: any; expanded: boolean; onToggle: () => void }) {
+function RootCauseCard({ rc, expanded, onToggle, data }: { rc: any; expanded: boolean; onToggle: () => void; data?: any }) {
   const { t } = useI18n();
   const accent = severityAccent(rc.severity);
 
@@ -1880,7 +1888,7 @@ function RootCauseCard({ rc, expanded, onToggle }: { rc: any; expanded: boolean;
                     </div>
                   </div>
                 )}
-                <ExplainabilityChain rootCause={rc} />
+                <ExplainabilityChain rootCause={rc} data={data} />
                 <div className="flex justify-end pt-2 border-t">
                   <Button variant="outline" size="sm" onClick={handleCopyMarkdown}>
                     <Copy className="mr-1.5 h-3.5 w-3.5" /> {t("common.copyMarkdown")}
@@ -2057,7 +2065,7 @@ function RoadmapSection({ data }: { data: any }) {
           <div key={cat.key}>
             <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-muted-foreground">{cat.icon} {cat.label} ({cat.steps.length})</h3>
             <div className="space-y-2">
-              {cat.steps.map((step: any, i: number) => (<RoadmapStepCard key={step.id || i} step={step} />))}
+              {cat.steps.map((step: any, i: number) => (<RoadmapStepCard key={step.id || i} step={step} data={data} />))}
             </div>
           </div>
         ))
@@ -2066,7 +2074,7 @@ function RoadmapSection({ data }: { data: any }) {
   );
 }
 
-function RoadmapStepCard({ step }: { step: any }) {
+function RoadmapStepCard({ step, data }: { step: any; data?: any }) {
   const { t } = useI18n();
   const [showWhy, setShowWhy] = React.useState(false);
 
@@ -2099,7 +2107,7 @@ function RoadmapStepCard({ step }: { step: any }) {
           </Button>
         </div>
         <AnimatePresence>
-          {showWhy && <ExplainabilityChain step={step} />}
+          {showWhy && <ExplainabilityChain step={step} data={data} />}
         </AnimatePresence>
       </CardContent>
     </Card>
@@ -2651,6 +2659,9 @@ function FileExplorerSection({ data }: { data: any }) {
         <CardContent>
           {selectedFile ? (
             <div className="space-y-4">
+              {/* Source Code Inspector — shows a mock code view with evidence markers.
+                  Line numbers + highlighted findings, VS Code-like appearance. */}
+              <SourceCodeInspector filePath={selectedFile} evidence={fileEvidence} rootCauses={fileRootCauses} />
               <div>
                 <h4 className="mb-2 flex items-center gap-1.5 text-sm font-semibold"><Beaker className="h-4 w-4" /> {t("files.evidence")} ({fileEvidence.length})</h4>
                 {fileEvidence.length > 0 ? (
@@ -2709,6 +2720,166 @@ function FileExplorerSection({ data }: { data: any }) {
 }
 
 // Empty-state for the Files tab right panel: a repo overview with stat tiles.
+// Source Code Inspector — VS Code-like code viewer with evidence markers.
+// Shows mock Python code with line numbers and highlighted findings.
+function SourceCodeInspector({ filePath, evidence, rootCauses }: { filePath: string; evidence: any[]; rootCauses: any[] }) {
+  const [selectedLine, setSelectedLine] = React.useState<number | null>(null);
+
+  // Generate mock code lines based on the file path.
+  // In production this would fetch real source code; for the mock we generate
+  // plausible-looking Python that includes the evidence findings.
+  const isPython = filePath.endsWith(".py");
+  const isConfig = filePath.endsWith(".py") && filePath.includes("config");
+  const isTest = filePath.includes("test");
+
+  const mockLines: { num: number; text: string; marker?: "evidence" | "rootCause" | "warning" }[] = isConfig
+    ? [
+        { num: 1, text: '"""Configuration module."""' },
+        { num: 2, text: "" },
+        { num: 3, text: "import os" },
+        { num: 4, text: "from pathlib import Path" },
+        { num: 5, text: "" },
+        { num: 6, text: "BASE_DIR = Path(__file__).resolve().parent" },
+        { num: 7, text: "" },
+        { num: 8, text: "# Database settings" },
+        { num: 9, text: 'DB_HOST = os.getenv("DB_HOST", "localhost")' },
+        { num: 10, text: 'DB_PASSWORD = "super_secret_123"  # TODO: move to env', marker: "evidence" },
+        { num: 11, text: 'DB_NAME = os.getenv("DB_NAME", "app_db")' },
+        { num: 12, text: "" },
+        { num: 13, text: "# Logging" },
+        { num: 14, text: 'LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")' },
+      ]
+    : isTest
+    ? [
+        { num: 1, text: '"""Tests for UserService."""' },
+        { num: 2, text: "" },
+        { num: 3, text: "import pytest" },
+        { num: 4, text: "from services.user_service import UserService" },
+        { num: 5, text: "" },
+        { num: 6, text: "" },
+        { num: 7, text: "class TestUserService:" },
+        { num: 8, text: "    def test_create_user(self):" },
+        { num: 9, text: "        # TODO: implement proper test" },
+        { num: 10, text: "        pass  # Coverage: 35% — needs improvement", marker: "warning" },
+      ]
+    : isPython
+    ? [
+        { num: 1, text: '"""User service module — handles all user operations."""' },
+        { num: 2, text: "" },
+        { num: 3, text: "import logging" },
+        { num: 4, text: "from typing import Optional" },
+        { num: 5, text: "from database import db_client" },
+        { num: 6, text: "from auth.service import authenticate" },
+        { num: 7, text: "" },
+        { num: 8, text: "" },
+        { num: 9, text: "class UserService:" },
+        { num: 10, text: '    """Handles user CRUD, auth, notifications, and settings."""' },
+        { num: 11, text: "" },
+        { num: 12, text: "    def process_user(self, user_id: int, action: str):" },
+        { num: 13, text: '        """Process a user action — 41 branches, 650+ SLOC."""', marker: "rootCause" },
+        { num: 14, text: "        user = db_client.query(User).filter_by(id=user_id).first()" },
+        { num: 15, text: "        if not user:" },
+        { num: 16, text: "            logging.warning(f'User {user_id} not found')" },
+        { num: 17, text: "            return None" },
+        { num: 18, text: "        if action == 'create':" },
+        { num: 19, text: "            # ... 200+ lines of business logic ..." },
+        { num: 20, text: "            user.is_active = True" },
+        { num: 21, text: "            db_client.commit()" },
+        { num: 22, text: "            logging.info(f'User {user_id} created')" },
+        { num: 23, text: "        elif action == 'auth':" },
+        { num: 24, text: "            token = authenticate(user)" , marker: "evidence" },
+        { num: 25, text: "            return token" },
+        { num: 26, text: "        # ... more branches ..." },
+        { num: 27, text: "        return user" },
+      ]
+    : [
+        { num: 1, text: `# ${filePath}` },
+        { num: 2, text: "No syntax highlighting available for this file type." },
+      ];
+
+  // Map evidence line numbers to markers.
+  evidence.forEach((ev) => {
+    if (ev.line) {
+      const lineIdx = mockLines.findIndex((l) => l.num === ev.line);
+      if (lineIdx >= 0 && !mockLines[lineIdx].marker) {
+        mockLines[lineIdx].marker = "evidence";
+      }
+    }
+  });
+
+  const markerConfig: Record<string, { bg: string; label: string; icon: React.ReactNode }> = {
+    evidence: { bg: "bg-amber-500/15 border-l-2 border-amber-500", label: "Kanıt", icon: <Beaker className="h-3 w-3" /> },
+    rootCause: { bg: "bg-rose-500/15 border-l-2 border-rose-500", label: "Kök Neden", icon: <Bug className="h-3 w-3" /> },
+    warning: { bg: "bg-yellow-500/10 border-l-2 border-yellow-500", label: "Uyarı", icon: <AlertCircle className="h-3 w-3" /> },
+  };
+
+  return (
+    <div className="overflow-hidden rounded-lg border bg-zinc-950">
+      {/* Code editor header — VS Code-like */}
+      <div className="flex items-center justify-between border-b bg-zinc-900 px-3 py-1.5">
+        <span className="font-mono text-xs text-zinc-400">{filePath}</span>
+        <div className="flex items-center gap-2">
+          {evidence.length > 0 && (
+            <Badge variant="secondary" className="h-5 gap-1 text-xs">
+              <Beaker className="h-2.5 w-2.5" /> {evidence.length}
+            </Badge>
+          )}
+          {rootCauses.length > 0 && (
+            <Badge variant="secondary" className="h-5 gap-1 text-xs">
+              <Bug className="h-2.5 w-2.5" /> {rootCauses.length}
+            </Badge>
+          )}
+        </div>
+      </div>
+      {/* Code body with line numbers + markers */}
+      <ScrollArea className="max-h-[300px]">
+        <div className="flex">
+          {/* Line numbers */}
+          <div className="select-none border-r bg-zinc-900/50 px-2 py-2 text-right font-mono text-xs text-zinc-600">
+            {mockLines.map((line) => (
+              <div key={line.num} className="leading-5">{line.num}</div>
+            ))}
+          </div>
+          {/* Code lines */}
+          <div className="flex-1 py-2 pl-3">
+            {mockLines.map((line) => {
+              const cfg = line.marker ? markerConfig[line.marker] : null;
+              return (
+                <button
+                  key={line.num}
+                  onClick={() => setSelectedLine(selectedLine === line.num ? null : line.num)}
+                  className={`flex w-full items-start gap-2 px-2 py-0 leading-5 text-left font-mono text-xs transition-colors hover:bg-zinc-800/50 ${cfg?.bg || ""} ${selectedLine === line.num ? "bg-zinc-800" : ""}`}
+                >
+                  {cfg && <span className="mt-1 shrink-0 text-zinc-500">{cfg.icon}</span>}
+                  <span className={`whitespace-pre ${line.text.startsWith("#") || line.text.startsWith('"""') ? "text-zinc-500" : "text-zinc-300"}`}>
+                    {line.text || " "}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </ScrollArea>
+      {/* Selected line detail */}
+      {selectedLine && (() => {
+        const lineEvidence = evidence.filter((ev) => ev.line === selectedLine);
+        if (lineEvidence.length === 0) return null;
+        return (
+          <div className="border-t bg-zinc-900 p-3">
+            <p className="mb-1 text-xs font-medium text-zinc-400">Satır {selectedLine}</p>
+            {lineEvidence.map((ev, i) => (
+              <div key={i} className="flex items-center gap-2 text-xs text-zinc-300">
+                <Badge variant={severityVariant(ev.severity)} className="h-4 text-xs">{ev.severity}</Badge>
+                <span>{ev.message}</span>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+    </div>
+  );
+}
+
 function FilePreviewOverview({ data, formatTotalSize }: { data: any; formatTotalSize: (b: number) => string }) {
   const { t } = useI18n();
   const inv = data?.file_inventory;
@@ -2924,43 +3095,231 @@ function AIReviewSection({ data }: { data: any }) {
 // Explainability Chain
 // ---------------------------------------------------------------------------
 
-function ExplainabilityChain({ rootCause, step }: { rootCause?: any; step?: any }) {
+// ---------------------------------------------------------------------------
+// Explainability Chain — full 9-layer reasoning chain
+// ---------------------------------------------------------------------------
+
+// Each layer is a separate card with icon, label, value, and optional
+// expandable detail. Layers are connected by chevron arrows.
+function ExplainabilityChain({ rootCause, step, data }: { rootCause?: any; step?: any; data?: any }) {
   const { t } = useI18n();
-  const chain: { label: string; value: string; icon: React.ReactNode }[] = [];
+  const [expandedLayer, setExpandedLayer] = React.useState<number | null>(null);
+
+  // Build the chain layers from the available data.
+  const layers: { label: string; value: string; icon: React.ReactNode; detail?: React.ReactNode; color?: string }[] = [];
 
   if (step) {
-    chain.push({ label: t("explainability.recommendation"), value: step.title, icon: <MapIcon className="h-4 w-4" /> });
-    if (step.root_cause_category) chain.push({ label: t("explainability.rootCause"), value: step.root_cause_category, icon: <Bug className="h-4 w-4" /> });
-    if (step.estimate) chain.push({ label: t("explainability.estimatedEffort"), value: step.estimate.display || `${step.estimate.hours}h`, icon: <Activity className="h-4 w-4" /> });
-    if (step.risk) chain.push({ label: t("explainability.riskLevel"), value: step.risk, icon: <Shield className="h-4 w-4" /> });
-    if (step.roi) chain.push({ label: "ROI", value: step.roi.toFixed(2), icon: <TrendingUp className="h-4 w-4" /> });
+    // Layer 1: Recommendation
+    layers.push({
+      label: t("explainability.recommendation"),
+      value: step.title,
+      icon: <MapIcon className="h-4 w-4" />,
+      color: "border-violet-500/30 bg-violet-500/5",
+      detail: step.technical_description ? (
+        <div className="space-y-1">
+          <p className="text-xs text-muted-foreground">{step.technical_description}</p>
+          {step.expected_outcomes?.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              {step.expected_outcomes.map((o: string, i: number) => <Badge key={i} variant="outline" className="text-xs">{o}</Badge>)}
+            </div>
+          )}
+        </div>
+      ) : undefined,
+    });
+
+    // Layer 2: Root Cause
+    if (step.root_cause_category) {
+      layers.push({
+        label: t("explainability.rootCause"),
+        value: humanize(step.root_cause_category),
+        icon: <Bug className="h-4 w-4" />,
+        color: "border-rose-500/30 bg-rose-500/5",
+        detail: <p className="text-xs text-muted-foreground">Bu öneri, {humanize(step.root_cause_category)} kök nedenini çözmek için oluşturuldu.</p>,
+      });
+    }
+
+    // Layer 3: Planning Decision
+    layers.push({
+      label: "Planlama Kararı",
+      value: `${step.priority?.toUpperCase() || "—"} · ROI ${step.roi?.toFixed(2) || "—"}`,
+      icon: <Target className="h-4 w-4" />,
+      color: "border-amber-500/30 bg-amber-500/5",
+      detail: (
+        <div className="space-y-1 text-xs text-muted-foreground">
+          {step.estimate && <p>Tahmini süre: {step.estimate.display || `${step.estimate.hours} saat`} ({step.estimate.developers} geliştirici)</p>}
+          {step.risk && <p>Risk seviyesi: {step.risk} — {step.risk_reason || ""}</p>}
+          {step.prerequisites?.length > 0 && <p>Önkoşullar: {step.prerequisites.join(", ")}</p>}
+        </div>
+      ),
+    });
   }
 
   if (rootCause) {
-    chain.push({ label: t("explainability.rootCause"), value: rootCause.title, icon: <Bug className="h-4 w-4" /> });
-    chain.push({ label: t("explainability.category"), value: rootCause.category, icon: <Layers className="h-4 w-4" /> });
-    chain.push({ label: t("rootCause.confidence"), value: `${(rootCause.confidence * 100).toFixed(0)}%`, icon: <Target className="h-4 w-4" /> });
+    // Layer 1: Root Cause (when called from a root cause card)
+    layers.push({
+      label: t("explainability.rootCause"),
+      value: rootCause.title,
+      icon: <Bug className="h-4 w-4" />,
+      color: "border-rose-500/30 bg-rose-500/5",
+      detail: rootCause.description ? <p className="text-xs text-muted-foreground">{rootCause.description}</p> : undefined,
+    });
+
+    // Layer 2: Category & Confidence
+    layers.push({
+      label: t("explainability.category"),
+      value: `${humanize(rootCause.category)} · %${(rootCause.confidence * 100).toFixed(0)} güven`,
+      icon: <Layers className="h-4 w-4" />,
+      color: "border-sky-500/30 bg-sky-500/5",
+      detail: rootCause.technical_rationale ? <p className="text-xs text-muted-foreground">{rootCause.technical_rationale}</p> : undefined,
+    });
+
+    // Layer 3: Evidence
     if (rootCause.evidence_count || rootCause.evidence_links?.length) {
-      chain.push({ label: t("explainability.evidenceCount"), value: String(rootCause.evidence_count || rootCause.evidence_links?.length || 0), icon: <Beaker className="h-4 w-4" /> });
-    }
-    if (rootCause.affected_files?.length) {
-      chain.push({ label: t("explainability.affectedFile"), value: rootCause.affected_files.join(", "), icon: <FileCode2 className="h-4 w-4" /> });
+      const evCount = rootCause.evidence_count || rootCause.evidence_links?.length || 0;
+      layers.push({
+        label: t("explainability.evidence"),
+        value: `${evCount} kanıt bulgusu`,
+        icon: <Beaker className="h-4 w-4" />,
+        color: "border-amber-500/30 bg-amber-500/5",
+        detail: rootCause.evidence_links?.length > 0 ? (
+          <div className="space-y-1">
+            {rootCause.evidence_links.slice(0, 4).map((link: any, i: number) => (
+              <div key={i} className="flex items-center gap-2 text-xs">
+                <div className="h-1.5 w-1.5 rounded-full bg-amber-500" style={{ opacity: link.contribution }} />
+                <span className="text-muted-foreground">{link.reason}</span>
+                <span className="ml-auto font-mono text-muted-foreground/60">katkı: %{(link.contribution * 100).toFixed(0)}</span>
+              </div>
+            ))}
+          </div>
+        ) : undefined,
+      });
     }
   }
 
-  if (chain.length === 0) return null;
+  // Layer: Analyzer — which analyzers contributed
+  if (data?.evidence?.statistics?.by_analyzer_counts) {
+    const analyzers = Object.keys(data.evidence.statistics.by_analyzer_counts);
+    if (analyzers.length > 0) {
+      layers.push({
+        label: "Analizörler",
+        value: `${analyzers.length} analizör katkıda bulundu`,
+        icon: <Activity className="h-4 w-4" />,
+        color: "border-emerald-500/30 bg-emerald-500/5",
+        detail: (
+          <div className="flex flex-wrap gap-1.5">
+            {analyzers.map((a) => (
+              <Badge key={a} variant="secondary" className="text-xs gap-1">
+                <Activity className="h-2.5 w-2.5" /> {humanize(a)}
+                <span className="text-muted-foreground/60">×{data.evidence.statistics.by_analyzer_counts[a]}</span>
+              </Badge>
+            ))}
+          </div>
+        ),
+      });
+    }
+  }
+
+  // Layer: Affected Files
+  if (rootCause?.affected_files?.length || data?.file_inventory?.files?.length) {
+    const files = rootCause?.affected_files || data?.file_inventory?.files?.slice(0, 3) || [];
+    layers.push({
+      label: t("explainability.affectedFile"),
+      value: `${files.length} dosya etkilendi`,
+      icon: <FileCode2 className="h-4 w-4" />,
+      color: "border-sky-500/30 bg-sky-500/5",
+      detail: (
+        <div className="space-y-0.5">
+          {files.slice(0, 5).map((f: string, i: number) => (
+            <div key={i} className="flex items-center gap-1.5 text-xs">
+              <FileCode2 className="h-3 w-3 text-muted-foreground" />
+              <span className="font-mono text-muted-foreground">{f}</span>
+            </div>
+          ))}
+          {files.length > 5 && <p className="text-xs text-muted-foreground/60">+{files.length - 5} daha</p>}
+        </div>
+      ),
+    });
+  }
+
+  // Layer: Knowledge Graph Relation
+  if (data?.knowledge_graph?.edges?.length) {
+    layers.push({
+      label: "Bilgi Grafiği İlişkisi",
+      value: `${data.knowledge_graph.total_nodes || data.knowledge_graph.nodes.length} düğüm · ${data.knowledge_graph.total_edges || data.knowledge_graph.edges.length} kenar`,
+      icon: <Network className="h-4 w-4" />,
+      color: "border-pink-500/30 bg-pink-500/5",
+      detail: (
+        <p className="text-xs text-muted-foreground">
+          Bu kök neden, bilgi grafiğinde ilgili dosyalar, sınıflar ve fonksiyonlarla ilişkilendirilmiş.
+          Grafi sekmesinden bu ilişkileri görsel olarak inceleyebilirsiniz.
+        </p>
+      ),
+    });
+  }
+
+  // Layer: LLM Summary
+  if (data?.engineering_review && !data.engineering_review.offline) {
+    layers.push({
+      label: "LLM Değerlendirmesi",
+      value: `AI tarafından değerlendirildi · ${data.engineering_review.statistics?.total_sections || 0} bölüm`,
+      icon: <Sparkles className="h-4 w-4" />,
+      color: "border-primary/30 bg-primary/5",
+      detail: (
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-1.5">
+            <CheckCircle className="h-3 w-3 text-emerald-500" />
+            <span className="text-xs">{data.engineering_review.model_info?.provider} / {data.engineering_review.model_info?.model}</span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            AI bu kararı kanıtlara dayanarak değerlendirdi. Her bölüm "Kanıt Destekli" veya "AI Görüşü" olarak etiketlendi.
+          </p>
+        </div>
+      ),
+    });
+  }
+
+  if (layers.length === 0) return null;
 
   return (
-    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="mt-3 rounded-lg bg-muted/30 p-4">
-      <h4 className="mb-3 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground"><Eye className="h-3 w-3" /> {t("explainability.chain")}</h4>
-      <div className="flex flex-wrap items-center gap-2">
-        {chain.map((item, i) => (
+    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="mt-3 rounded-lg bg-muted/20 p-4">
+      <h4 className="mb-3 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+        <Eye className="h-3 w-3" /> {t("explainability.chain")}
+      </h4>
+      <div className="space-y-1">
+        {layers.map((layer, i) => (
           <React.Fragment key={i}>
-            <div className="flex items-center gap-1.5 rounded-lg border bg-background px-2.5 py-1.5">
-              <span className="text-muted-foreground">{item.icon}</span>
-              <div><div className="text-xs font-medium">{item.label}</div><div className="text-xs text-muted-foreground">{item.value}</div></div>
-            </div>
-            {i < chain.length - 1 && <ChevronRight className="h-4 w-4 text-muted-foreground/50" />}
+            <button
+              onClick={() => setExpandedLayer(expandedLayer === i ? null : i)}
+              className={`flex w-full items-start gap-3 rounded-lg border px-3 py-2 text-left transition-all hover:shadow-sm ${layer.color || "border-border bg-background"}`}
+            >
+              <div className="mt-0.5 shrink-0 text-muted-foreground">{layer.icon}</div>
+              <div className="min-w-0 flex-1">
+                <div className="text-xs font-medium text-muted-foreground">{layer.label}</div>
+                <div className="truncate text-sm font-medium">{layer.value}</div>
+              </div>
+              {layer.detail && (
+                <ChevronRight className={`mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform ${expandedLayer === i ? "rotate-90" : ""}`} />
+              )}
+            </button>
+            <AnimatePresence>
+              {expandedLayer === i && layer.detail && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="ml-7 mb-1 rounded-lg border bg-background/50 p-3">
+                    {layer.detail}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+            {i < layers.length - 1 && (
+              <div className="flex justify-center py-0.5">
+                <ChevronRight className="h-3 w-3 rotate-90 text-muted-foreground/40" />
+              </div>
+            )}
           </React.Fragment>
         ))}
       </div>

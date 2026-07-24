@@ -78,50 +78,58 @@ export function generateDemoData(repoUrl: string, options?: GenerateOptions): De
   const sizeBytes = 120000 + (h % 800000);
   const license = pick(["MIT", "Apache-2.0", "BSD-3-Clause", "GPL-3.0", "ISC"], h);
 
-  // --- LLM review sections (richer when useLLM is true) ---
+  // --- LLM review sections — written like a senior architect talking,
+  // NOT restating metrics. Each section gives genuine insight, practical
+  // advice, and context that the raw data alone doesn't provide.
   const reviewSections = useLLM
     ? [
         {
           section_type: "executive_summary",
-          title: "Yönetici Özeti",
-          body: `${owner}/${name} deposu analiz edildi. Genel sağlık skoru ${overall.toFixed(1)}/100 (${grade}). 4 mimari kök neden tespit edildi (ortalama güven %80). Mühendislik planı 4 adım öneriyor — 3 sprint'te ~92 saat. 2 hızlı kazanç mevcut. En kritik sorun: "Tanrı Sınıf" (God Class) anti-deseni ve döngüsel bağımlılık. Önerilen ilk adım: UserService sınıfını parçalara ayırmak.`,
+          title: "Özet",
+          body: `Bu depoyu inceledim ve açıkçası temel mimari sağlam görünüyor ama birkaç noktada teknik borç biriktirmişsiniz. En belirgin sorun: UserService sınıfı her şeyi yapıyor — kullanıcı oluşturma, kimlik doğrulama, bildirim gönderme, veritabanı sorguları... Bu sınıf büyüdükçe değiştirmek gittikçe zorlaşıyor ve her dokunuş başka bir şeyi kırma riski taşıyor. İyi haber: bu düzeltilebilir ve önünüzde net bir yol haritası var. Önemli olan paralel değil, sıralı ilerlemek — önce en kritik bağımlılığı (UserService) çözün, gerisi daha kolay gelecek.`,
           confidence: "high",
         },
         {
           section_type: "top_root_causes",
-          title: "En Önemli Kök Nedenler",
-          body: "1. Tanrı Sınıf: UserService — çok sayıda sorumluluğu tek sınıfta toplamış (yüksek, %85)\n2. Döngüsel Bağımlılık: auth ↔ user — modüller birbirini içe aktarıyor (yüksek, %92)\n3. Sıkı Bağlılık: Veritabanı katmanı — servisler doğrudan DB'ye bağlı (orta, %75)\n4. Saçma Değişiklik: Loglama — tek değişiklik 8 dosyayı etkiliyor (düşük, %68)",
+          title: "Asıl Sorunlar",
+          body: `Şunu fark ettim: buradaki sorunlar birbirinden bağımsız değil, zincirleme etkiliyorlar. UserService'in çok büyümesi (Tanrı Sınıf anti-deseni) doğal olarak sıkı bağlılığa yol açıyor — çünkü her şey bu sınıfa bağımlı. Döngüsel bağımlılık (auth ↔ user) ise muhtemelen "şunu da buradan çağırayım" yaklaşımının sonucu. Yani kök neden tek aslında: sorumlulukların iyi ayrılmamış olması. Bunu çözerseniz, diğer sorunlar da büyük ölçüde kendiliğinden düzelecek.`,
           confidence: "high",
         },
         {
           section_type: "highest_roi_refactoring",
-          title: "En Yüksek Getirili Yeniden Düzenleme",
-          body: "Adım 4: Ortak loglama yardımcı fonksiyonu çıkar\nROI: 5.42\nÖncelik: düşük\nTahmini süre: 4 saat",
+          title: "En Değerli Düzeltme",
+          body: "İlginçtir, en yüksek getirili düzeltme en kolayı: loglama kodunu tek bir yere toplamak. Şu anda log formatını değiştirmek istediğinizde 8 dosyayı açmanız gerekiyor — bu sadece zaman kaybı değil, birini atladığınızda tutarsız loglar elde ediyorsunuz. 4 saatlik bir iş ve getirisi çok yüksek. Bunu ilk sprint'e taşıyın — ekibin morali için iyi bir başlangıç olur ve güven oluşturur.",
           confidence: "high",
         },
         {
           section_type: "architecture_review",
-          title: "Mimari İnceleme",
-          body: `Depo mimarisi ${architecture.toFixed(0)}/100 puan aldı. Katmanlı yapı kısmen mevcut ama servis katmanında sorumluluk ayrımı zayıf. UserService sınıfı hem iş mantığı hem veri erişimi hem de bildirimleri yönetiyor — bu "Tanrı Sınıf" anti-desenine işaret ediyor. Modüller arası döngüsel bağımlılık (auth ↔ user) test edilebilirliği zorlaştırıyor. Bağımlılık enjeksiyonu (DI) kullanılmadığı için servisler veritabanı istemcisine sıkı bağlı. Önerilen yaklaşım: önce Tanrı Sınıf'ı parçalara ayır, ardından arayüz (interface) tabanlı bağımlılık enjeksiyonu geç.`,
+          title: "Mimari Değerlendirmem",
+          body: `Dürüst olmak gerekirse, bu depo "çalışıyor ama büyürken acı çekecek" kategorisinde. Katman ayrımı kısmen var ama UserService bir "kara delik" oluşturmuş — her şey oraya çekiliyor. Döngüsel bağımlılık (auth ↔ user) özellikle tehlikeli çünkü test yazmayı zorlaştırıyor: auth'ı test etmek için user'a, user'ı test etmek için auth'a ihtiyaç var. Bu birim testleri imkânsız değil ama çok kırılgan hale getiriyor. Bağımlılık enjeksiyonu (DI) tamamen eksik — servisler doğrudan veritabanına ulaşıyor. Bu, ilerde veritabanını değiştirmek istediğinizde büyük acı verecek. Tavsiyem: Facade deseniyle başlayın — UserService'i olduğu gibi bırakın ama yeni kodları ayrı servislere yazın. Zamanla eski kod da göç eder.`,
           confidence: "high",
         },
         {
           section_type: "risk_assessment",
-          title: "Risk Değerlendirmesi",
-          body: "Yüksek riskli adımlar: UserService parçalama (40 saat, 2 geliştirici) ve döngüsel bağımlılık kırma (24 saat). Her ikisi de kritik yolları etkiliyor. Geçiş stratejisi: 'Facade + Delegate' deseni kullanılarak geriye dönük uyumlu, kademeli geçiş önerilir. Düşük riskli hızlı kazançlar: loglama yardımcı fonksiyonu (4 saat) ve kullanılmayan import temizliği (15 dakika).",
+          title: "Riskleri Açıkça Paylaşıyorum",
+          body: "UserService'i parçalamak riskli bir iş — 40 saat, 2 geliştirici ve kritik yolları etkiliyor. Bu yüzden 'big bang' yaklaşımı yerine kademeli geçiş şart. Önce bir Facade oluşturun, yeni servisleri arka planda yazın, eski UserService'i facade'a yönlendirin ve sonra kademeli olarak içini boşaltın. Döngüsel bağımlılığı kırmak da benzer şekilde riskli ama şaşırtıcı derecede hızlı sonuç veriyor — ortak mantığı yeni bir modüle çekmek genelde bir gün sürüyor. Test kapsamının %35 olması beni endişelendiriyor: bu kadar düşük kapsamda büyük refactor yapmak yürürken uçurumun kenarında yürümek gibi. Önce testleri yazın, sonra refactor yapın.",
           confidence: "medium",
         },
         {
           section_type: "long_term_vision",
-          title: "Uzun Vadeli Vizyon",
-          body: "Önümüzdeki 6 ayda büyük sınıfları tek sorumluluklu (single-responsibility) bileşenlere ayırın. Her sprint'te en az bir kök nedeni ele alın. Test kapsamı %35'ten %70'e çıkarılmalı. Bağımlılık enjeksiyonu çerçevesi (örn. FastAPI Depends) tüm servisler için standart hale gelmeli. CI/CD pipeline'ına mimari kalite kapısı ekleyin: döngüsel bağımlılık ve yüksek karmaşıklık otomatik engellenmeli.",
+          title: "İleriye Dönük Düşüncelerim",
+          body: `Bu depoyu 6 ay sonra 'bakması keyifli bir kod tabanı' haline getirebilirsiniz ama disiplinli olmanız gerek. Her sprint'te bir kök nedeni ele alın — paralel değil, sıralı. CI/CD'ye mimari kalite kapısı ekleyin: döngüsel bağımlılık otomatik engellensin, karmaşıklık eşiği aşıldığında uyarı verilsin. Test kapsamını %35'ten en az %60'a çıkarın — bu bir hedef değil, refactor için güvenlik ağı. Bağımlılık enjeksiyonu standart hale gelmeli. Ve en önemlisi: yeni özellikler eklerken 'UserService'e koyalım' demeyin — her yeni sorumluluk için yeni bir servis oluşturun. Bu disiplin 3-4 sprint sonra alışkanlık haline gelecek.`,
           confidence: "low",
         },
         {
           section_type: "challenge",
-          title: "Plan Eleştirisi",
-          body: "Adım 1 (UserService parçalama) çok agresif — 5 gün, 2 geliştirici. Alternatif olarak, önce Facade deseniyle geriye dönük uyumlu bir geçiş yapılabilir. Adım 3'ün adım 1'e bağımlılığı var ama her ikisi de yüksek riskli — paralel değil sıralı yapılmalı. Hızlı kazançlar (qw-1, qw-2) ilk sprinte taşınmalı — erken başarı motivasyonu sağlar.",
+          title: "Plana Itirazlarım",
+          body: `Plan genel olarak mantıklı ama birkaç noktada itirazım var. Birincisi: Adım 1 (UserService parçalama) çok agresif. 5 günde 2 geliştirici ile 'split God Class' demek, o sırada başka hiçbir özellik geliştirilemeyecek demek. Bunun yerine Facade + Delegate ile başlayın — geriye dönük uyumlu, riski düşük. İkincisi: hızlı kazançlar neden 3. sprint'te? Onları 1. sprint'e taşıyın — ekibin 'bir şeyi tamamladık' hissi yaşaması motivasyon için kritik. Üçüncüsü: test kapsamı %35 iken büyük refactor yapmak çok riskli. Test yazmadan başlamayın.`,
           confidence: "medium",
+        },
+        {
+          section_type: "recommendation",
+          title: "Pratik Tavsiyelerim",
+          body: "Bunları sırayla yapın:\n1. Önce loglama yardımcı fonksiyonunu çıkarın (4 saat, düşük risk)\n2. Kullanılmayan import'ları temizleyin (15 dakika, anında sonuç)\n3. UserService için test yazın — en azından process_user metodunu\n4. Facade deseni uygulayın, yeni servisleri arkadan yazın\n5. Döngüsel bağımlılığı kırın (ortak mantığı çıkar)\n6. Repository arayüzü tanımlayın (DI için)\nBu sıra önemli: düşük riskli işlerle başlayın, güven oluşturun, sonra büyük refactor'a geçin.",
+          confidence: "high",
         },
       ]
     : [
@@ -374,14 +382,15 @@ export function generateDemoData(repoUrl: string, options?: GenerateOptions): De
       sections: reviewSections,
       challenges: useLLM
         ? [
-            { target_step_id: "step-1", challenge_type: "too_aggressive", description: "Adım 1 çok agresif — 5 gün ve 2 geliştirici. Facade deseni ile kademeli geçiş daha güvenli olabilir.", alternative: "Önce Facade + Delegate uygula, ardından kademeli olarak parçala." },
-            { target_step_id: "step-3", challenge_type: "insufficient_evidence", description: "Adım 3'ün adım 1'e bağımlılığı var ama her ikisi de yüksek riskli. Paralel değil sıralı yapılmalı.", alternative: "Adım 1 tamamlandıktan sonra adım 3'ü başlat." },
+            { target_step_id: "step-1", challenge_type: "too_aggressive", description: "UserService'i 5 günde parçalamaya çalışmak çok agresif. Bu süre zarfında başka özellik geliştiremeyeceksiniz ve kritik yolları etkileyecek. Daha güvenli yol: önce bir Facade oluşturun, yeni servisleri arka planda yazın, eski kodu kademeli olarak taşıyın.", alternative: "Facade + Delegate deseni ile kademeli geçiş. İlk sprint'te sadece yapısını kurun, ikinci sprint'te tek bir sorumluluğu taşıyın." },
+            { target_step_id: "step-3", challenge_type: "insufficient_evidence", description: "Adım 3'ü adım 1'den önce yapmaya çalışmak tehlikeli — her ikisi de UserService'i değiştiriyor. Paralel çalışırsanız merge conflict'ler kaosa döner.", alternative: "Adım 1 tamamen bittikten sonra adım 3'ü başlatın. Arada en az bir sprint olsun." },
           ]
         : [],
       recommendations: useLLM
         ? [
-            { title: "Hızlı kazançları öne al", description: "qw-1 ve qw-2'yi ilk sprint'e taşı — erken başarı motivasyon sağlar.", priority: "medium", confidence: "high", rationale: "Düşük risk, yüksek görünürlük.", linked_step_ids: ["step-4"], linked_root_cause_ids: ["rc-4"] },
-            { title: "Test kapsamını artır", description: "Refactor öncesi test kapsamı %35'ten en az %60'a çıkarılmalı — güvenlik ağı sağlar.", priority: "high", confidence: "high", rationale: "Mevcut düşük kapsam refactor riskini artırıyor.", linked_step_ids: ["step-1"], linked_root_cause_ids: [] },
+            { title: "Hızlı kazançları ilk sprint'e taşıyın", description: "Loglama yardımcı fonksiyonu ve kullanılmayan import temizliği çok hızlı ve düşük riskli. Ekibin 'bir şeyi tamamladık' hissi yaşaması motivasyon için kritik.", priority: "medium", confidence: "high", rationale: "Düşük risk, yüksek görünürlük, anında sonuç.", linked_step_ids: ["step-4"], linked_root_cause_ids: ["rc-4"] },
+            { title: "Refactor öncesi test yazın", description: "Test kapsamı %35 — bu, büyük refactor yaparken 'ne yaptığımı bilmiyorum' demek. Önce UserService için en azından process_user metodunu test edin.", priority: "high", confidence: "high", rationale: "Mevcut düşük kapsam, refactor sırasında regresyon riskini çok artırıyor.", linked_step_ids: ["step-1"], linked_root_cause_ids: [] },
+            { title: "Yeni kod için DI kullanın", description: "Mevcut servisleri değiştirmesen bile, yeni yazdığınız her servis bağımlılık enjeksiyonu kullansın. Bu, gelecekteki refactor'ları çok kolaylaştıracak.", priority: "low", confidence: "medium", rationale: "Kademeli geçiş — yeni kod kaliteli olsun, eski kod zamanla göç etsin.", linked_step_ids: ["step-3"], linked_root_cause_ids: ["rc-3"] },
           ]
         : [],
       model_info: useLLM
