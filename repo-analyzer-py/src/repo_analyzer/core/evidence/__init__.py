@@ -1,10 +1,12 @@
-"""Evidence Engine + Engineering Knowledge Graph package.
+"""Evidence Engine + Engineering Knowledge Graph + Root Cause Detection.
 
 Provides:
     - **Evidence models** (:mod:`.models`): unified finding representation.
     - **Evidence builder** (:mod:`.builder`): AnalysisResult → EvidenceCollection.
     - **Graph models** (:mod:`.graph_models`): in-memory engineering graph.
     - **Graph builder** (:mod:`.graph_builder`): EvidenceCollection → EngineeringGraph.
+    - **Root cause models** (:mod:`.root_cause_models`): architectural root causes.
+    - **Root cause engine** (:mod:`.root_cause_engine`): graph → root causes.
 """
 
 from __future__ import annotations
@@ -28,6 +30,16 @@ from repo_analyzer.core.evidence.models import (
     ReferenceKind,
     RelationshipType,
 )
+from repo_analyzer.core.evidence.root_cause_engine import RootCauseDetectionEngine
+from repo_analyzer.core.evidence.root_cause_models import (
+    RootCause,
+    RootCauseCategory,
+    RootCauseCollection,
+    RootCauseEvidence,
+    RootCauseRelationship,
+    RootCauseRelationshipType,
+    RootCauseSeverity,
+)
 
 __all__ = [
     # Evidence models
@@ -47,4 +59,13 @@ __all__ = [
     "GraphIndex",
     "GraphNode",
     "NodeType",
+    # Root cause models
+    "RootCause",
+    "RootCauseCategory",
+    "RootCauseCollection",
+    "RootCauseDetectionEngine",
+    "RootCauseEvidence",
+    "RootCauseRelationship",
+    "RootCauseRelationshipType",
+    "RootCauseSeverity",
 ]

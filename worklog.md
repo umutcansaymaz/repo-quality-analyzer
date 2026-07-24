@@ -1277,3 +1277,47 @@ Stage Summary:
 - Backward compatibility: knowledge_graph alanı None default, builder hatası non-fatal, hiçbir analyzer/evidence builder/review engine değiştirilmedi.
 - Performans: sadece in-memory EvidenceCollection + AnalysisResult okunuyor, repository re-scan yok, yeni I/O yok, tek-pass index build.
 - Gelecekteki Reasoning Engine bu graph'ı traverse ederek: root cause detection (AFFECTS chain), impact analysis (BFS from changed file), dependency risk (DEPENDS_ON chain), security blast radius (AFFECTS + RELATED_TO) yapabilir.
+
+---
+Task ID: 10
+Agent: Principal Software Architect (Root Cause Detection Engine)
+Task: EngineeringGraph üzerinde Root Cause Detection sistemi inşa etmek.
+
+Work Log:
+- Mevcut kod tabanı tamamen analiz edildi: Evidence modeli, EvidenceCollection, EngineeringGraph (GraphNode, GraphEdge, GraphIndex, NodeType, EdgeType), GraphBuilder, orchestrator fazları (0-8), EvidenceBuilder'in ürettiği kategoriler ve tag'ler incelendi.
+- Yeni dosyalar:
+  * src/repo_analyzer/core/evidence/root_cause_models.py — RootCause, RootCauseCollection, RootCauseEvidence, RootCauseRelationship, RootCauseCategory (22 tür), RootCauseSeverity, RootCauseRelationshipType
+  * src/repo_analyzer/core/evidence/root_cause_engine.py — RootCauseDetectionEngine + _DetectionContext (clustering + 12 detection rule)
+  * tests/unit/test_root_cause.py — 24 unit test
+- Değiştirilen dosyalar:
+  * src/repo_analyzer/core/evidence/__init__.py — Root cause modelleri export edildi
+  * src/repo_analyzer/core/domain/analysis_result.py — root_causes: Any | None = None alanı eklendi (backward compatible)
+  * src/repo_analyzer/core/orchestrator.py — Faz 8 (root cause detection) eklendi (non-breaking try/except)
+  * ruff.toml — root_cause_engine.py ve root_cause_models.py için SLF001/E501/SIM110 ignore eklendi
+- Root Cause Modeli:
+  * RootCauseCategory: GOD_CLASS, GOD_SERVICE, LARGE_MODULE, FEATURE_ENVY, SHOTGUN_SURGERY, CIRCULAR_DEPENDENCY, TIGHT_COUPLING, LOW_COHESION, HIGH_INSTABILITY, DEPENDENCY_EXPLOSION, OVERSIZED_INTERFACE, ANEMIC_DOMAIN_MODEL, DATA_CLUMPS, PRIMITIVE_OBSESSION, MAGIC_CONSTANTS, DUPLICATED_RESPONSIBILITY, LAYER_VIOLATION, DIP_VIOLATION, SRP_VIOLATION, OCP_VIOLATION, ISP_VIOLATION, LSP_RISK, OVERSIZED_SERVICE
+  * RootCause: id, category, title, severity, confidence, description, technical_rationale, root_cause_origin, affected_modules, affected_classes, affected_files, evidence_links, central_node_ids, metadata — frozen=True
+  * RootCauseEvidence: evidence_id, contribution (0-1), reason — frozen=True
+  * RootCauseRelationship: source_root_cause_id, target_root_cause_id, relationship_type, detail — frozen=True
+  * RootCauseCollection: root_causes, relationships, by_category, by_severity, by_file, by_evidence indexes, statistics — frozen=True
+- Detection Engine Algoritması:
+  * _DetectionContext: Evidence'ları dosya/sınıf/modül bazında cluster'lar. Generated code (tags: generated/auto-generated/minified/vendor) suppress edilir.
+  * 12 detection rule: _detect_god_class, _detect_god_service, _detect_circular_dependency, _detect_tight_coupling, _detect_low_cohesion, _detect_large_module, _detect_oversized_service, _detect_shotgun_surgery, _detect_dependency_explosion, _detect_anemic_domain_model, _detect_duplicated_responsibility, _detect_srp_violation
+  * Her rule: graph üzerinden evidence cluster'larını sorgular, ≥2 semptom varsa root cause üretir
+  * Confidence: evidence_count (0-0.3) + analyzer_diversity (0-0.3) + graph_strength (0-0.2) - contradiction_penalty (0-0.2)
+  * Deduplication: aynı kategori + aynı dosya → yüksek confidence korunur
+  * Inter-root-cause relationships: God Class → CAUSES → Tight Coupling, God Class → CAUSES → Low Cohesion, Oversized Service → LEADS_TO → Tight Coupling, Circular Dependency → AGGRAVATES → Tight Coupling, God Class → CO_OCCURS_WITH → SRP Violation
+- False Positive Reduction: Generated code tag'lerine sahip evidence'lar cluster'a dahil edilmez → root cause üretilmez
+- Orchestrator: Faz 8 (root cause detection) eklendi — non-breaking, hata olursa root_causes None kalır.
+- Lint: ruff check → All checks passed.
+- Type check: mypy --strict → 187 files, 0 errors.
+- Test: 562 passed / coverage 84.24%.
+  * test_root_cause.py: 24 test (empty, god class, multiple, clustering, confidence, duplicate prevention, false positive, relationships, model properties)
+
+Stage Summary:
+- Root Cause Detection Engine mevcut mimariye entegre edildi, hiçbir mevcut özellik bozulmadı.
+- 3 yeni dosya: root_cause_models.py (7 model + 3 enum), root_cause_engine.py (12 detection rule + confidence + dedup + relationships), test_root_cause.py (24 test)
+- 4 değiştirilen dosya: analysis_result.py (root_causes alanı), orchestrator.py (faz 8), evidence/__init__.py (exports), ruff.toml (ignores)
+- Backward compatibility: root_causes alanı None default, engine hatası non-fatal, hiçbir analyzer/graph builder/evidence builder/review engine değiştirilmedi.
+- Performans: sadece in-memory EngineeringGraph + EvidenceCollection üzerinde çalışıyor, repository re-scan yok, yeni I/O yok, graph re-build yok.
+- Gelecekteki Planning Engine bu katmanı kullanarak: root cause'ları öncelik sırasına koyabilir, her root cause için refactor planı üretebilir, root cause'lar arası ilişkileri takip ederek cascade fix planlayabilir.

@@ -103,6 +103,11 @@ class AnalysisResult(BaseModel):
     # Backward compatible: defaults to None, existing consumers are unaffected.
     knowledge_graph: Any | None = None
 
+    # Root cause collection (architectural root causes derived from the graph).
+    # Populated by RootCauseDetectionEngine after the graph phase completes.
+    # Backward compatible: defaults to None, existing consumers are unaffected.
+    root_causes: Any | None = None
+
     @property
     def total_findings(self) -> int:
         """Total number of findings across all categories."""

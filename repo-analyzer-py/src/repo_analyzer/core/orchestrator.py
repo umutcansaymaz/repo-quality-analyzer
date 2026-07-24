@@ -219,6 +219,21 @@ class Orchestrator:
                 _logger.warning("Knowledge graph build failed: %s", exc)
                 result.add_error({"phase": "graph", "error": str(exc)})
 
+            # Phase 8: root cause detection.
+            # Non-breaking: if it fails, root_causes stays None.
+            try:
+                from repo_analyzer.core.evidence import RootCauseDetectionEngine
+
+                if result.knowledge_graph is not None and result.evidence is not None:
+                    result.root_causes = RootCauseDetectionEngine.detect(
+                        result.knowledge_graph, result.evidence
+                    )
+                    if progress:
+                        progress.success("Root cause detection complete")
+            except Exception as exc:
+                _logger.warning("Root cause detection failed: %s", exc)
+                result.add_error({"phase": "root_cause", "error": str(exc)})
+
             if cancel_event and cancel_event.is_set():
                 result.add_error({"phase": "post", "error": "cancelled"})
             result.mark_completed()
