@@ -7,113 +7,203 @@ from pathlib import Path
 
 import pytest
 
-from repo_analyzer.core.domain.report import Report, ReportFormat
-from repo_analyzer.infrastructure.errors import ReportRenderException
-from repo_analyzer.reports import HtmlReport, JsonReport, MarkdownReport, PdfReport, ReportGenerator
+from repo_analyzer.core.domain.analysis_result import AnalysisResult
+from repo_analyzer.core.domain.repository import parse_repository_url
+from repo_analyzer.reports import (
+    SCHEMA_VERSION,
+    HtmlRenderer,
+    JsonRenderer,
+    MarkdownRenderer,
+    PdfRenderer,
+    ReportGenerator,
+)
 
 
-class TestRenderers:
-    """Tests for the individual renderer classes."""
+@pytest.fixture()
+def sample_result() -> AnalysisResult:
+    """A minimal AnalysisResult for renderer tests."""
+    repo = parse_repository_url("https://github.com/test/sample")
+    return AnalysisResult(repository=repo)
 
-    def test_markdown_render_raises_at_scaffold_stage(self) -> None:
-        renderer = MarkdownReport()
-        report = Report(repository_url="https://github.com/o/r")
-        with pytest.raises(ReportRenderException):
-            renderer.render(report)
 
-    def test_html_render_raises_at_scaffold_stage(self) -> None:
-        renderer = HtmlReport()
-        report = Report(repository_url="https://github.com/o/r")
-        with pytest.raises(ReportRenderException):
-            renderer.render(report)
+@pytest.fixture()
+def populated_result(sample_workspace: Path) -> AnalysisResult:
+    """A populated AnalysisResult built from the sample fixture."""
+    from repo_analyzer.adapters.cache import SQLiteCacheAdapter
+    from repo_analyzer.adapters.llm import MockLLMProvider
+    from repo_analyzer.core.orchestrator import Orchestrator
 
-    def test_pdf_render_raises_at_scaffold_stage(self) -> None:
-        renderer = PdfReport()
-        report = Report(repository_url="https://github.com/o/r")
-        with pytest.raises(ReportRenderException):
-            renderer.render(report)
+    repo = parse_repository_url("https://github.com/test/sample-repo")
+    cache = SQLiteCacheAdapter(sample_workspace / ".test-cache.db")
+    orchestrator = Orchestrator(cache, llm=MockLLMProvider())
 
-    def test_json_render_produces_valid_json(self) -> None:
-        renderer = JsonReport()
-        report = Report(repository_url="https://github.com/o/r")
-        data = renderer.render(report)
-        parsed = json.loads(data.decode("utf-8"))
-        assert parsed["repository_url"] == "https://github.com/o/r"
+    # Patch clone to use the fixture directly.
+    def fake_clone(repository, *, cancel_event=None, progress=None, use_cache=True):  # type: ignore[no-untyped-def]
+        return sample_workspace, repository
 
-    def test_json_mime_type(self) -> None:
-        assert JsonReport().mime_type() == "application/json"
+    orchestrator._clone_service.clone = fake_clone  # type: ignore[method-assign]
+    try:
+        result = orchestrator.analyze(repo)
+    finally:
+        cache.close()
+    return result
 
-    def test_json_extension(self) -> None:
-        assert JsonReport().extension() == "json"
 
-    def test_markdown_extension(self) -> None:
-        assert MarkdownReport().extension() == "md"
+class TestMarkdownRenderer:
+    def test_render_produces_markdown(self, sample_result: AnalysisResult) -> None:
+        renderer = MarkdownRenderer()
+        data = renderer.render(sample_result)
+        text = data.decode("utf-8")
+        assert "# Repository Analysis Report" in text
+        assert "## 1. Executive Summary" in text
 
-    def test_html_extension(self) -> None:
-        assert HtmlReport().extension() == "html"
+    def test_render_has_all_sections(self, populated_result: AnalysisResult) -> None:
+        renderer = MarkdownRenderer()
+        text = renderer.render(populated_result).decode("utf-8")
+        for section in [
+            "## 1. Executive Summary",
+            "## 2. Repository Overview",
+            "## 3. Repository Statistics",
+            "## 4. File System Analysis",
+            "## 5. Language Analysis",
+            "## 6. Complexity Analysis",
+            "## 7. Dependency Analysis",
+            "## 8. Git Analysis",
+            "## 9. Security Findings",
+            "## 10. Architecture Review",
+            "## 11. Technical Debt",
+            "## 12. Risk Assessment",
+            "## 13. AI Review",
+            "## 14. Quick Wins",
+            "## 15. Refactor Roadmap",
+            "## 16. Overall Health",
+            "## 17. Appendix",
+        ]:
+            assert section in text, f"Missing section: {section}"
 
-    def test_pdf_extension(self) -> None:
-        assert PdfReport().extension() == "pdf"
+    def test_extension(self) -> None:
+        assert MarkdownRenderer().extension() == "md"
 
-    def test_format_property(self) -> None:
-        assert JsonReport().format == ReportFormat.JSON
-        assert MarkdownReport().format == ReportFormat.MARKDOWN
-        assert HtmlReport().format == ReportFormat.HTML
-        assert PdfReport().format == ReportFormat.PDF
+    def test_mime_type(self) -> None:
+        assert MarkdownRenderer().mime_type() == "text/markdown"
 
-    def test_supports_graphs(self) -> None:
-        assert MarkdownReport().supports_graphs() is True
-        assert JsonReport().supports_graphs() is False
-        assert HtmlReport().supports_graphs() is True
-        assert PdfReport().supports_graphs() is True
+
+class TestJsonRenderer:
+    def test_render_produces_valid_json(self, sample_result: AnalysisResult) -> None:
+        renderer = JsonRenderer()
+        data = renderer.render(sample_result)
+        payload = json.loads(data.decode("utf-8"))
+        assert payload["schema_version"] == SCHEMA_VERSION
+        assert "analysis" in payload
+        assert "generated_at" in payload
+
+    def test_schema_version(self) -> None:
+        assert SCHEMA_VERSION == "1.0.0"
+
+    def test_extension(self) -> None:
+        assert JsonRenderer().extension() == "json"
+
+
+class TestHtmlRenderer:
+    def test_render_produces_html(self, sample_result: AnalysisResult) -> None:
+        renderer = HtmlRenderer()
+        data = renderer.render(sample_result)
+        text = data.decode("utf-8")
+        assert "<!DOCTYPE html>" in text
+        assert "<html" in text
+
+    def test_has_theme_toggle(self, sample_result: AnalysisResult) -> None:
+        renderer = HtmlRenderer()
+        text = renderer.render(sample_result).decode("utf-8")
+        assert "theme-toggle" in text
+        assert "data-theme" in text
+
+    def test_has_search(self, sample_result: AnalysisResult) -> None:
+        renderer = HtmlRenderer()
+        text = renderer.render(sample_result).decode("utf-8")
+        assert "search-box" in text
+
+    def test_has_css(self, sample_result: AnalysisResult) -> None:
+        renderer = HtmlRenderer()
+        text = renderer.render(sample_result).decode("utf-8")
+        assert "<style>" in text
+        assert "--bg" in text  # CSS variable
+
+    def test_has_dark_mode(self, sample_result: AnalysisResult) -> None:
+        renderer = HtmlRenderer()
+        text = renderer.render(sample_result).decode("utf-8")
+        assert "dark" in text
+
+    def test_extension(self) -> None:
+        assert HtmlRenderer().extension() == "html"
+
+
+class TestPdfRenderer:
+    def test_render_produces_pdf(self, sample_result: AnalysisResult) -> None:
+        renderer = PdfRenderer()
+        data = renderer.render(sample_result)
+        # PDF files start with %PDF.
+        assert data[:4] == b"%PDF"
+
+    def test_has_cover_page(self, sample_result: AnalysisResult) -> None:
+        renderer = PdfRenderer()
+        text = renderer._cover_page(sample_result)
+        assert "Repository Analysis Report" in text
+
+    def test_has_toc(self) -> None:
+        renderer = PdfRenderer()
+        text = renderer._table_of_contents()
+        assert "Table of Contents" in text
+        assert "Repository Overview" in text
+
+    def test_extension(self) -> None:
+        assert PdfRenderer().extension() == "pdf"
 
 
 class TestReportGenerator:
-    """Tests for :class:`ReportGenerator`."""
+    def test_render_all_formats(self, populated_result: AnalysisResult, tmp_path: Path) -> None:
+        generator = ReportGenerator(tmp_path, ["md", "json", "html"])
+        paths = generator.render(populated_result)
+        assert len(paths) >= 2  # at least 2 should succeed
+        for path in paths.values():
+            assert path.exists()
 
-    def test_render_json_only(self, tmp_path: Path) -> None:
+    def test_render_markdown(self, populated_result: AnalysisResult, tmp_path: Path) -> None:
+        generator = ReportGenerator(tmp_path, ["md"])
+        paths = generator.render(populated_result)
+        assert any(p.suffix == ".md" for p in paths.values())
+
+    def test_render_json(self, populated_result: AnalysisResult, tmp_path: Path) -> None:
         generator = ReportGenerator(tmp_path, ["json"])
-        report = Report(repository_url="https://github.com/o/r")
-        results = generator.render(report)
-        assert ReportFormat.JSON in results
-        assert results[ReportFormat.JSON].exists()
+        paths = generator.render(populated_result)
+        json_path = next(p for p in paths.values() if p.suffix == ".json")
+        data = json.loads(json_path.read_text())
+        assert data["schema_version"] == SCHEMA_VERSION
 
-    def test_render_multiple_formats(self, tmp_path: Path) -> None:
+    def test_render_html(self, populated_result: AnalysisResult, tmp_path: Path) -> None:
+        generator = ReportGenerator(tmp_path, ["html"])
+        paths = generator.render(populated_result)
+        html_path = next(p for p in paths.values() if p.suffix == ".html")
+        assert "<!DOCTYPE html>" in html_path.read_text()
+
+    def test_render_format_returns_bytes(
+        self, populated_result: AnalysisResult, tmp_path: Path
+    ) -> None:
+        from repo_analyzer.core.domain.report import ReportFormat
+
         generator = ReportGenerator(tmp_path, ["json"])
-        report = Report(repository_url="https://github.com/o/r")
-        results = generator.render(report)
-        assert len(results) >= 1
-
-    def test_render_skips_unsupported_formats(self, tmp_path: Path) -> None:
-        """Formats that raise should be skipped, not fatal."""
-        generator = ReportGenerator(tmp_path, ["markdown", "json"])
-        report = Report(repository_url="https://github.com/o/r")
-        results = generator.render(report)
-        # Markdown raises, so only JSON should succeed.
-        assert ReportFormat.JSON in results
-        assert ReportFormat.MARKDOWN not in results
-
-    def test_render_format_returns_bytes(self, tmp_path: Path) -> None:
-        generator = ReportGenerator(tmp_path, ["json"])
-        report = Report(repository_url="https://github.com/o/r")
-        data = generator.render_format(report, ReportFormat.JSON)
+        data = generator.render_format(populated_result, ReportFormat.JSON)
         assert isinstance(data, bytes)
 
-    def test_render_format_unsupported_raises(self, tmp_path: Path) -> None:
-        report = Report(repository_url="https://github.com/o/r")
-        # All built-in formats are registered in the generator, so we test a
-        # renderer (Markdown) that raises at the scaffold stage directly.
-        renderer = MarkdownReport()
-        with pytest.raises(ReportRenderException):
-            renderer.render(report)
-
     def test_output_dir_created(self, tmp_path: Path) -> None:
-        """The output directory should be created if missing."""
         out = tmp_path / "reports" / "nested"
         ReportGenerator(out, ["json"])
         assert out.exists()
 
-    def test_formats_property(self, tmp_path: Path) -> None:
-        generator = ReportGenerator(tmp_path, ["json", "html"])
-        assert ReportFormat.JSON in generator.formats
-        assert ReportFormat.HTML in generator.formats
+    def test_format_alias_md(self, populated_result: AnalysisResult, tmp_path: Path) -> None:
+        """The 'md' alias should map to 'markdown'."""
+        generator = ReportGenerator(tmp_path, ["md"])
+        assert len(generator.formats) == 1
+        from repo_analyzer.core.domain.report import ReportFormat
+
+        assert generator.formats[0] == ReportFormat.MARKDOWN

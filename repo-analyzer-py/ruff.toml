@@ -33,8 +33,10 @@ ignore = [
     "S101",   # use of assert (needed in tests)
     "S603",   # subprocess call - checked usage
     "S607",   # partial executable path
+    "S104",   # binding to all interfaces (API server intentional)
     "S105",   # possible hardcoded password (false positive on test keys)
     "S110",   # try-except-pass (intentional defensive cleanup)
+    "DTZ005", # datetime.now() without tz (API uses local time for display)
     "EM101",  # exception with string literal
     "EM102",  # exception with f-string literal (readability preference)
     "COM812", # trailing comma missing (conflicts with formatter)

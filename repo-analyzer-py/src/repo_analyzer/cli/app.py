@@ -116,17 +116,36 @@ def analyze(
         resolve_path=False,
     ),
     no_cache: bool = typer.Option(False, "--no-cache", help="Bypass the clone cache."),
+    report: list[str] = typer.Option(
+        [],
+        "--report",
+        "-r",
+        help="Generate a report in this format (md/json/html/pdf). Repeatable.",
+    ),
+    reports_dir: Path | None = typer.Option(
+        None,
+        "--reports-dir",
+        help="Directory for generated reports (default: ./reports).",
+    ),
 ) -> None:
     """Run the full analysis pipeline for a repository.
 
     Clones the repository (using cache when available) and runs all built-in
     analyzers. The structured result is printed as a summary table and can
-    optionally be saved as JSON via ``--output``.
+    optionally be saved as JSON via ``--output`` or rendered into reports
+    via ``--report``.
     """
     from repo_analyzer.cli.commands.analyze import run_analyze
 
     config = _build_config(config_path, verbose, debug)
-    run_analyze(console, config, repository, output=output)
+    run_analyze(
+        console,
+        config,
+        repository,
+        output=output,
+        report_formats=list(report) if report else None,
+        reports_dir=reports_dir,
+    )
 
 
 @app.command()

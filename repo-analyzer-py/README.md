@@ -1,6 +1,6 @@
 # repo-analyzer
 
-> Professional GitHub repository analyzer: static analysis, security audit, architecture review and AI-enriched technical reports — all in a single CLI tool.
+> Professional GitHub repository analyzer: static analysis, security audit, architecture review, AI-enriched technical reports — all in a single CLI tool and REST API.
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -10,63 +10,74 @@
 
 ---
 
+## Table of Contents
+
+- [Overview](#overview)
+- [Architecture](#architecture)
+- [Installation](#installation)
+- [CLI Usage](#cli-usage)
+- [Examples](#examples)
+- [Private Repository](#private-repository)
+- [GitHub Token](#github-token)
+- [Docker](#docker)
+- [REST API](#rest-api)
+- [Plugins](#plugins)
+- [AI Provider](#ai-provider)
+- [Configuration](#configuration)
+- [Development](#development)
+- [Contributing](#contributing)
+- [FAQ](#faq)
+- [Roadmap](#roadmap)
+
+---
+
 ## Overview
 
-`repo-analyzer` analyzes any GitHub repository — public, private, SSH-accessible, or token-based — performing professional-grade static analysis, security auditing, architecture review, and producing AI-enriched technical reports.
+`repo-analyzer` analyzes any GitHub repository — public, private, SSH-accessible, or token-based — performing:
+
+- **Static analysis** (AST, metrics, complexity, imports, dependencies)
+- **Security auditing** (Bandit, detect-secrets, 28+ custom rules, OWASP Top 10)
+- **Architecture review** (SOLID, DRY, KISS, YAGNI, layer separation, coupling/cohesion)
+- **AI-enriched commentary** (LLM-generated engineering review with 6 provider backends)
 
 It unifies the capabilities of **SonarQube**, **CodeClimate**, **GitHub Insights**, **Bandit**, and the kind of code review a senior software architect would do — in a single tool.
 
 ## Architecture
 
-The project follows the architecture described in the
-[Software Design Document](docs/SDD-github-repo-analyzer.md):
-
-- **Hexagonal Architecture** (Ports & Adapters) at the core
-- **Plugin Architecture** for extensible analysis engines
-- **Modular Monolith** organization for a single-process CLI
-- **Pipeline-based** analysis orchestration
-
-### High-level data flow
+The project follows a **Hexagonal (Ports & Adapters)** architecture with a **Plugin** extension model and **Modular Monolith** organization. See the full [Software Design Document](docs/SDD-github-repo-analyzer.md).
 
 ```
 GitHub URL → Clone (cached) → Language Detect → Analyzer Pipeline (parallel)
-          → Aggregation → AI Review → Report (MD / JSON / HTML / PDF)
+          → Review Engines → AI Synthesis → Report (MD / JSON / HTML / PDF)
 ```
 
-## Project layout
+### Key components
 
-```
-repo-analyzer-py/
-├── src/repo_analyzer/
-│   ├── cli/                # Typer CLI commands
-│   ├── core/               # Hexagonal core: domain models + ports
-│   │   ├── domain/         # Pydantic models (Repository, Finding, Report...)
-│   │   └── ports/          # Abstract interfaces (VCS, Analyzer, LLM, Output, Cache)
-│   ├── adapters/           # Port implementations (vcs, llm, output, cache)
-│   ├── analyzers/          # Built-in analysis engines (plugins)
-│   ├── plugins/            # Plugin manager, registry, discovery
-│   ├── reports/            # Report generators (MD/JSON/HTML/PDF)
-│   ├── infrastructure/     # Cross-cutting: config, logging, errors, security
-│   └── utils/              # Pure utility functions
-├── tests/                  # unit / integration / e2e tests
-├── docs/                   # Software Design Document + ADRs
-└── .github/workflows/      # CI pipelines
-```
+| Layer | Responsibility |
+|-------|---------------|
+| `cli/` | Typer CLI commands, Rich terminal UI |
+| `core/` | Hexagonal core: domain models, ports, orchestrator |
+| `adapters/` | VCS (git), LLM (6 providers), output (MD/JSON/HTML/PDF), cache (SQLite) |
+| `analyzers/` | 12 built-in analysis engines (filesystem, AST, metrics, complexity, ...) |
+| `review/` | 10+ review engines (security, quality, architecture, risk, debt, refactor, AI) |
+| `reports/` | Report renderers + visualization engine (matplotlib) |
+| `api/` | FastAPI REST API |
+| `infrastructure/` | Config, logging, errors, DI container, progress |
 
 ## Installation
 
-### From source (development)
+### From PyPI
+
+```bash
+pip install github-repo-analyzer
+```
+
+### From source
 
 ```bash
 git clone <repository-url>
 cd repo-analyzer-py
-make dev-install
-```
-
-### With pip
-
-```bash
-pip install -e .
+pip install -e ".[dev]"
 ```
 
 ### With Docker
@@ -76,89 +87,311 @@ docker build -t repo-analyzer .
 docker run --rm repo-analyzer --help
 ```
 
-## Quick start
+## CLI Usage
 
 ```bash
-# Verify the installation and environment
+# Verify the environment
 repo-analyzer doctor
 
-# Show the version banner
+# Show version
 repo-analyzer version
 
-# Analyze a repository (pipeline initialization only at this stage)
-repo-analyzer analyze https://github.com/owner/repo
+# Analyze a repository (prints summary + AI review)
+repo-analyzer analyze https://github.com/octocat/Hello-World
 
-# Inspect the cache
+# Save the JSON analysis result
+repo-analyzer analyze https://github.com/octocat/Hello-World --output result.json
+
+# Generate reports (MD, JSON, HTML, PDF)
+repo-analyzer analyze https://github.com/octocat/Hello-World --report md --report json --report html --report pdf
+
+# Specify output directory for reports
+repo-analyzer analyze https://github.com/octocat/Hello-World --report md --reports-dir ./my-reports
+
+# Bypass the clone cache
+repo-analyzer analyze https://github.com/octocat/Hello-World --no-cache
+
+# Cache management
 repo-analyzer cache list
-
-# Clear the cache
 repo-analyzer cache clear
 
-# View / edit configuration
+# Show resolved configuration
 repo-analyzer config
+```
+
+## Examples
+
+### Example output (terminal)
+
+```
+Repository Health
+╭──────────────────────────╮
+│ A  92 / 100              │
+╰──────────────────────────╯
+
+Critical Issues
+┌──────────┬───────┐
+│ Level    │ Count │
+├──────────┼───────┤
+│ Critical │ 2     │
+│ High     │ 7     │
+│ Medium   │ 14    │
+│ Low      │ 32    │
+└──────────┴───────┘
+```
+
+### Example report sections
+
+The Markdown report includes 17 sections: Executive Summary, Repository Overview, Statistics, File System Analysis, Language Analysis, Complexity Analysis, Dependency Analysis, Git Analysis, Security Findings, Architecture Review, Technical Debt, Risk Assessment, AI Review, Quick Wins, Refactor Roadmap, Overall Health, and Appendix.
+
+## Private Repository
+
+Private repositories are supported via HTTPS with a token or SSH keys.
+
+```bash
+# Using a GitHub token (via environment variable)
+export GRA_GITHUB_TOKEN=ghp_your_token_here
+repo-analyzer analyze https://github.com/your-org/private-repo
+
+# Using SSH
+repo-analyzer analyze git@github.com:your-org/private-repo.git
+```
+
+## GitHub Token
+
+Set your GitHub Personal Access Token via:
+
+1. **Environment variable** (recommended for CI/CD):
+   ```bash
+   export GRA_GITHUB_TOKEN=ghp_xxx
+   ```
+
+2. **Config file** (`~/.config/repo-analyzer/config.yaml`):
+   ```yaml
+   # Token is read from env; never hardcode it here.
+   ```
+
+3. **SSH agent**: Ensure `ssh-agent` is running with your key loaded.
+
+> **Security:** Tokens are never logged. The logging system includes a redaction filter that masks any `token`, `password`, `secret`, or `api_key` fields.
+
+## Docker
+
+```bash
+# Build
+docker build -t repo-analyzer .
+
+# Run analysis
+docker run --rm -v $(pwd)/reports:/reports repo-analyzer \
+    analyze https://github.com/octocat/Hello-World --report md --reports-dir /reports
+
+# Using docker-compose
+docker-compose run repo-analyzer analyze https://github.com/octocat/Hello-World
+```
+
+The Dockerfile uses a **multi-stage build** to keep the final image small (~150 MB).
+
+## REST API
+
+`repo-analyzer` ships with a FastAPI REST API:
+
+```bash
+# Start the API server
+python -m repo_analyzer.api --port 8000
+
+# Or via uvicorn
+uvicorn repo_analyzer.api.app:app --port 8000
+```
+
+### Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/health` | Liveness probe |
+| `GET` | `/status` | Service status + available providers |
+| `POST` | `/analyze` | Start an analysis (returns job_id + result) |
+| `GET` | `/result/{job_id}` | Fetch a stored result as JSON |
+| `POST` | `/report` | Render a result into md/json/html/pdf |
+
+### Example
+
+```bash
+# Analyze
+curl -X POST http://localhost:8000/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"repository_url": "https://github.com/octocat/Hello-World"}'
+
+# Get result
+curl http://localhost:8000/result/{job_id}
+
+# Generate PDF report
+curl -X POST http://localhost:8000/report \
+  -H "Content-Type: application/json" \
+  -d '{"job_id": "{job_id}", "format": "pdf"}' --output report.pdf
+```
+
+## Plugins
+
+`repo-analyzer` supports a plugin system for custom analyzers. Plugins implement the `AnalyzerPort` interface and are discovered via Python entry points or directory scanning.
+
+### Creating a plugin
+
+```python
+# my_plugin/analyzer.py
+from repo_analyzer.core.ports.analyzer_port import AnalyzerPort
+
+class MyAnalyzer(AnalyzerPort):
+    @property
+    def name(self) -> str:
+        return "my-analyzer"
+
+    @property
+    def version(self) -> str:
+        return "1.0.0"
+
+    def metadata(self) -> dict:
+        return {"name": self.name, "version": self.version, "phase": 2}
+
+    def initialize(self, config: dict) -> None:
+        pass
+
+    def can_run(self, repository, workspace) -> bool:
+        return True
+
+    def run(self, repository, workspace) -> dict:
+        return {"custom_findings": []}
+
+    def dispose(self) -> None:
+        pass
+```
+
+Register via `pyproject.toml` entry points:
+
+```toml
+[project.entry-points."repo_analyzer.plugins"]
+my-analyzer = "my_plugin.analyzer:MyAnalyzer"
+```
+
+## AI Provider
+
+The AI comment engine supports 6 LLM providers via a pluggable abstraction:
+
+| Provider | Name | SDK |
+|----------|------|-----|
+| Mock (offline) | `mock` | — |
+| OpenAI | `openai` | `openai` |
+| Anthropic | `anthropic` | `anthropic` |
+| Google Gemini | `gemini` | `google-generativeai` |
+| OpenRouter | `openrouter` | `openai` |
+| Ollama (local) | `ollama` | — (HTTP) |
+
+By default, the `mock` provider is used (offline, deterministic). To use a real provider:
+
+```python
+from repo_analyzer.adapters.llm import LLMProviderFactory
+
+llm = LLMProviderFactory.create("openai", "gpt-4", api_key="sk-...")
+orchestrator = Orchestrator(cache, llm=llm)
 ```
 
 ## Configuration
 
-`repo-analyzer` merges configuration from four sources, in increasing priority:
+Configuration is merged from four sources (lowest → highest priority):
 
-1. Built-in defaults
-2. `~/.config/repo-analyzer/config.yaml` (or `--config <path>`)
-3. Environment variables prefixed with `GRA_`
-4. CLI arguments
-
-Example `config.yaml`:
+1. **Built-in defaults**
+2. **YAML file** (`~/.config/repo-analyzer/config.yaml` or `--config <path>`)
+3. **Environment variables** (prefixed with `GRA_`)
+4. **CLI arguments**
 
 ```yaml
+# config.yaml
 log_level: INFO
 cache:
   enabled: true
   dir: ~/.cache/repo-analyzer
   ttl_days: 7
-  max_size_gb: 2
 reports:
   output_dir: ./reports
   formats: [markdown, json]
+ai:
+  enabled: false
+  provider: mock
 ```
 
-## CLI reference
+Environment variables:
 
-| Command | Description |
-|---------|-------------|
-| `repo-analyzer analyze <url>` | Initialize the analysis pipeline for a repository. |
-| `repo-analyzer version` | Print the version and build banner. |
-| `repo-analyzer doctor` | Run environment health checks. |
-| `repo-analyzer cache list` | List cached repository entries. |
-| `repo-analyzer cache clear` | Remove all cache entries. |
-| `repo-analyzer config` | Show the resolved configuration. |
-| `repo-analyzer update` | Check for a newer release. |
+```bash
+GRA_LOG_LEVEL=DEBUG
+GRA_CACHE_DIR=/tmp/cache
+GRA_VCS_CLONE_DEPTH=1
+```
 
 ## Development
 
 ```bash
-make help          # list all available commands
-make lint          # ruff
-make format        # black + ruff format
-make typecheck     # mypy --strict
-make test          # pytest with coverage (>= 90% enforced)
-make coverage      # generate HTML coverage report
-```
+# Install dev dependencies
+pip install -e ".[dev]"
 
-Pre-commit hooks:
+# Run tests
+pytest
 
-```bash
+# Lint
+ruff check src tests
+
+# Format
+ruff format src tests
+black src tests
+
+# Type check
+mypy --config-file mypy.ini
+
+# Pre-commit hooks
 pre-commit install
 pre-commit run --all-files
 ```
 
-## Code standards
+## Contributing
 
-- Python 3.12+
-- 100% type hints (`mypy --strict`)
-- Google-style docstrings
-- SOLID / DRY / KISS
-- `black` + `ruff` formatted
-- ≥ 90% test coverage
+1. Fork the repository.
+2. Create a feature branch (`git checkout -b feature/amazing-feature`).
+3. Commit your changes (`git commit -m 'Add amazing feature'`).
+4. Push to the branch (`git push origin feature/amazing-feature`).
+5. Open a Pull Request.
+
+### Guidelines
+
+- Follow the existing architecture (Hexagonal + Plugin).
+- 100% type hints required (`mypy --strict`).
+- Add tests for new features (≥ 80% coverage).
+- Use Google-style docstrings.
+- Run `ruff check`, `black`, and `mypy` before committing.
+
+## FAQ
+
+**Q: Can I analyze private repositories?**
+A: Yes. Set the `GRA_GITHUB_TOKEN` environment variable or use SSH access.
+
+**Q: Does it work offline?**
+A: The AI review uses a `MockLLMProvider` by default (offline). All other analysis engines work offline once the repository is cloned.
+
+**Q: How big a repository can it handle?**
+A: It has been tested on repositories up to ~1M LOC. Shallow clone + partial clone + streaming file I/O keep memory usage reasonable.
+
+**Q: Can I add my own analyzer?**
+A: Yes, via the plugin system. See [Plugins](#plugins).
+
+**Q: What languages are supported?**
+A: 17 languages for detection (Python, JavaScript, TypeScript, Go, Rust, Java, Kotlin, Swift, C, C++, C#, PHP, Ruby, Shell, YAML, JSON, Markdown). AST parsing supports Python, JS/TS, Go, Rust, Java, Kotlin, C, C++, C#.
+
+## Roadmap
+
+- [x] v0.1 — Core analysis engines + security + AI review
+- [x] v0.5 — Report generation (MD/JSON/HTML/PDF) + REST API
+- [ ] v1.0 — Web dashboard, plugin marketplace, incremental analysis
+- [ ] v1.5 — SARIF output, GitHub Code Scanning integration
+- [ ] v2.0 — Monorepo support, diff analysis, trend tracking
+
+See the [full SDD roadmap](docs/SDD-github-repo-analyzer.md#18-geliştirme-yol-haritası).
 
 ## License
 

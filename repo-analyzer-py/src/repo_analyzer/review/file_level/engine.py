@@ -40,7 +40,9 @@ class FileReviewEngine:
         scored.sort(key=lambda x: x[2], reverse=True)
         return [(path, m) for path, m, _ in scored[: self.MAX_FILES]]
 
-    def _review_file(self, path: str, metrics: dict[str, Any], result: AnalysisResult) -> FileReview:
+    def _review_file(
+        self, path: str, metrics: dict[str, Any], result: AnalysisResult
+    ) -> FileReview:
         """Build a single :class:`FileReview`."""
         sloc = metrics.get("sloc", 0)
         func_count = metrics.get("function_count", 0)

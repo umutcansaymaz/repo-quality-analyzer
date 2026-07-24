@@ -31,6 +31,8 @@ def run_analyze(
     repository_url: str,
     *,
     output: Path | None = None,
+    report_formats: list[str] | None = None,
+    reports_dir: Path | None = None,
 ) -> None:
     """Run the ``analyze`` command.
 
@@ -39,6 +41,8 @@ def run_analyze(
         config: The resolved :class:`Config`.
         repository_url: The repository URL provided by the user.
         output: Optional path to write the JSON :class:`AnalysisResult`.
+        report_formats: Optional list of report formats (md/json/html/pdf).
+        reports_dir: Directory for generated reports (defaults to ./reports).
     """
     logger = configure_logging(config)
     ui = ProgressUI(console=console)
@@ -86,11 +90,16 @@ def run_analyze(
         cache_adapter.close()
 
     _render_summary(console, result)
+    _render_health_dashboard(console, result)
 
     if output:
         payload = result.model_dump(mode="json")
         output.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
         console.print(f"\n[muted]Analysis result written to {output}[/muted]")
+
+    # Generate reports if requested.
+    if report_formats:
+        _generate_reports(console, result, report_formats, reports_dir)
 
     console.print(
         Panel(
@@ -223,6 +232,57 @@ def _render_summary(console: Console, result: object) -> None:
                 expand=False,
             )
         )
+
+
+def _render_health_dashboard(console: Console, result: object) -> None:
+    """Render a terminal dashboard with health score and issue counts."""
+    review = getattr(result, "ai_review", None)
+    if not review:
+        return
+    # Health score panel.
+    if review.health_score:
+        hs = review.health_score
+        score_text = f"[bold]{hs.overall:.0f}[/bold] / 100"
+        grade_color = "green" if hs.overall >= 80 else "yellow" if hs.overall >= 60 else "red"
+        console.print(
+            Panel(
+                f"[{grade_color}]{hs.grade.value}[/{grade_color}]  {score_text}",
+                title="[title]Repository Health[/title]",
+                border_style=grade_color,
+                expand=False,
+            ),
+            justify="center",
+        )
+    # Issue counts.
+    if review.risk_summary:
+        rs = review.risk_summary
+        table = Table(title="Critical Issues", show_header=True, header_style="title")
+        table.add_column("Level", style="key")
+        table.add_column("Count", justify="right", style="value")
+        table.add_row("[red]Critical[/red]", str(len(rs.critical)))
+        table.add_row("[orange]High[/orange]", str(len(rs.high)))
+        table.add_row("[yellow]Medium[/yellow]", str(len(rs.medium)))
+        table.add_row("[green]Low[/green]", str(len(rs.low)))
+        console.print(table)
+
+
+def _generate_reports(
+    console: Console,
+    result: object,
+    formats: list[str],
+    reports_dir: Path | None,
+) -> None:
+    """Generate reports in the requested formats."""
+    from repo_analyzer.reports import ReportGenerator
+
+    out_dir = reports_dir or Path("./reports")
+    generator = ReportGenerator(out_dir, formats)
+    try:
+        paths = generator.render(result)  # type: ignore[arg-type]
+        for fmt, path in paths.items():
+            console.print(f"[green]✓[/green] {fmt.value} report: [value]{path}[/value]")
+    except Exception as exc:
+        console.print(f"[red]✗ Report generation failed:[/red] {exc}")
 
 
 __all__ = ["run_analyze"]
