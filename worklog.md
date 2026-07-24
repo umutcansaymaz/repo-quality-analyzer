@@ -1876,3 +1876,70 @@ Stage Summary:
   3. (Low) Compare dialog: add Evidence count diff + Roadmap step count diff (currently only health scores + root causes).
   4. (Low) Accessibility audit on Compare dialog (ARIA labels for the 3-column grid, screen reader announcements for deltas).
   5. (Low) When real backend is ready, add USE_MOCK_API env flag to toggle between mock routes and the proxy.
+
+---
+Task ID: 21
+Agent: Senior Full-Stack Engineer (cron web-dev-review round 6)
+Task: QA via agent-browser + VLM, fix phase count inconsistency + raw snake_case categories, add Re-analyze button + graph node drag.
+
+Work Log:
+- Worklog reviewed (Tasks 1-20): Next.js 16 "AI Software Architect" repo analyzer. Mock API online since Task 19. Prior phase added comparison dialog, history JSON export, PipelinePhasesCard, Map→MapIcon fix. Top recommendations: graph node drag, Re-analyze button, compare enhancements.
+- QA performed via agent-browser + VLM (z-ai vision) on Overview/Graph/Evidence tabs:
+  * Real bug 1: Phase count inconsistency — AnalysisMetaCard showed "Phases 5/5" while PipelinePhasesCard showed "9/9". VLM flagged: "9/9 phases completed, yet Analysis Meta panel lists Phases: 5/5".
+  * Real issue 2: Evidence Category column showed raw snake_case keys (cyclomatic_complexity, long_method, large_file, circular_import, high_coupling, unused_import, hardcoded_password, low_coverage). VLM flagged.
+  * Real issue 3: Graph nodes couldn't be repositioned (top recommendation from Task 20).
+  * Real issue 4: No Re-analyze button on history entries (top recommendation from Task 20).
+- Phase 1 — Fix phase count inconsistency:
+  * AnalysisMetaCard now counts the same 9 phases as PipelinePhasesCard (detection, language, dependency, metrics, evidence, graph, rootcause, planning, review).
+  * Denominator changed from /5 to /9.
+  * TrustPanel's "Reasoning Depth 5/5" kept as-is (different metric — 5 high-level phases, not 9 pipeline phases; different label).
+  * Verified: both surfaces now show 9/9.
+- Phase 2 — Humanize snake_case categories:
+  * Added `humanize(s)` helper: replaces _ and - with spaces, Title Cases each word.
+  * Applied to: Evidence table `category` + `finding_type` columns (with title tooltips showing the humanized version), RootCauseCard category badge, Graph node details panel `node_type`, Files tab graph connections `node_type`, Graph legend.
+  * Verified: "cyclomatic_complexity" → "Cyclomatic Complexity", "long_method" → "Long Method", "large_file" → "Large File", "circular_import" → "Circular Import", "high_coupling" → "High Coupling", "unused_import" → "Unused Import", "hardcoded_password" → "Hardcoded Password", "low_coverage" → "Low Coverage". Finding types: "code_quality" → "Code Quality", "metric" → "Metric", etc.
+- Phase 3 — Re-analyze button (NEW FEATURE):
+  * `handleReanalyze(entry)` in AppContent: closes drawer, sets repoUrl, clears analysisData, sets pipeline steps, switches to progress view, defers handleAnalyze() to next tick.
+  * HistorySheet accepts `onReanalyze` callback + `reanalyzingId` state for loading spinner.
+  * New "Re-analyze" button (outline variant, RotateCcw icon) next to Reopen in each history entry — visible on hover.
+  * Button shows spinner + "Re-analyzing…" text while active.
+  * i18n: history.reanalyze + history.reanalyzing keys (TR: "Yeniden analiz et" / "Yeniden analiz ediliyor…").
+  * Verified: clicked Re-analyze on facebook/react entry → progress view appeared ("Analyzing Repository" + "Repository Detection") → completed → landed on Overview tab.
+  * Initial bug: first implementation set view="landing" then setTimeout(handleAnalyze) — but React hadn't committed the state update, so handleAnalyze ran on stale state. Fixed by setting view="progress" directly + clearing analysisData + setting pipelineSteps before the deferred handleAnalyze.
+- Phase 4 — Graph node drag (NEW FEATURE):
+  * `nodeOverrides` state (Record<nodeId, {x,y}>) supplements the layout-computed `pos` map. When a node is dragged, its override replaces the layout position.
+  * `draggedNodeId` state (for cursor styling) + `dragRef` (for drag tracking) + `panDragRef` (renamed from dragRef, for background pan).
+  * `onNodePointerDown(e, node)`: stopPropagation (so background pan doesn't fire), record start position, setPointerCapture, set draggedNodeId.
+  * `onPointerMove`: checks both panDragRef (background pan) and dragRef (node drag); for node drag, converts screen delta to SVG-space delta (divides by zoom), updates nodeOverrides.
+  * Edges use `nodeOverrides[source_id] || pos[source_id]` so they follow dragged nodes.
+  * Nodes use `nodeOverrides[node.id] || pos[node.id]` for transform.
+  * Cursor: `cursor-grab` on nodes, `cursor-grabbing` on the dragged node.
+  * `resetView` clears nodeOverrides too.
+  * Lint fix: initial implementation read `dragRef.current?.nodeId` during render (for isDragged class) — ESLint error "Cannot access ref value during render". Fixed by using `draggedNodeId` state instead.
+  * Runtime fix: "Cannot read properties of null (reading 'nodeId')" — the non-null assertion `dragRef.current!.nodeId` could fail if pointerup cleared the ref between the check and access. Fixed by capturing `const drag = dragRef.current` into a local variable before accessing its fields.
+  * Verified: 10 draggable nodes render, node click selection still works ("Connected nodes: 2"), no runtime errors.
+- Phase 5 — i18n: 2 new keys (TR+EN) — history.reanalyze, history.reanalyzing.
+- Verification (agent-browser, 1440×900):
+  * Phase count: AnalysisMetaCard "Phases 9/9" ✓ matches PipelinePhasesCard "Phases 9" ✓ (TrustPanel "Reasoning Depth 5/5" is a different metric, correct)
+  * Evidence categories: "Cyclomatic Complexity", "Long Method", "Large File", "Circular Import", "High Coupling", "Unused Import", "Hardcoded Password", "Low Coverage" ✓ (all humanized, no snake_case)
+  * Finding types: "Complexity", "Code Quality", "Metric", "Import", "Architecture", "Security", "Test" ✓
+  * Re-analyze: clicked → progress view → completed → Overview tab ✓
+  * Graph: 10 draggable nodes, node click selection works, no errors ✓
+  * Turkish: "Yeniden aç", "Yeniden analiz et", "Kaldır", "Tümünü dışa aktar (JSON)" ✓
+  * Zero page errors, zero console errors
+- ESLint: Clean (0 errors)
+
+Stage Summary:
+- Current project status: Frontend is polished and feature-complete. Mock API online. All 7 dashboard tabs rich. Landing page complete. History drawer with reopen + re-analyze + JSON export. Compare dialog (health deltas + root cause diff). Graph now supports node drag. All snake_case categories humanized. Phase counts consistent across surfaces. Zero runtime errors.
+- Completed modifications: 1 file modified (page.tsx — phase count fix, humanize helper + applications, Re-analyze button + handler, graph node drag with nodeOverrides/draggedNodeId). 1 file modified (i18n.tsx — 2 new keys ×2 langs). No new files.
+- Verification results: agent-browser full QA passed. Phase count consistency verified (9/9 on both surfaces). Evidence categories fully humanized. Re-analyze verified end-to-end (progress view → completion → dashboard). Graph node drag renders correctly, node selection still works. Turkish translations complete. ESLint clean. Zero runtime errors.
+- Unresolved issues / risks:
+  * Node drag couldn't be fully verified via synthetic pointer events (agent-browser doesn't have a native SVG-element drag command), but the handlers are correct and the lint/runtime errors are fixed. Manual drag testing recommended.
+  * Mock data still uses hardcoded root causes (same 4 categories for all repos) — comparison shows "unchanged" for root causes. Real backend needed for meaningful diffs.
+  * `humanize` is generic (no i18n) — categories are displayed in English Title Case even in Turkish mode. Acceptable since they're technical terms.
+- Priority recommendations for next phase:
+  1. (Medium) Compare dialog: add Evidence count diff + Roadmap step count diff (currently only health scores + root causes).
+  2. (Medium) Graph: edge weight visualization (thicker lines for stronger relationships) + node drag snap-to-grid option.
+  3. (Low) Accessibility audit on new Re-analyze button + graph drag (ARIA labels, keyboard alternatives for drag).
+  4. (Low) When real backend is ready, add USE_MOCK_API env flag to toggle between mock routes and the proxy.
+  5. (Low) "Full backup" history export option (include result payloads, not just metadata).

@@ -525,6 +525,21 @@ function AppContent() {
     toast.success(t("analysis.complete"));
   };
 
+  // Re-run the pipeline for a history entry's repo — closes the drawer, fills
+  // the URL in state, and triggers handleAnalyze directly (handleAnalyze reads
+  // repoUrl from state, not the DOM, so we don't need to wait for the landing
+  // view to mount).
+  const handleReanalyze = (entry: HistoryEntry) => {
+    setShowHistory(false);
+    setRepoUrl(entry.repoUrl);
+    // Clear any previous results so the progress view shows cleanly.
+    setAnalysisData(null);
+    setPipelineSteps(getInitialSteps(t));
+    setView("progress");
+    // Defer handleAnalyze so React processes the view/state change first.
+    setTimeout(() => handleAnalyze(), 0);
+  };
+
   const setStepStatus = (id: string, status: PipelineStep["status"]) => {
     setPipelineSteps((prev) => prev.map((s) => (s.id === id ? { ...s, status } : s)));
   };
@@ -709,6 +724,7 @@ function AppContent() {
         onOpenChange={setShowHistory}
         entries={historyEntries}
         onReopen={handleReopenHistory}
+        onReanalyze={handleReanalyze}
       />
 
       {/* Comparison dialog — diff current vs a baseline from history */}
@@ -1182,9 +1198,18 @@ function AnalysisMetaCard({ data }: { data: any }) {
   const repoLabel = repo ? `${repo.owner || ""}/${repo.name || ""}` : "—";
   const jobId = data?.id || "—";
   const analyzedAt = data?.analyzed_at || data?.created_at || new Date().toISOString();
+  // Count the 9 pipeline phases that produced data — must match PipelinePhasesCard
+  // so the two surfaces stay consistent.
   const phaseCount = [
-    data?.evidence, data?.knowledge_graph, data?.root_causes,
-    data?.engineering_plan, data?.engineering_review,
+    !!data?.repository,
+    !!data?.file_inventory,
+    !!data?.knowledge_graph?.nodes?.some((n: any) => n.node_type === "dependency"),
+    !!data?.evidence?.evidence?.some((e: any) => e.finding_type === "metric"),
+    !!data?.evidence?.evidence?.length,
+    !!data?.knowledge_graph?.nodes?.length,
+    !!data?.root_causes?.root_causes?.length,
+    !!data?.engineering_plan?.steps?.length,
+    !!data?.engineering_review,
   ].filter(Boolean).length;
   const fileCount = data?.file_inventory?.total_files ?? data?.file_inventory?.files?.length ?? 0;
 
@@ -1206,7 +1231,7 @@ function AnalysisMetaCard({ data }: { data: any }) {
         <TrustRow label={t("meta.repository")} value={<span className="font-mono text-xs truncate max-w-[140px] block">{repoLabel}</span>} />
         <TrustRow label={t("meta.jobId")} value={<span className="font-mono text-xs">{jobId}</span>} />
         <TrustRow label={t("meta.analyzedAt")} value={<span className="text-xs">{fmtDate(analyzedAt)}</span>} />
-        <TrustRow label={t("meta.phases")} value={`${phaseCount}/5`} />
+        <TrustRow label={t("meta.phases")} value={`${phaseCount}/9`} />
         {fileCount > 0 && <TrustRow label={t("meta.files")} value={fileCount} />}
       </CardContent>
     </Card>
@@ -1581,7 +1606,7 @@ function RootCauseCard({ rc, expanded, onToggle }: { rc: any; expanded: boolean;
               <CardTitle className="text-base truncate">{rc.title}</CardTitle>
               <div className="mt-1 flex flex-wrap gap-2">
                 <Badge variant={severityVariant(rc.severity)}>{rc.severity}</Badge>
-                <Badge variant="outline">{rc.category}</Badge>
+                <Badge variant="outline">{humanize(rc.category)}</Badge>
               </div>
             </div>
           </div>
@@ -1899,12 +1924,12 @@ function EvidenceSection({ data }: { data: any }) {
           {filtered.map((ev: any, i: number) => (
             <div key={ev.id || i} className="grid grid-cols-12 gap-2 border-b p-3 text-sm hover:bg-muted/30">
               <div className="col-span-1"><Badge variant={severityVariant(ev.severity)} className="text-xs">{ev.severity}</Badge></div>
-              <div className="col-span-2 truncate text-xs text-muted-foreground">{ev.analyzer}</div>
-              <div className="col-span-2 truncate text-xs">{ev.category}</div>
+              <div className="col-span-2 truncate text-xs text-muted-foreground" title={ev.analyzer}>{ev.analyzer}</div>
+              <div className="col-span-2 truncate text-xs" title={humanize(ev.category)}>{humanize(ev.category)}</div>
               <div className="col-span-3 truncate text-xs" title={ev.message}>{ev.message}</div>
               <div className="col-span-2 truncate text-xs text-muted-foreground" title={ev.file_path}>{ev.file_path || "—"}</div>
               <div className="col-span-1 text-xs">{(ev.confidence * 100).toFixed(0)}%</div>
-              <div className="col-span-1 text-xs text-muted-foreground">{ev.finding_type}</div>
+              <div className="col-span-1 text-xs text-muted-foreground" title={humanize(ev.finding_type)}>{humanize(ev.finding_type)}</div>
             </div>
           ))}
         </ScrollArea>
@@ -1926,7 +1951,12 @@ function GraphSection({ data }: { data: any }) {
   const [zoom, setZoom] = React.useState(1);
   const [pan, setPan] = React.useState({ x: 0, y: 0 });
   const [search, setSearch] = React.useState("");
-  const dragRef = React.useRef<{ x: number; y: number; px: number; py: number } | null>(null);
+  // Per-node position overrides (from dragging). Keyed by node id.
+  // When a node is dragged, its override replaces the layout-computed position.
+  const [nodeOverrides, setNodeOverrides] = React.useState<Record<string, { x: number; y: number }>>({});
+  const [draggedNodeId, setDraggedNodeId] = React.useState<string | null>(null);
+  const dragRef = React.useRef<{ x: number; y: number; nodeId: string; origX: number; origY: number } | null>(null);
+  const panDragRef = React.useRef<{ x: number; y: number; px: number; py: number } | null>(null);
 
   // Node type → fill color (hex for SVG) + legend dot class (Tailwind for legend)
   const NODE_STYLES: Record<string, { fill: string; dot: string; label: string }> = {
@@ -2008,26 +2038,47 @@ function GraphSection({ data }: { data: any }) {
     return Math.max(6, Math.min(16, 6 + c * 2.5));
   };
 
-  // Pan handlers (drag on background)
+  // Pan handlers (drag on background — not on a node).
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
-    dragRef.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y };
+    panDragRef.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y };
     (e.target as Element).setPointerCapture?.(e.pointerId);
   };
   const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (!dragRef.current) return;
-    setPan({ x: dragRef.current.px + (e.clientX - dragRef.current.x), y: dragRef.current.py + (e.clientY - dragRef.current.y) });
+    if (panDragRef.current) {
+      setPan({ x: panDragRef.current.px + (e.clientX - panDragRef.current.x), y: panDragRef.current.py + (e.clientY - panDragRef.current.y) });
+    }
+    // Node drag — capture the ref value to avoid null races between the check
+    // and the access (pointerup can clear it between renders).
+    const drag = dragRef.current;
+    if (drag) {
+      const dx = (e.clientX - drag.x) / zoom;
+      const dy = (e.clientY - drag.y) / zoom;
+      const nodeId = drag.nodeId;
+      const origX = drag.origX;
+      const origY = drag.origY;
+      setNodeOverrides((prev) => ({
+        ...prev,
+        [nodeId]: { x: origX + dx, y: origY + dy },
+      }));
+    }
   };
-  const onPointerUp = () => { dragRef.current = null; };
+  const onPointerUp = () => { panDragRef.current = null; dragRef.current = null; setDraggedNodeId(null); };
   const onWheel = (e: React.WheelEvent<SVGSVGElement>) => {
     const delta = e.deltaY > 0 ? -0.1 : 0.1;
     setZoom((z) => Math.max(0.4, Math.min(2.5, z + delta)));
   };
-  const resetView = () => { setZoom(1); setPan({ x: 0, y: 0 }); };
 
-  const fitGraph = () => {
-    // Simple fit: reset zoom/pan so the full cluster is visible
-    setZoom(1); setPan({ x: 0, y: 0 });
+  // Node-drag handlers — stopPropagation so background pan doesn't also fire.
+  const onNodePointerDown = (e: React.PointerEvent<SVGGElement>, node: any) => {
+    e.stopPropagation();
+    const p = pos[node.id] || { x: CX, y: CY };
+    dragRef.current = { x: e.clientX, y: e.clientY, nodeId: node.id, origX: p.x, origY: p.y };
+    setDraggedNodeId(node.id);
+    (e.target as Element).setPointerCapture?.(e.pointerId);
   };
+
+  const resetView = () => { setZoom(1); setPan({ x: 0, y: 0 }); setNodeOverrides({}); };
+  const fitGraph = () => { setZoom(1); setPan({ x: 0, y: 0 }); };
 
   // Legend: only types that actually appear
   const presentTypes = types.map((ty) => ({ ty, style: NODE_STYLES[ty] || defaultStyle }));
@@ -2074,7 +2125,8 @@ function GraphSection({ data }: { data: any }) {
               <g transform={`translate(${pan.x} ${pan.y}) scale(${zoom})`}>
                 {/* Edges */}
                 {(graph.edges || []).map((edge: any, i: number) => {
-                  const s = pos[edge.source_id], d = pos[edge.target_id];
+                  const s = nodeOverrides[edge.source_id] || pos[edge.source_id];
+                  const d = nodeOverrides[edge.target_id] || pos[edge.target_id];
                   if (!s || !d) return null;
                   const isEdgeActive = activeNode && (edge.source_id === activeNode.id || edge.target_id === activeNode.id);
                   return (
@@ -2089,7 +2141,7 @@ function GraphSection({ data }: { data: any }) {
                 })}
                 {/* Nodes */}
                 {nodes.map((node: any, i: number) => {
-                  const p = pos[node.id];
+                  const p = nodeOverrides[node.id] || pos[node.id];
                   if (!p) return null;
                   const style = NODE_STYLES[node.node_type] || defaultStyle;
                   const r = nodeRadius(node);
@@ -2097,11 +2149,13 @@ function GraphSection({ data }: { data: any }) {
                   const hi = isHighlighted(node);
                   const matched = matchesSearch(node);
                   const isSelected = selectedNode?.id === node.id;
+                  const isDragged = draggedNodeId === node.id;
                   return (
                     <g
                       key={node.id || i} transform={`translate(${p.x} ${p.y})`}
-                      className="cursor-pointer"
+                      className={isDragged ? "cursor-grabbing" : "cursor-grab"}
                       onClick={() => setSelectedNode(node)}
+                      onPointerDown={(e) => onNodePointerDown(e, node)}
                       onMouseEnter={() => setHoveredNode(node)}
                       onMouseLeave={() => setHoveredNode(null)}
                       opacity={(!matched) ? 0.15 : dim ? 0.25 : 1}
@@ -2145,7 +2199,7 @@ function GraphSection({ data }: { data: any }) {
             {presentTypes.map(({ ty, style }) => (
               <div key={ty} className="flex items-center gap-1.5">
                 <div className={`h-2.5 w-2.5 rounded-full ${style.dot}`} />
-                <span className="text-xs text-muted-foreground">{ty}</span>
+                <span className="text-xs text-muted-foreground">{humanize(ty)}</span>
               </div>
             ))}
           </div>
@@ -2158,7 +2212,7 @@ function GraphSection({ data }: { data: any }) {
             <div className="space-y-3 text-sm">
               <div className="flex items-center gap-2">
                 <div className="h-3 w-3 rounded-full" style={{ backgroundColor: (NODE_STYLES[selectedNode.node_type] || defaultStyle).fill }} />
-                <Badge variant="outline">{selectedNode.node_type}</Badge>
+                <Badge variant="outline">{humanize(selectedNode.node_type)}</Badge>
               </div>
               <div><span className="text-muted-foreground">{t("graph.nodeDetails")}:</span><div className="font-medium break-all">{selectedNode.label}</div></div>
               {selectedNode.file_path && <div><span className="text-muted-foreground">{t("evidence.file")}:</span><div className="font-mono text-xs break-all">{selectedNode.file_path}</div></div>}
@@ -2333,7 +2387,7 @@ function FileExplorerSection({ data }: { data: any }) {
                   <div>
                     <h4 className="mb-2 flex items-center gap-1.5 text-sm font-semibold"><Network className="h-4 w-4" /> {t("files.graphConnections")} ({fileGraphNodes.length})</h4>
                     <div className="flex flex-wrap gap-2">
-                      {fileGraphNodes.map((n: any, i: number) => (<Badge key={i} variant="secondary" className="text-xs">{n.node_type}: {n.label}</Badge>))}
+                      {fileGraphNodes.map((n: any, i: number) => (<Badge key={i} variant="secondary" className="text-xs">{humanize(n.node_type)}: {n.label}</Badge>))}
                     </div>
                   </div>
                 </>
@@ -3023,14 +3077,16 @@ function ShortcutsHelpDialog({ open, onOpenChange }: { open: boolean; onOpenChan
 // timestamp, and counts; clicking reopens the full dashboard from localStorage
 // without re-running the pipeline.
 function HistorySheet({
-  open, onOpenChange, entries, onReopen,
+  open, onOpenChange, entries, onReopen, onReanalyze,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   entries: HistoryEntry[];
   onReopen: (entry: HistoryEntry) => void;
+  onReanalyze: (entry: HistoryEntry) => void;
 }) {
   const { t } = useI18n();
+  const [reanalyzingId, setReanalyzingId] = React.useState<string | null>(null);
 
   const fmtDate = (iso: string) => {
     try {
@@ -3102,6 +3158,20 @@ function HistorySheet({
                   <div className="mt-2 flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
                     <Button size="sm" variant="default" className="h-7 text-xs" onClick={() => onReopen(entry)}>
                       <ArrowLeft className="mr-1 h-3 w-3 rotate-180" /> {t("history.reopen")}
+                    </Button>
+                    <Button
+                      size="sm" variant="outline" className="h-7 text-xs"
+                      disabled={reanalyzingId === entry.id}
+                      onClick={() => {
+                        setReanalyzingId(entry.id);
+                        // Defer so the button's loading state shows before the view switches.
+                        setTimeout(() => onReanalyze(entry), 50);
+                      }}
+                    >
+                      {reanalyzingId === entry.id
+                        ? <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                        : <RotateCcw className="mr-1 h-3 w-3" />}
+                      {reanalyzingId === entry.id ? t("history.reanalyzing") : t("history.reanalyze")}
                     </Button>
                     <Button
                       size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground hover:text-destructive"
@@ -3339,6 +3409,17 @@ function severityVariant(severity: string): any {
 }
 function riskVariant(risk: string): any {
   switch (risk?.toLowerCase()) { case "critical": return "destructive"; case "high": return "destructive"; case "medium": return "secondary"; case "low": return "outline"; default: return "outline"; }
+}
+
+// Humanize snake_case / kebab-case into Title Case for display.
+// e.g. "cyclomatic_complexity" → "Cyclomatic Complexity", "god-class" → "God Class".
+function humanize(s: string): string {
+  if (!s) return "—";
+  return s
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 // ---------------------------------------------------------------------------
