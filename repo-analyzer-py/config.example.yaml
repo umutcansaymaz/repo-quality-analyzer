@@ -1,0 +1,61 @@
+# repo-analyzer configuration file
+# Place this at ~/.config/repo-analyzer/config.yaml or pass via --config
+
+# Logging level: TRACE | DEBUG | INFO | WARNING | ERROR | CRITICAL
+log_level: INFO
+
+# Verbose console output (Rich rendering)
+verbose: false
+
+# Debug mode (enables debug-level logging and trace output)
+debug: false
+
+# VCS / cloning settings
+vcs:
+  clone_depth: 1
+  partial_clone: true
+  timeout_sec: 120
+
+# Cache settings
+cache:
+  enabled: true
+  dir: ~/.cache/repo-analyzer
+  ttl_days: 7
+  max_size_gb: 2
+
+# Reports
+reports:
+  output_dir: ./reports
+  formats:
+    - markdown
+    - json
+
+# Logging file output
+logging:
+  file: ~/.cache/repo-analyzer/repo-analyzer.log
+  level: DEBUG
+  rotate_max_bytes: 10485760
+  rotate_backup_count: 5
+
+# Plugin settings
+plugins:
+  dirs:
+    - ~/.config/repo-analyzer/plugins
+  trusted: []
+  isolated_default: false
+
+# Health score weights (must sum to 1.0)
+scoring:
+  weights:
+    security: 0.40
+    quality: 0.25
+    architecture: 0.20
+    test: 0.15
+
+# AI review engine
+ai:
+  enabled: false
+  provider: zai
+  model: glm-4.6
+  max_tokens: 4096
+  temperature: 0.2

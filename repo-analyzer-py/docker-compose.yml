@@ -1,0 +1,21 @@
+services:
+  repo-analyzer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: repo-analyzer:latest
+    container_name: repo-analyzer
+    environment:
+      - GRA_LOG_LEVEL=INFO
+      - GRA_CACHE_DIR=/home/analyzer/.cache/repo-analyzer
+    volumes:
+      - analyzer-cache:/home/analyzer/.cache/repo-analyzer
+      - analyzer-reports:/home/analyzer/reports
+      - ./config.example.yaml:/home/analyzer/.config/repo-analyzer/config.yaml:ro
+    entrypoint: ["repo-analyzer"]
+    command: ["--help"]
+    restart: "no"
+
+volumes:
+  analyzer-cache:
+  analyzer-reports:
