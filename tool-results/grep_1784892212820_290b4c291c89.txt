@@ -1,0 +1,252 @@
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/cli/commands/doctor.py:31:from repo_analyzer.infrastructure.config import Config, get_default_config_path
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/cli/commands/doctor.py:32:from repo_analyzer.infrastructure.logging import configure_logging
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/cli/commands/doctor.py:33:from repo_analyzer.utils.size import bytes_to_human
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/cli/commands/config.py:11:from repo_analyzer.infrastructure.config import Config
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/cli/commands/config.py:12:from repo_analyzer.infrastructure.logging import configure_logging
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/cli/commands/analyze.py:17:from repo_analyzer.adapters.cache import SQLiteCacheAdapter
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/cli/commands/analyze.py:18:from repo_analyzer.core.domain.repository import parse_repository_url
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/cli/commands/analyze.py:19:from repo_analyzer.core.orchestrator import Orchestrator
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/cli/commands/analyze.py:20:from repo_analyzer.infrastructure.config import Config
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/cli/commands/analyze.py:21:from repo_analyzer.infrastructure.errors import ConfigurationException
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/cli/commands/analyze.py:22:from repo_analyzer.infrastructure.logging import configure_logging
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/cli/commands/analyze.py:23:from repo_analyzer.infrastructure.progress import ProgressUI
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/cli/commands/analyze.py:24:from repo_analyzer.utils.size import bytes_to_human
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/cli/commands/analyze.py:25:from repo_analyzer.utils.validation import is_valid_git_url
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/cli/commands/cache.py:8:from repo_analyzer.adapters.cache import SQLiteCacheAdapter
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/cli/commands/cache.py:9:from repo_analyzer.infrastructure.config import Config
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/cli/commands/cache.py:10:from repo_analyzer.infrastructure.logging import configure_logging
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/cli/commands/cache.py:11:from repo_analyzer.utils.size import bytes_to_human
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/cli/commands/cache.py:12:from repo_analyzer.utils.time import format_duration
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/cli/app.py:24:from repo_analyzer._version import __version__
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/cli/app.py:25:from repo_analyzer.cli.ui import APP_THEME
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/cli/app.py:26:from repo_analyzer.infrastructure.config import Config, load_config
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/cli/ui.py:12:from repo_analyzer._version import __version__
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/__init__.py:13:from repo_analyzer._version import __version__
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/api/__init__.py:5:from repo_analyzer.api.app import app, run_api
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/api/__main__.py:5:from repo_analyzer.api.app import run_api
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/api/app.py:25:from repo_analyzer.adapters.cache import SQLiteCacheAdapter
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/api/app.py:26:from repo_analyzer.adapters.llm import MockLLMProvider
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/api/app.py:27:from repo_analyzer.core.domain.repository import parse_repository_url
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/api/app.py:28:from repo_analyzer.core.orchestrator import Orchestrator
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/api/app.py:29:from repo_analyzer.infrastructure.config import load_config
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/api/app.py:30:from repo_analyzer.infrastructure.logging import get_logger
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/api/app.py:31:from repo_analyzer.reports import ReportGenerator
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/api/app.py:32:from repo_analyzer.utils.validation import is_valid_git_url
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/__init__.py:10:from repo_analyzer.review.ai.context_builder import ContextBuilder
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/__init__.py:11:from repo_analyzer.review.ai.engine import AICommentEngine
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/__init__.py:12:from repo_analyzer.review.ai.prompt_builder import PromptBuilder
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/__init__.py:13:from repo_analyzer.review.architecture.engine import ArchitectureReviewEngine
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/__init__.py:14:from repo_analyzer.review.debt.engine import TechnicalDebtEngine
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/__init__.py:15:from repo_analyzer.review.directory_level.engine import DirectoryReviewEngine
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/__init__.py:16:from repo_analyzer.review.file_level.engine import FileReviewEngine
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/__init__.py:17:from repo_analyzer.review.health.engine import HealthScoreReviewEngine
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/__init__.py:18:from repo_analyzer.review.project_level.engine import ProjectReviewEngine
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/__init__.py:19:from repo_analyzer.review.quality.engine import CodeQualityEngine
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/__init__.py:20:from repo_analyzer.review.refactor.engine import RefactorEngine
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/__init__.py:21:from repo_analyzer.review.risk.engine import RiskEngine
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/__init__.py:22:from repo_analyzer.review.security.engine import SecurityReviewEngine
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/debt/engine.py:9:from repo_analyzer.core.domain.analysis_result import AnalysisResult
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/debt/engine.py:10:from repo_analyzer.core.domain.review_outputs import (
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/security/engine.py:23:from repo_analyzer.core.domain.repository import Repository
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/security/engine.py:24:from repo_analyzer.core.domain.review_outputs import (
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/security/engine.py:29:from repo_analyzer.infrastructure.logging import get_logger
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/architecture/engine.py:11:from repo_analyzer.core.domain.analysis_result import AnalysisResult
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/architecture/engine.py:12:from repo_analyzer.core.domain.review_outputs import (
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/project_level/engine.py:5:from repo_analyzer.core.domain.analysis_result import AnalysisResult
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/project_level/engine.py:6:from repo_analyzer.core.domain.review_outputs import ProjectReview
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/risk/engine.py:10:from repo_analyzer.core.domain.analysis_result import AnalysisResult
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/risk/engine.py:11:from repo_analyzer.core.domain.review_outputs import RiskItem, RiskLevel, RiskSummary
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/ai/context_builder.py:13:from repo_analyzer.core.domain.analysis_result import AnalysisResult
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/ai/context_builder.py:14:from repo_analyzer.core.ports.llm_port import LLMPort
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/ai/engine.py:18:from repo_analyzer.core.domain.ai_review import AIReview, ModelInfo
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/ai/engine.py:19:from repo_analyzer.core.domain.analysis_result import AnalysisResult
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/ai/engine.py:20:from repo_analyzer.core.ports.llm_port import LLMPort
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/ai/engine.py:21:from repo_analyzer.infrastructure.errors import AIException
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/ai/engine.py:22:from repo_analyzer.infrastructure.logging import get_logger
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/ai/engine.py:23:from repo_analyzer.review.ai.context_builder import ContextBuilder
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/ai/engine.py:24:from repo_analyzer.review.ai.prompt_builder import PromptBuilder
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/ai/engine.py:25:from repo_analyzer.review.architecture.engine import ArchitectureReviewEngine
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/ai/engine.py:26:from repo_analyzer.review.debt.engine import TechnicalDebtEngine
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/ai/engine.py:27:from repo_analyzer.review.directory_level.engine import DirectoryReviewEngine
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/ai/engine.py:28:from repo_analyzer.review.file_level.engine import FileReviewEngine
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/ai/engine.py:29:from repo_analyzer.review.health.engine import HealthScoreReviewEngine
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/ai/engine.py:30:from repo_analyzer.review.project_level.engine import ProjectReviewEngine
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/ai/engine.py:31:from repo_analyzer.review.quality.engine import CodeQualityEngine
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/ai/engine.py:32:from repo_analyzer.review.refactor.engine import RefactorEngine
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/ai/engine.py:33:from repo_analyzer.review.risk.engine import RiskEngine
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/ai/engine.py:34:from repo_analyzer.review.security.engine import SecurityReviewEngine
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/refactor/engine.py:10:from repo_analyzer.core.domain.analysis_result import AnalysisResult
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/refactor/engine.py:11:from repo_analyzer.core.domain.review_outputs import QuickWin, RefactorItem, RefactorPlan
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/directory_level/engine.py:9:from repo_analyzer.core.domain.analysis_result import AnalysisResult
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/directory_level/engine.py:10:from repo_analyzer.core.domain.review_outputs import DirectoryReview
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/file_level/engine.py:12:from repo_analyzer.core.domain.analysis_result import AnalysisResult
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/file_level/engine.py:13:from repo_analyzer.core.domain.review_outputs import FileReview, RiskLevel
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/quality/engine.py:9:from repo_analyzer.core.domain.analysis_result import AnalysisResult
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/quality/engine.py:10:from repo_analyzer.core.domain.review_outputs import (
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/health/engine.py:10:from repo_analyzer.core.domain.analysis_result import AnalysisResult
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/review/health/engine.py:11:from repo_analyzer.core.domain.review_outputs import ExtendedHealthScore
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/__main__.py:5:from repo_analyzer.cli.app import app
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/adapters/llm/__init__.py:5:from repo_analyzer.adapters.llm.providers import (
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/adapters/llm/__init__.py:15:from repo_analyzer.core.ports.llm_port import LLMPort
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/adapters/llm/providers.py:23:from repo_analyzer.core.ports.llm_port import LLMPort
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/adapters/llm/providers.py:24:from repo_analyzer.infrastructure.errors import AIException
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/adapters/llm/providers.py:25:from repo_analyzer.infrastructure.logging import get_logger
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/adapters/vcs/github_provider.py:16:from repo_analyzer.core.domain.repository import AccessMode, Credential, Repository
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/adapters/vcs/github_provider.py:17:from repo_analyzer.core.ports.repository_port import RepositoryProvider
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/adapters/vcs/github_provider.py:18:from repo_analyzer.infrastructure.errors import (
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/adapters/vcs/github_provider.py:24:from repo_analyzer.infrastructure.logging import get_logger
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/infrastructure/config/__init__.py:15:from repo_analyzer.infrastructure.config.defaults import (
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/infrastructure/config/__init__.py:21:from repo_analyzer.infrastructure.config.settings import (
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/infrastructure/config/settings.py:21:from repo_analyzer.infrastructure.config.defaults import (
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/infrastructure/config/settings.py:27:from repo_analyzer.utils.path import expand_user_path
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/adapters/vcs/__init__.py:5:from repo_analyzer.adapters.vcs.clone_service import CloneService
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/adapters/vcs/__init__.py:6:from repo_analyzer.adapters.vcs.factory import DefaultRepositoryProviderFactory
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/adapters/vcs/__init__.py:7:from repo_analyzer.adapters.vcs.github_provider import GitHubRepositoryProvider
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/adapters/vcs/__init__.py:8:from repo_analyzer.core.ports.repository_port import (
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/infrastructure/logging/__init__.py:21:from repo_analyzer.infrastructure.config import Config, LoggingSettings
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/adapters/vcs/factory.py:10:from repo_analyzer.adapters.vcs.github_provider import GitHubRepositoryProvider
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/adapters/vcs/factory.py:11:from repo_analyzer.core.domain.repository import Repository
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/adapters/vcs/factory.py:12:from repo_analyzer.core.ports.repository_port import (
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/adapters/vcs/factory.py:16:from repo_analyzer.infrastructure.errors import RepositoryException
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/adapters/vcs/factory.py:17:from repo_analyzer.infrastructure.logging import get_logger
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/infrastructure/errors/__init__.py:16:from repo_analyzer.infrastructure.errors.ai import (
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/infrastructure/errors/__init__.py:22:from repo_analyzer.infrastructure.errors.analyzer import (
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/infrastructure/errors/__init__.py:27:from repo_analyzer.infrastructure.errors.base import (
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/infrastructure/errors/__init__.py:33:from repo_analyzer.infrastructure.errors.cache import (
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/infrastructure/errors/__init__.py:38:from repo_analyzer.infrastructure.errors.config import (
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/infrastructure/errors/__init__.py:44:from repo_analyzer.infrastructure.errors.network import (
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/infrastructure/errors/__init__.py:49:from repo_analyzer.infrastructure.errors.report import (
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/infrastructure/errors/__init__.py:54:from repo_analyzer.infrastructure.errors.repository import (
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/infrastructure/errors/__init__.py:61:from repo_analyzer.infrastructure.errors.security import (
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/infrastructure/errors/ai.py:7:from repo_analyzer.infrastructure.errors.base import RecoverableError, TransientError
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/infrastructure/errors/analyzer.py:7:from repo_analyzer.infrastructure.errors.base import RecoverableError
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/infrastructure/errors/security.py:7:from repo_analyzer.infrastructure.errors.base import RecoverableError
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/infrastructure/errors/config.py:7:from repo_analyzer.infrastructure.errors.base import FatalError
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/infrastructure/errors/network.py:7:from repo_analyzer.infrastructure.errors.base import TransientError
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/infrastructure/errors/repository.py:7:from repo_analyzer.infrastructure.errors.base import (
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/infrastructure/errors/report.py:7:from repo_analyzer.infrastructure.errors.base import RecoverableError
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/infrastructure/errors/cache.py:7:from repo_analyzer.infrastructure.errors.base import RecoverableError
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/infrastructure/container.py:16:from repo_analyzer.infrastructure.logging import get_logger
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/adapters/vcs/clone_service.py:21:from repo_analyzer.adapters.vcs.factory import DefaultRepositoryProviderFactory
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/adapters/vcs/clone_service.py:22:from repo_analyzer.core.domain.cache_entry import CacheEntry, CacheEntryType, CacheKey
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/adapters/vcs/clone_service.py:23:from repo_analyzer.core.domain.repository import Repository
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/adapters/vcs/clone_service.py:24:from repo_analyzer.core.ports.cache_port import CachePort
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/adapters/vcs/clone_service.py:25:from repo_analyzer.core.ports.repository_port import RepositoryProvider
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/adapters/vcs/clone_service.py:26:from repo_analyzer.infrastructure.errors import (
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/adapters/vcs/clone_service.py:31:from repo_analyzer.infrastructure.logging import get_logger
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/adapters/vcs/clone_service.py:32:from repo_analyzer.infrastructure.progress import ProgressUI
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/plugins/__init__.py:13:from repo_analyzer.core.ports.analyzer_port import AnalyzerPort
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/plugins/__init__.py:14:from repo_analyzer.plugins.discovery import PluginDiscovery
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/plugins/__init__.py:15:from repo_analyzer.plugins.manager import PluginManager
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/plugins/__init__.py:16:from repo_analyzer.plugins.registry import PluginRegistry
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/plugins/manager.py:15:from repo_analyzer.core.ports.analyzer_port import AnalyzerPort
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/plugins/manager.py:16:from repo_analyzer.infrastructure.logging import get_logger
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/plugins/manager.py:17:from repo_analyzer.plugins.discovery import PluginDiscovery
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/plugins/manager.py:18:from repo_analyzer.plugins.registry import PluginRegistry
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/plugins/discovery.py:27:from repo_analyzer.core.ports.analyzer_port import AnalyzerPort
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/plugins/discovery.py:28:from repo_analyzer.infrastructure.errors import PluginError
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/plugins/discovery.py:29:from repo_analyzer.infrastructure.logging import get_logger
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/plugins/registry.py:13:from repo_analyzer.core.ports.analyzer_port import AnalyzerPort
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/plugins/registry.py:14:from repo_analyzer.infrastructure.errors import PluginError
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/plugins/registry.py:15:from repo_analyzer.infrastructure.logging import get_logger
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/__init__.py:10:from repo_analyzer.analyzers.architecture.analyzer import GraphEngine
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/__init__.py:11:from repo_analyzer.analyzers.ast.analyzer import ASTAnalyzer
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/__init__.py:12:from repo_analyzer.analyzers.base import BaseAnalyzer
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/__init__.py:13:from repo_analyzer.analyzers.complexity.analyzer import ComplexityAnalyzer
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/__init__.py:14:from repo_analyzer.analyzers.dependency.analyzer import DependencyAnalyzer
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/__init__.py:15:from repo_analyzer.analyzers.documentation.analyzer import DocumentationAnalyzer
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/__init__.py:16:from repo_analyzer.analyzers.filesystem.analyzer import FilesystemAnalyzer
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/__init__.py:17:from repo_analyzer.analyzers.git_history.analyzer import GitAnalyzer
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/__init__.py:18:from repo_analyzer.analyzers.imports.analyzer import ImportAnalyzer
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/__init__.py:19:from repo_analyzer.analyzers.language.analyzer import LanguageDetector
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/__init__.py:20:from repo_analyzer.analyzers.metrics.analyzer import MetricEngine
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/__init__.py:21:from repo_analyzer.analyzers.repository_detector.analyzer import RepositoryDetector
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/__init__.py:22:from repo_analyzer.analyzers.test_coverage.analyzer import TestAnalyzer
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/filesystem/analyzer.py:20:from repo_analyzer.analyzers.base import BaseAnalyzer
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/filesystem/analyzer.py:21:from repo_analyzer.core.domain.analysis_outputs import FileInventory
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/filesystem/analyzer.py:22:from repo_analyzer.core.domain.repository import Repository
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/adapters/cache/sqlite_cache.py:22:from repo_analyzer.core.domain.cache_entry import CacheEntry, CacheEntryType, CacheKey
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/adapters/cache/sqlite_cache.py:23:from repo_analyzer.core.ports.cache_port import CachePort
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/adapters/cache/sqlite_cache.py:24:from repo_analyzer.infrastructure.errors import CacheException
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/adapters/cache/sqlite_cache.py:25:from repo_analyzer.utils.path import expand_user_path
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/dependency/analyzer.py:27:from repo_analyzer.analyzers.base import BaseAnalyzer
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/dependency/analyzer.py:28:from repo_analyzer.analyzers.dependency.manifests import (
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/dependency/analyzer.py:36:from repo_analyzer.analyzers.dependency.manifests import (
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/dependency/analyzer.py:39:from repo_analyzer.core.domain.analysis_outputs import DependencyAnalysis
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/dependency/analyzer.py:40:from repo_analyzer.core.domain.repository import Repository
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/adapters/cache/__init__.py:13:from repo_analyzer.adapters.cache.sqlite_cache import SQLiteCacheAdapter
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/adapters/cache/__init__.py:14:from repo_analyzer.core.domain.cache_entry import CacheEntry, CacheEntryType, CacheKey
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/adapters/cache/__init__.py:15:from repo_analyzer.core.ports.cache_port import CachePort
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/documentation/analyzer.py:21:from repo_analyzer.analyzers.base import BaseAnalyzer
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/documentation/analyzer.py:22:from repo_analyzer.core.domain.analysis_outputs import DocumentationReport
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/documentation/analyzer.py:23:from repo_analyzer.core.domain.repository import Repository
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/architecture/analyzer.py:20:from repo_analyzer.analyzers.base import BaseAnalyzer
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/architecture/analyzer.py:21:from repo_analyzer.core.domain.analysis_outputs import GraphReport
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/architecture/analyzer.py:22:from repo_analyzer.core.domain.repository import Repository
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/architecture/analyzer.py:23:from repo_analyzer.infrastructure.logging import get_logger
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/ast/analyzer.py:18:from repo_analyzer.analyzers.ast.tree_sitter_loader import TreeSitterLoader
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/ast/analyzer.py:19:from repo_analyzer.analyzers.base import BaseAnalyzer
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/ast/analyzer.py:20:from repo_analyzer.core.domain.analysis_outputs import SymbolCollection
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/ast/analyzer.py:21:from repo_analyzer.core.domain.repository import Repository
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/ast/tree_sitter_loader.py:12:from repo_analyzer.infrastructure.logging import get_logger
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/language/analyzer.py:14:from repo_analyzer.analyzers.base import BaseAnalyzer
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/language/analyzer.py:15:from repo_analyzer.core.domain.analysis_outputs import LanguageDistribution
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/language/analyzer.py:16:from repo_analyzer.core.domain.repository import Repository
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/metrics/analyzer.py:25:from repo_analyzer.analyzers.base import BaseAnalyzer
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/metrics/analyzer.py:26:from repo_analyzer.core.domain.analysis_outputs import FileMetrics, MetricsReport
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/metrics/analyzer.py:27:from repo_analyzer.core.domain.repository import Repository
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/git_history/analyzer.py:19:from repo_analyzer.analyzers.base import BaseAnalyzer
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/git_history/analyzer.py:20:from repo_analyzer.core.domain.analysis_outputs import GitAnalysis
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/git_history/analyzer.py:21:from repo_analyzer.core.domain.repository import Repository
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/git_history/analyzer.py:22:from repo_analyzer.infrastructure.logging import get_logger
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/core/ports/__init__.py:9:from repo_analyzer.core.ports.analyzer_port import AnalyzerPort
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/core/ports/__init__.py:10:from repo_analyzer.core.ports.cache_port import CachePort
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/core/ports/__init__.py:11:from repo_analyzer.core.ports.llm_port import LLMPort
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/core/ports/__init__.py:12:from repo_analyzer.core.ports.output_port import OutputPort
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/core/ports/__init__.py:13:from repo_analyzer.core.ports.repository_port import (
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/imports/analyzer.py:22:from repo_analyzer.analyzers.base import BaseAnalyzer
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/imports/analyzer.py:23:from repo_analyzer.core.domain.analysis_outputs import ImportAnalysis
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/imports/analyzer.py:24:from repo_analyzer.core.domain.repository import Repository
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/complexity/analyzer.py:18:from repo_analyzer.analyzers.base import BaseAnalyzer
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/complexity/analyzer.py:19:from repo_analyzer.core.domain.analysis_outputs import ComplexityReport
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/complexity/analyzer.py:20:from repo_analyzer.core.domain.repository import Repository
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/complexity/analyzer.py:21:from repo_analyzer.infrastructure.logging import get_logger
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/core/ports/analyzer_port.py:15:from repo_analyzer.core.domain.repository import Repository
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/repository_detector/analyzer.py:24:from repo_analyzer.analyzers.base import BaseAnalyzer
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/repository_detector/analyzer.py:25:from repo_analyzer.core.domain.analysis_outputs import RepositoryMetadata
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/repository_detector/analyzer.py:26:from repo_analyzer.core.domain.repository import Repository
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/repository_detector/analyzer.py:27:from repo_analyzer.infrastructure.logging import get_logger
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/base.py:17:from repo_analyzer.core.domain.repository import Repository
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/base.py:18:from repo_analyzer.core.ports.analyzer_port import AnalyzerPort
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/test_coverage/analyzer.py:18:from repo_analyzer.analyzers.base import BaseAnalyzer
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/test_coverage/analyzer.py:19:from repo_analyzer.core.domain.analysis_outputs import TestAnalysis
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/analyzers/test_coverage/analyzer.py:20:from repo_analyzer.core.domain.repository import Repository
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/core/ports/cache_port.py:13:from repo_analyzer.core.domain.cache_entry import CacheEntry, CacheEntryType, CacheKey
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/utils/__init__.py:9:from repo_analyzer.utils.file import (
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/utils/__init__.py:16:from repo_analyzer.utils.hash import deterministic_hash, hash_dict, hash_string
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/utils/__init__.py:17:from repo_analyzer.utils.path import (
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/utils/__init__.py:23:from repo_analyzer.utils.size import bytes_to_human, human_to_bytes
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/utils/__init__.py:24:from repo_analyzer.utils.time import format_duration, utc_now_iso
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/utils/__init__.py:25:from repo_analyzer.utils.validation import (
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/utils/file.py:10:from repo_analyzer.utils.path import expand_user_path
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/core/ports/repository_port.py:16:from repo_analyzer.core.domain.repository import Repository
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/core/ports/output_port.py:13:from repo_analyzer.core.domain.report import ReportFormat
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/core/domain/__init__.py:10:from repo_analyzer.core.domain.ai_review import AIReview, ModelInfo, Recommendation
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/core/domain/__init__.py:11:from repo_analyzer.core.domain.analysis_outputs import (
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/core/domain/__init__.py:26:from repo_analyzer.core.domain.analysis_result import AnalysisResult, AnalysisStatus
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/core/domain/__init__.py:27:from repo_analyzer.core.domain.architecture_finding import (
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/core/domain/__init__.py:33:from repo_analyzer.core.domain.cache_entry import CacheEntry, CacheKey
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/core/domain/__init__.py:34:from repo_analyzer.core.domain.config import ConfigSnapshot
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/core/domain/__init__.py:35:from repo_analyzer.core.domain.dependency import Dependency, License, Version
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/core/domain/__init__.py:36:from repo_analyzer.core.domain.health_score import Grade, HealthScore, ScoreWeights
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/core/domain/__init__.py:37:from repo_analyzer.core.domain.issue import Issue, IssueType
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/core/domain/__init__.py:38:from repo_analyzer.core.domain.metric import Metric, MetricScope, MetricUnit
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/core/domain/__init__.py:39:from repo_analyzer.core.domain.report import (
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/core/domain/__init__.py:47:from repo_analyzer.core.domain.repository import (
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/core/domain/__init__.py:53:from repo_analyzer.core.domain.review_outputs import (
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/core/domain/__init__.py:73:from repo_analyzer.core.domain.review_outputs import (
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/core/domain/__init__.py:76:from repo_analyzer.core.domain.security_finding import (
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/core/domain/architecture_finding.py:11:from repo_analyzer.core.domain.report import Location, Severity
+/home/z/my-project/repo-analyzer-py/src/repo_analyzer/core/domain/issue.py:11:from repo_analyzer.core.domain.report import Finding, Location, Severity
+
+[Showing results with pagination = limit: 250]

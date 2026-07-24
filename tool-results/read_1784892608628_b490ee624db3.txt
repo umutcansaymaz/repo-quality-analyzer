@@ -1,0 +1,323 @@
+     1→
+     2→Q1. Is the ServiceContainer (DI) actually used by the orchestrator or CLI? Or is it dead code?
+     3→→ DEAD CODE. `ServiceContainer` is instantiated in exactly ONE non-test place: nowhere.
+     4→   - grep "ServiceContainer" src/ → 4 hits, all inside infrastructure/container.py (the class definition, the TypedResolver docstring, and __all__).
+     5→   - grep "ServiceContainer" tests/ → 14 hits, all in tests/unit/test_container.py using a `_DummyService` class.
+     6→   - The Orchestrator constructor (orchestrator.py:55-77) takes `cache: CachePort` and `llm: LLMPort | None` as direct arguments — no container lookup.
+     7→   - The CLI (cli/commands/analyze.py:67-79) directly constructs `SQLiteCacheAdapter(f"{config.cache.dir}/cache.db")` and `MockLLMProvider()`. No container.
+     8→   - The API (api/app.py:121-129) does the same direct construction.
+     9→   - The `TypedResolver` helper class is referenced ZERO times outside its own definition + test.
+    10→   The 276-line DI subsystem is a textbook example of "framework theater": it is built, it is tested in isolation with dummies, and it is never once consulted by the application. The Hexagonal promise ("modules depend on interfaces and receive concrete instances through the container") advertised in container.py's module docstring is unfulfilled.
+    11→
+    12→Q2. Does the orchestrator import concrete analyzer classes directly (violating Hexagonal)?
+    13→→ YES, in three independent ways.
+    14→   - orchestrator.py:26-39 imports all 12 concrete analyzer classes (`ASTAnalyzer, ComplexityAnalyzer, DependencyAnalyzer, DocumentationAnalyzer, FilesystemAnalyzer, GitAnalyzer, GraphEngine, ImportAnalyzer, LanguageDetector, MetricEngine, RepositoryDetector, TestAnalyzer`) from `repo_analyzer.analyzers`. The Hexagonal pattern requires the core to depend only on `AnalyzerPort` and receive instances via injection.
+    15→   - orchestrator.py:25 imports `CloneService` AND `DefaultRepositoryProviderFactory` from `repo_analyzer.adapters.vcs` and constructs them directly inside `__init__` (lines 66-72). `CloneService` has NO port abstraction — there is no `CloneServicePort` in `core/ports/`. The core reaches into the adapters layer and instantiates a concrete service.
+    16→   - orchestrator.py:47 imports `AICommentEngine` from `repo_analyzer.review` and constructs it directly (line 77). `AICommentEngine` has no port either. The orchestrator is simultaneously a pipeline coordinator AND a review-engine factory AND a clone-service factory — a triple violation of the Single Responsibility Principle on top of the Hexagonal break.
+    17→   The cache injection IS done correctly (the constructor accepts `cache: CachePort`), proving the team knows the pattern. They just didn't apply it to the other two adapters.
+    18→
+    19→Q3. Are the 12 analyzers registered via the plugin system, or hardcoded?
+    20→→ HARDCODED. orchestrator.py:79-93 defines `_default_analyzers()` which returns a literal Python list of 12 `*Analyzer()` instantiations. This list is the single source of truth for which analyzers run. The plugin subsystem (`PluginManager.load_all` → `PluginDiscovery.discover` → `PluginRegistry.register`) is never invoked by the orchestrator, the CLI, or the API. The plugin registry is empty at runtime in production; only `test_plugins.py` populates it, with a `DummyAnalyzer`.
+    21→
+    22→Q4. Is there any actual difference between the "plugin" path and the "built-in analyzer" path, or are they the same?
+    23→→ They are TWO PARALLEL, NEVER-INTERSECTING PATHS that both nominally produce `AnalyzerPort` instances but only one is wired to the orchestrator.
+    24→   - Built-in path: `Orchestrator._default_analyzers()` → concrete imports → hardcoded list. Used in production.
+    25→   - Plugin path: `PluginManager.load_all()` → entry-point scan + directory scan → `PluginRegistry.all()`. NEVER called in production.
+    26→   The `PluginManager.all()` method returns `Sequence[AnalyzerPort]`, which is exactly what the orchestrator needs — but the orchestrator's `_analyzers` field is populated from `_default_analyzers()`, not from `PluginManager.all()`. A third-party analyzer distributed via the `repo_analyzer.plugins` entry-point group (the documented mechanism in plugins/discovery.py:34) would be discovered by `PluginDiscovery`, registered in `PluginRegistry`, and then NEVER executed because nothing asks the registry for analyzers. The two paths share the `AnalyzerPort` interface but are not bridged.
+    27→
+    28→====================================================================
+    29→FINDINGS (sorted by severity)
+    30→====================================================================
+    31→
+    32→[CRITICAL] AUDIT-2 #1 — Plugin subsystem is dead code; "extensibility" is fictional
+    33→File: src/repo_analyzer/core/orchestrator.py:79-93
+    34→      src/repo_analyzer/plugins/manager.py:23 (entire 124-line module)
+    35→      src/repo_analyzer/plugins/discovery.py:37 (entire 173-line module)
+    36→      src/repo_analyzer/plugins/registry.py:20 (entire 133-line module)
+    37→Evidence:
+    38→  orchestrator.py:73  -> self._analyzers: list[AnalyzerPort] = self._default_analyzers()
+    39→  orchestrator.py:79-93 -> return [RepositoryDetector(), FilesystemAnalyzer(), ... 12 hardcoded ...]
+    40→  grep "PluginManager|PluginDiscovery|PluginRegistry" src/ → only self-references inside plugins/
+    41→  grep "PluginManager" src/repo_analyzer/core/ → ZERO hits.
+    42→Impact: The SDD (Task SDD-1) and the worklog (Tasks 2-4) repeatedly advertise "Plugin Architecture" as a first-class pillar of the system. The README documents entry-point-based plugin distribution. None of this is true at runtime: the 12 built-in analyzers are hardcoded, and any third-party plugin installed via `pip install` will silently never load. The plugin code is ~430 lines of unused abstraction with its own test suite — maintenance burden with zero benefit.
+    43→Fix: Either (a) wire the orchestrator to PluginManager: replace `_default_analyzers()` with `analyzers = list(plugin_manager.all())` and register the 12 built-ins via the same PluginRegistry (so plugins and built-ins share the path), or (b) delete the entire plugins/ package and the plugin tests, and update the SDD/README to remove "Plugin Architecture" from the claims. Option (a) is recommended because the entry-point mechanism is the right design; it just isn't connected.
+    44→
+    45→[CRITICAL] AUDIT-2 #2 — Orchestrator is a partial God class: it constructs 3 different concrete services and runs 6 phases
+    46→File: src/repo_analyzer/core/orchestrator.py:52-153
+    47→Evidence:
+    48→  orchestrator.py:66-72  -> self._clone_service = CloneService(cache, factory=DefaultRepositoryProviderFactory(...))
+    49→  orchestrator.py:73     -> self._analyzers = self._default_analyzers()  # hardcoded 12
+    50→  orchestrator.py:77     -> self._review_engine = AICommentEngine(llm)   # constructed in core
+    51→  orchestrator.py:95-153 -> analyze() does: clone → phase-loop → merge → review → status-mgmt
+    52→  orchestrator.py:211-268 -> _merge_output: 50-line if-chain for 12 result fields
+    53→Impact: The Orchestrator has 4 distinct responsibilities fused: (1) clone-service composition, (2) analyzer-list composition, (3) review-engine composition, (4) pipeline execution. It directly imports from `adapters.vcs`, `analyzers`, `review` — three different layers — making it the single most-coupled class in the codebase. This violates both Hexagonal (core → adapters) and SRP. It also makes unit-testing the orchestrator require concrete analyzers (no mock injection point for the analyzer list — `_default_analyzers` is hardwired in `__init__`).
+    54→Fix: (a) Constructor-inject `clone_service: CloneServicePort` and `analyzers: Sequence[AnalyzerPort]` and `review_engine: ReviewEnginePort | None`. The caller (CLI/API) composes; the orchestrator only runs. (b) Extract `_merge_output` into a dedicated `AnalysisResultMerger` class — the 12-branch if-chain is a separate responsibility. (c) Define `CloneServicePort` and `ReviewEnginePort` in `core/ports/` so the core never imports from `adapters/` or `review/`.
+    55→
+    56→[CRITICAL] AUDIT-2 #3 — `result.architecture`, `result.metrics`, `result.issues`, `result.dependencies`, `result.health_score` are DEAD FIELDS on AnalysisResult
+    57→File: src/repo_analyzer/core/domain/analysis_result.py:71-77
+    58→      src/repo_analyzer/core/orchestrator.py:211-268 (_merge_output)
+    59→Evidence:
+    60→  analysis_result.py:75  -> architecture: ArchitectureFinding | None = None
+    61→  analysis_result.py:76  -> health_score: HealthScore | None = None
+    62→  orchestrator.py:213-268 -> _merge_output handles: repository_metadata, file_inventory, language_distribution, symbols, import_analysis, dependency_analysis, metrics_report, complexity_report, git_analysis, documentation_report, test_analysis, graph_report. It does NOT handle: architecture, security_findings, issues, metrics, dependencies, health_score.
+    63→  grep "result.architecture =" src/ → ZERO assignments.
+    64→  grep "result.metrics =" src/ → ZERO assignments (only `result.metrics_report` is set).
+    65→  grep "result.issues =" src/ → ZERO assignments.
+    66→  grep "result.dependencies =" src/ → ZERO assignments.
+    67→  grep "result.health_score =" src/ → ZERO assignments (only `result.ai_review.health_score` is set, on a DIFFERENT model `ExtendedHealthScore`).
+    68→Impact: `ArchitectureReviewEngine._assess_modularity` (engine.py:95-119), `_modularity_label` (262-269), `_solid_assessment` (271-284) ALL check `if result.architecture:` — which is ALWAYS None. Every code path guarded by `result.architecture` is unreachable. `HealthScoreReviewEngine._architecture_score` (engine.py:55-66) and `_scalability_score` (125-135) check `result.architecture` — always None, so coupling/cohesion penalties NEVER fire. `CodeQualityEngine._detect_low_cohesion` and `_detect_high_coupling` (engine.py:186-220) — never fire. `TechnicalDebtEngine._architecture_debt` coupling branch (engine.py:55-65) — never fires. `RefactorEngine.plan` long_term coupling/cohesion items (engine.py:74-92) — never added. The `ArchitectureFinding` domain model (87 lines, 5 classes) is effectively dead. The `GraphEngine` analyzer produces a `GraphReport` (with import/directory/module/dependency graphs) but the review engines look at `ArchitectureFinding.coupling`/`cohesion`, a DIFFERENT model that is never populated. The two halves of the system never connect.
+    69→Fix: Either (a) have the `GraphEngine` (or a new `ArchitectureAnalyzer`) compute coupling/cohesion from the import graph and populate `result.architecture = ArchitectureFinding(coupling=..., cohesion=..., cycles=...)`; or (b) delete `ArchitectureFinding`, `result.architecture`, `result.metrics`, `result.issues`, `result.dependencies`, `result.health_score` from `AnalysisResult` and update the review engines to use `result.graph_report` + `result.metrics_report` directly.
+    70→
+    71→[HIGH] AUDIT-2 #4 — OutputPort.render(report: Any) destroyed the type-safety of the port abstraction
+    72→File: src/repo_analyzer/core/ports/output_port.py:25
+    73→      src/repo_analyzer/reports/markdown_renderer.py:59
+    74→      src/repo_analyzer/reports/json_renderer.py (render signature)
+    75→      src/repo_analyzer/reports/html_renderer.py (render signature)
+    76→      src/repo_analyzer/reports/pdf_renderer.py (render signature)
+    77→      src/repo_analyzer/reports/generator.py:75,87,94
+    78→Evidence:
+    79→  output_port.py:25      -> def render(self, report: Any) -> bytes:    # abstract
+    80→  markdown_renderer.py:59 -> def render(self, result: AnalysisResult) -> bytes:    # concrete, narrower
+    81→  generator.py:75        -> def render(self, result: AnalysisResult) -> dict[...]:    # facade takes concrete
+    82→  generator.py:87        -> repo_name = f"{result.repository.owner}_{result.repository.name}"   # concrete attr access
+    83→  generator.py:94        -> content = renderer.render(result)    # passes AnalysisResult, not Any
+    84→Impact: The OutputPort abstraction exists to allow new renderers to be plugged in. But: (1) every concrete renderer overrides `render(Any)` with `render(AnalysisResult)` — narrower, so a renderer that accepts a different shape would violate LSP silently; mypy does not flag it because `Any` is bivariant. (2) The `ReportGenerator` facade (the only caller of `renderer.render`) hardcodes `result.repository.owner` access at line 87 BEFORE even calling the renderer, so any non-AnalysisResult payload crashes there regardless of what the renderer accepts. (3) The renderers internally reach into `result.security_review.findings`, `result.ai_review.health_score.grade`, etc. — they are deeply coupled to AnalysisResult's shape, not to a port. The `Any` is a fig leaf: the port pretends to be polymorphic, but in practice only `AnalysisResult` works. This is the worst-of-both-worlds: the abstraction exists (extra code, extra indirection) but provides no actual decoupling.
+    85→Fix: Either (a) tighten the port: `def render(self, report: AnalysisResult) -> bytes:` and document that OutputPort is AnalysisResult-specific (honest, no extensibility claim); or (b) define a `Reportable` Protocol with the minimal attributes renderers need (`repository`, `ai_review`, `metrics_report`, etc.) and have OutputPort.render take `Reportable`. Then a different reportable shape could implement `Reportable` and use the same renderers. Option (b) is the proper Hexagonal fix.
+    86→
+    87→[HIGH] AUDIT-2 #5 — `RefactorEngine.plan` has a logic bug: `RefactorPlan.quick_wins` is set to `high_impact[:3]`, not the actual `quick_wins` list
+    88→File: src/repo_analyzer/review/refactor/engine.py:126-133
+    89→Evidence:
+    90→  refactor/engine.py:19  -> quick_wins: list[QuickWin] = []    # built from unused imports + unused deps (lines 27-45)
+    91→  refactor/engine.py:20  -> high_impact: list[RefactorItem] = []  # built from complex funcs + cycles (lines 48-71)
+    92→  refactor/engine.py:127 -> quick_wins=high_impact[:3],  # <-- assigned to RefactorPlan.quick_wins
+    93→  refactor/engine.py:133 -> return plan, quick_wins   # <-- returns the SEPARATE quick_wins list
+    94→Impact: The function returns a tuple `(plan, quick_wins)` where the second element IS the unused-imports/deps list (correct). But `plan.quick_wins` (the field inside the RefactorPlan) is set to the first 3 HIGH-IMPACT items, which are RefactorItems (complex-function refactors, circular-dependency breaks) — NOT QuickWin objects. This is a type confusion: `RefactorPlan.quick_wins: list[QuickWin]` per the model, but `high_impact[:3]` is `list[RefactorItem]`. Depending on which attribute the consumer reads, they get completely different content. The CLI `analyze.py:213` reports `len(review.quick_wins)` (the second tuple element) so it shows the unused-imports count — but any consumer reading `review.refactor_plan.quick_wins` gets the wrong items with the wrong type. mypy --strict does NOT catch this because `RefactorItem` and `QuickWin` are both `BaseModel` subclasses and the assignment happens to satisfy the declared type via Pydantic's loose validation.
+    95→Fix: `quick_wins=quick_wins` (use the local variable, not `high_impact[:3]`). If the intent was to cap the displayed quick wins, slice the local: `quick_wins=quick_wins[:10]`. Add a unit test asserting `type(plan.quick_wins[0]) is QuickWin`.
+    96→
+    97→[HIGH] AUDIT-2 #6 — `HealthScoreReviewEngine._overall` uses wrong weight count; overall score is capped at 85/100
+    98→File: src/repo_analyzer/review/health/engine.py:146-149
+    99→Evidence:
+   100→  health/engine.py:28-30 -> overall = self._overall(security, architecture, maintainability, documentation, testing, quality)
+   101→  health/engine.py:148   -> weights = [0.20, 0.20, 0.15, 0.10, 0.10, 0.10, 0.05, 0.05, 0.05]  # 9 entries, sum=1.00
+   102→  health/engine.py:149   -> return round(sum(s * w for s, w in zip(scores, weights, strict=False)), 2)
+   103→Impact: `_overall` is called with 6 scores but `weights` has 9 entries. `zip(..., strict=False)` silently truncates to 6, so the effective weights are `[0.20, 0.20, 0.15, 0.10, 0.10, 0.10]` which sum to **0.85**, not 1.00. A repository with all 6 subscores = 100 would get `overall = 100 * 0.85 = 85.0`, never 100. The "A+" grade (>=97) is mathematically unreachable. Furthermore, the 3 computed subscores `performance`, `developer_experience`, `scalability` (lines 22, 25, 26) are NEVER used in the overall — they are computed and discarded. The CLI dashboard shows `hs.overall` (analyze.py:245) and `hs.grade.value` (line 249), so every grade is biased downward by ~15 points.
+   104→Fix: Pass all 9 scores to `_overall`, or change the weights to a 6-element list summing to 1.0. Use `strict=True` on the zip to catch this class of bug: `zip(scores, weights, strict=True)` would have raised `ValueError` on the mismatch.
+   105→
+   106→[HIGH] AUDIT-2 #7 — `CodeQualityEngine._detect_god_classes` does not detect God Classes; it detects files with many methods
+   107→File: src/repo_analyzer/review/quality/engine.py:44-74
+   108→Evidence:
+   109→  quality/engine.py:50-53 -> class_methods: dict[str, int] = {}
+   110→                            for cls in result.symbols.classes:
+   111→                                key = f"{cls.get('file', '')}:{cls.get('name', '')}"
+   112→                                class_methods[key] = 0    # <-- set to 0, never incremented
+   113→  quality/engine.py:54-58 -> for method in result.symbols.methods:
+   114→                                key = f"{method.get('file', '')}:{method.get('name', '')}"  # unused
+   115→                                file_key = method.get("file", "")
+   116→                                class_methods[file_key] = class_methods.get(file_key, 0) + 1   # <-- counts by FILE, not by CLASS
+   117→  quality/engine.py:59-73 -> for key, count in class_methods.items():
+   118→                                if count > 15: ... smells.append("God Class detected in {file_path}")
+   119→Impact: The first loop (lines 51-53) populates `class_methods` with `file:class` keys set to 0 — these entries are NEVER read because they never exceed 15. The second loop (lines 54-58) ignores class names entirely and counts methods per FILE. The detection therefore fires on files with >15 methods (regardless of which class they belong to), and the finding says "God Class detected in {file_path}" with `description=f"File contains {count} methods"` — but a file may contain 5 small classes with 4 methods each (no God Class) and still trigger. Conversely, a single class with 30 methods spread across multiple files (partial classes, common in C#/TypeScript) would not trigger. The smell name and the actual detection logic are mismatched. The `class_methods` dict from the first loop is dead state — pure noise.
+   120→Fix: Build a `dict[str, int]` keyed by `(file, class_name)` from `result.symbols.classes` (which the AST analyzer populates with `methods: list[...]` per class). Increment per method belonging to that class. The AST analyzer already groups methods under classes (see ast/analyzer.py); use that grouping.
+   121→
+   122→[HIGH] AUDIT-2 #8 — `ArchitectureReviewEngine._solid_assessment` returns "DIP: weak" for every non-empty import graph (false positive)
+   123→File: src/repo_analyzer/review/architecture/engine.py:271-284
+   124→Evidence:
+   125→  architecture/engine.py:281-283 -> "DIP": "weak"
+   126→                                     if result.import_analysis and result.import_analysis.import_graph
+   127→                                     else "unknown"
+   128→Impact: `result.import_analysis.import_graph` is populated for virtually every Python repository (the import analyzer populates it from `ast.Import`/`ast.ImportFrom` — see graph_engine and imports analyzer). So `DIP` is "weak" for every repo with at least one Python import, which is essentially all repos. The other 4 SOLID dimensions (OCP, LSP, ISP) are always "unknown". The `_solid_assessment` therefore carries zero information: it always returns `{"SRP": <ok|violated|unknown>, "OCP": "unknown", "LSP": "unknown", "ISP": "unknown", "DIP": "weak"}`. This is then rendered into the architecture review and the markdown report as if it were a meaningful assessment.
+   129→Fix: Either compute DIP from actual layer-violation data (does `cli` import `adapters` directly, does `core` import `adapters`?) — which the import graph already encodes — or remove the field. The current implementation is a false signal that misleads readers of the report.
+   130→
+   131→[HIGH] AUDIT-2 #9 — CLI layer imports core orchestrator and concrete adapters directly, bypassing ports
+   132→File: src/repo_analyzer/cli/commands/analyze.py:17-25
+   133→      src/repo_analyzer/api/app.py:25-32
+   134→Evidence:
+   135→  analyze.py:17 -> from repo_analyzer.adapters.cache import SQLiteCacheAdapter   # concrete adapter
+   136→  analyze.py:19 -> from repo_analyzer.core.orchestrator import Orchestrator       # concrete core class
+   137→  analyze.py:71 -> from repo_analyzer.adapters.llm import MockLLMProvider         # concrete adapter
+   138→  api/app.py:25 -> from repo_analyzer.adapters.cache import SQLiteCacheAdapter
+   139→  api/app.py:26 -> from repo_analyzer.adapters.llm import MockLLMProvider
+   140→  api/app.py:28 -> from repo_analyzer.core.orchestrator import Orchestrator
+   141→Impact: The CLI/API are driving adapters — they SHOULD compose the application by wiring ports to adapters, but they currently hardcode every concrete choice (SQLiteCacheAdapter, MockLLMProvider, Orchestrator). The Hexagonal benefit (swap adapters without touching the driving side) is lost: switching from SQLite to Redis cache requires editing `analyze.py` and `api/app.py`. The `MockLLMProvider` is also force-injected on every CLI run (analyze.py:78), so users cannot get real LLM commentary even if they configure `config.ai.enabled=True` (the comment at line 68-70 says "When ``config.ai.enabled`` is True a real provider can be injected instead" — but the code never reads `config.ai.enabled` and never constructs a real provider).
+   142→Fix: Introduce a composition root (a `compose_app(config) -> Orchestrator` function, ideally in `infrastructure/composition_root.py` or by actually using the `ServiceContainer`). The CLI/API call `compose_app(config)` and receive a fully-wired Orchestrator. Read `config.ai.enabled` to choose between `MockLLMProvider` and a real provider via `LLMProviderFactory`.
+   143→
+   144→[MEDIUM] AUDIT-2 #10 — `_merge_output` is a 58-line if-chain; should be data-driven
+   145→File: src/repo_analyzer/core/orchestrator.py:211-268
+   146→Evidence:
+   147→  orchestrator.py:213-218 -> if "repository_metadata" in output: from ... import RepositoryMetadata; result.repository_metadata = RepositoryMetadata.model_validate(output["repository_metadata"])
+   148→  orchestrator.py:219-222 -> if "file_inventory" in output: ... (same pattern)
+   149→  ... 12 repetitions of the same 3-line shape ...
+   150→Impact: 12 nearly-identical blocks. Each block does a deferred import + a `model_validate` + an assignment. Adding a 13th output type requires editing this method. The deferred imports inside the function body are also a code smell — they hint at a (non-existent) circular-import fear (verified: there is no cycle; `analysis_outputs.py` has no `repo_analyzer.*` imports).
+   151→Fix: Define a `_OUTPUT_FIELDS: dict[str, tuple[type[BaseModel], str]]` mapping `{"repository_metadata": (RepositoryMetadata, "repository_metadata"), ...}` at module level. Then `_merge_output` becomes 4 lines: `for key, (cls, attr) in _OUTPUT_FIELDS.items(): if key in output: setattr(result, attr, cls.model_validate(output[key]))`.
+   152→
+   153→[MEDIUM] AUDIT-2 #11 — God Functions: 15 functions exceed 50 lines (3 exceed 100)
+   154→File: src/repo_analyzer/cli/commands/analyze.py:114  _render_summary      (121 lines)
+   155→      src/repo_analyzer/analyzers/ast/analyzer.py:87  _walk_node           (118 lines)
+   156→      src/repo_analyzer/review/refactor/engine.py:17  plan                 (117 lines)
+   157→      src/repo_analyzer/cli/commands/analyze.py:28   run_analyze           (84 lines)
+   158→      src/repo_analyzer/adapters/vcs/clone_service.py:57  clone             (77 lines)
+   159→      src/repo_analyzer/infrastructure/logging/__init__.py:136  configure_logging (76 lines)
+   160→      src/repo_analyzer/review/ai/engine.py:64  review                   (74 lines)
+   161→      src/repo_analyzer/review/risk/engine.py:17  summarize               (59 lines)
+   162→      src/repo_analyzer/core/orchestrator.py:95  analyze                  (59 lines)
+   163→      src/repo_analyzer/core/orchestrator.py:211  _merge_output           (58 lines)
+   164→      ... 5 more between 51-56 lines ...
+   165→Evidence: AST-level scan (FunctionDef.end_lineno - lineno) across all src/**/*.py.
+   166→Impact: `_render_summary` (121 lines) and `_walk_node` (118 lines) are the worst offenders. `_walk_node` is a single giant if/elif chain over 7 languages × ~5 node types each — a dispatch table would be 1/4 the size and trivially extensible. `refactor/engine.py:plan` (117 lines) is a procedural builder that should be split into 5 sub-builders (one per plan category). `_render_summary` (121 lines) builds one Rich Table from ~10 different result fields — should be one `_render_*_rows(table, result)` helper per field group.
+   167→Fix: Refactor `_walk_node` into a `dict[str, dict[str, Callable]]` dispatch table keyed by `(language, node_type)`. Refactor `plan` into `_build_quick_wins`, `_build_high_impact`, `_build_long_term`, `_build_breaking`, `_build_architecture` private methods. Refactor `_render_summary` into per-section helpers.
+   168→
+   169→[MEDIUM] AUDIT-2 #12 — `AICommentEngine._to_security_findings` is typed `list[Any]` and uses deferred import — type-safety hole + cargo-cult late-import
+   170→File: src/repo_analyzer/review/ai/engine.py:141-173
+   171→Evidence:
+   172→  engine.py:141-142 -> @staticmethod
+   173→                       def _to_security_findings(security_review: Any) -> list[Any]:   # <-- Any, not list[SecurityFinding]
+   174→  engine.py:144     -> from repo_analyzer.core.domain.report import Location, Severity
+   175→  engine.py:145-149 -> from repo_analyzer.core.domain.security_finding import (
+   176→                           Confidence, SecurityCategory, SecurityFinding,
+   177→                       )
+   178→Impact: (1) The return type `list[Any]` defeats mypy's ability to check callers. (2) `security_review: Any` (line 142) likewise — the caller passes a `SecurityReview` (a concrete type from `review_outputs`), but the signature hides it. (3) The deferred imports inside the function body suggest a circular-import fear, but `core.domain.report` and `core.domain.security_finding` are leaf modules with no `repo_analyzer.*` imports — verified by `rg -n "^from repo_analyzer" core/domain/report.py core/domain/security_finding.py` → zero hits. So the late imports are unnecessary; they could move to the top of the module. The `Any` annotations appear to be a workaround to avoid fixing the imports.
+   179→Fix: Move the imports to module top-level. Change signature to `def _to_security_findings(security_review: SecurityReview) -> list[SecurityFinding]:`. The mapping logic at lines 152-172 is straightforward and benefits from type-checking.
+   180→
+   181→[MEDIUM] AUDIT-2 #13 — `ai_review.py:111` "late import to avoid circular dependency" is fictional — there is no cycle
+   182→File: src/repo_analyzer/core/domain/ai_review.py:17-28, 110-113
+   183→Evidence:
+   184→  ai_review.py:17-28  -> from repo_analyzer.core.domain.review_outputs import (
+   185→                             ArchitectureReview, CodeQualityReview, DirectoryReview,
+   186→                             ExtendedHealthScore, FileReview, ProjectReview, QuickWin,
+   187→                             RefactorPlan, RiskSummary, TechnicalDebt,
+   188→                         )   # <-- 10 classes from review_outputs, but NOT SecurityReview
+   189→  ai_review.py:110-113 -> # Late import to avoid a circular dependency at module-load time.
+   190→                          from repo_analyzer.core.domain.review_outputs import SecurityReview  # noqa: E402
+   191→                          AIReview.model_rebuild()
+   192→  `rg "^from repo_analyzer" src/repo_analyzer/core/domain/review_outputs.py` → ZERO hits (review_outputs imports nothing from the package).
+   193→Impact: The comment claims a circular dependency that does not exist. `review_outputs.py` is a leaf module. The author likely hit a forward-reference issue (SecurityReview is used in the `AIReview.security_review` field annotation at line 95, but was not in the top-level import) and worked around it with a late import + `model_rebuild()` instead of just adding `SecurityReview` to the existing import block. The `# noqa: E402` silences the linter. This is cargo-cult defensive programming that misleads future maintainers into thinking `review_outputs` has a circular-dep risk.
+   194→Fix: Add `SecurityReview` to the existing `from repo_analyzer.core.domain.review_outputs import (...)` block at lines 17-28. Delete lines 110-113 (the late import, the comment, and the `model_rebuild()` call). Verify the test suite still passes.
+   195→
+   196→[MEDIUM] AUDIT-2 #14 — Duplicate `_iter_python_files` / `_iter_source_files` logic across analyzers
+   197→File: src/repo_analyzer/analyzers/complexity/analyzer.py:79-85
+   198→      src/repo_analyzer/review/security/engine.py:478-502
+   199→      (also similar walkers in analyzers/metrics, analyzers/imports, analyzers/ast)
+   200→Evidence:
+   201→  complexity/analyzer.py:79-85 -> _iter_python_files: skip_dirs={".git","node_modules",".venv","venv","__pycache__"}; yield *.py
+   202→  security/engine.py:478-502   -> _iter_source_files: skip_dirs={".git","node_modules",".venv","venv","__pycache__","dist","build"}; yield *.py,*.js,*.ts,*.jsx,*.tsx,*.go,*.rs,*.java,*.kt,*.rb,*.php,*.env,*.yaml,*.yml,*.json
+   203→  Both walk the same workspace with slightly different skip-dir sets and extension filters.
+   204→Impact: The skip-dir sets have drifted (complexity analyzer does NOT skip `dist`/`build`; security analyzer does). A `dist/` directory full of minified JS would be complexity-analyzed (wasting cycles and skewing averages) but security-skipped (missing any secrets in bundled output). Inconsistency between analyzers that should be reasoning about the same file set.
+   205→Fix: Extract a single `iter_source_files(workspace, *, extensions: Sequence[str], skip_dirs: Sequence[str] | None = None)` helper into `utils/file.py` (or a new `analyzers/file_walker.py`). All analyzers call it with their extension list; the skip-dir set is centralized and configurable.
+   206→
+   207→[MEDIUM] AUDIT-2 #15 — `SecurityReviewEngine._iter_source_files` is untyped (`# type: ignore[no-untyped-def]`) and uses regex scanning without file-size cap
+   208→File: src/repo_analyzer/review/security/engine.py:478
+   209→      src/repo_analyzer/review/security/engine.py:286-298
+   210→Evidence:
+   211→  security/engine.py:478 -> def _iter_source_files(self, workspace: Path):  # type: ignore[no-untyped-def]
+   212→  security/engine.py:288 -> content = path.read_text(encoding="utf-8", errors="ignore")  # full file in RAM
+   213→  security/engine.py:292 -> for rule in _CUSTOM_RULES: ... self._apply_rule(rule, rel, content)   # 17 regex passes over full content
+   214→Impact: (1) The `type: ignore` is an explicit typing-escape on a public-ish method — under `mypy --strict` this is a known weak spot. The return type should be `Iterator[Path]`. (2) Compounding AUDIT-1 #14 (no size cap), a 2GB minified JS file would OOM the analyzer. AUDIT-1 flagged the security impact; the code-quality angle is that `_iter_source_files` is the second place (alongside #14 above) where the typing hole is hidden by an ignore directive.
+   215→Fix: Annotate `def _iter_source_files(self, workspace: Path) -> Iterator[Path]:`. Remove the `# type: ignore`. Combine with AUDIT-1 #14 fix (size cap).
+   216→
+   217→[MEDIUM] AUDIT-2 #16 — `ArchitectureReviewEngine._assess_di` heuristic is incorrect: classes with no methods are flagged as "no constructor injection"
+   218→File: src/repo_analyzer/review/architecture/engine.py:191-207
+   219→Evidence:
+   220→  architecture/engine.py:195-196 -> # Look for classes whose __init__ takes no arguments (no injection).
+   221→                                     no_di = [c for c in result.symbols.classes if not c.get("methods")]
+   222→  architecture/engine.py:197     -> if len(no_di) > 5: ... "classes show no constructor injection."
+   223→Impact: The comment says "classes whose __init__ takes no arguments", but the code selects classes with NO METHODS AT ALL (anemic data classes, dataclasses, Pydantic models, namedtuples). A class with no methods is the OPPOSITE of "no DI" — it's a value object. A class with 10 methods but a no-arg `__init__` (the actual "no DI" smell — it constructs its own dependencies internally) would NOT be flagged. The heuristic is inverted relative to its stated intent. Furthermore, the AST analyzer does not extract `__init__` parameters separately (verified: ast/analyzer.py collects method names but not their signatures), so even a correct heuristic couldn't be implemented with the current data.
+   224→Fix: Either (a) drop the `_assess_di` method entirely (the data isn't available to implement it correctly), or (b) extend the AST analyzer to capture `__init__` parameter lists and rewrite the heuristic to count classes whose `__init__` takes no `Port`/`Protocol`/`ABC`-typed arguments.
+   225→
+   226→[MEDIUM] AUDIT-2 #17 — `Orchestrator.analyze` constructs a new ThreadPoolExecutor per phase (6 pools per analysis)
+   227→File: src/repo_analyzer/core/orchestrator.py:175
+   228→Evidence:
+   229→  orchestrator.py:129-133 -> for phase in sorted(phases.keys()): ... self._run_phase(phases[phase], ...)
+   230→  orchestrator.py:175     -> with ThreadPoolExecutor(max_workers=self._max_workers) as pool:
+   231→Impact: `_run_phase` is called once per phase (typically 5 phases), and each call creates AND tears down a fresh ThreadPoolExecutor. Thread creation is not free (~1ms each on Linux, plus the GIL contention overhead). For 5 phases × 4 workers = 20 thread creations per analysis. This is not a bottleneck today (analyzers are I/O-bound and run for seconds), but it's wasteful and prevents the pool from being reused across phases (e.g., for the review phase which currently runs synchronously but could be parallelized).
+   232→Fix: Construct the pool once in `analyze()` and pass it to `_run_phase`. Or accept `pool: ThreadPoolExecutor | None = None` in the constructor for caller-controlled lifecycle (useful for the API server, which could share a single pool across requests).
+   233→
+   234→[MEDIUM] AUDIT-2 #18 — Review engines are tightly coupled to concrete `AnalysisResult`; no `Reviewable` port exists
+   235→File: src/repo_analyzer/review/architecture/engine.py:11,22
+   236→      src/repo_analyzer/review/quality/engine.py:9,20
+   237→      src/repo_analyzer/review/file_level/engine.py:12,22
+   238→      src/repo_analyzer/review/directory_level/engine.py:9,19
+   239→      src/repo_analyzer/review/project_level/engine.py:5,12
+   240→      src/repo_analyzer/review/risk/engine.py:10,17
+   241→      src/repo_analyzer/review/debt/engine.py:9,20
+   242→      src/repo_analyzer/review/refactor/engine.py:10,17
+   243→      src/repo_analyzer/review/health/engine.py:10,17
+   244→Evidence: Every review engine has `def review(self, result: AnalysisResult) -> ...` (or `def compute(self, result: AnalysisResult) -> ...`). All 9 engines import `from repo_analyzer.core.domain.analysis_result import AnalysisResult` directly.
+   245→Impact: The review layer is supposed to be a pluggable interpretation layer, but it is hard-bound to the `AnalysisResult` shape. If a future version wants to run the review engines on a partial / mock / external-analysis payload, it must construct a full `AnalysisResult` (which has `extra="forbid"` and 14 required sub-models). There is no `Reviewable` Protocol defining the minimal surface the engines actually need (`result.security_findings`, `result.metrics_report`, `result.complexity_report`, etc.). The "Hexagonal" claim extends only to the LLM and cache ports; the review engines are a closed subsystem.
+   246→Fix: Define `class Reviewable(Protocol): security_findings: list[SecurityFinding]; metrics_report: MetricsReport | None; ...` in `core/ports/`. Change every engine signature to `def review(self, result: Reviewable) -> ...`. AnalysisResult already satisfies the Protocol structurally.
+   247→
+   248→[LOW] AUDIT-2 #19 — `MockLLMProvider` is hardcoded into every CLI/API run; `config.ai.enabled` is dead config
+   249→File: src/repo_analyzer/cli/commands/analyze.py:68-79
+   250→      src/repo_analyzer/api/app.py:128
+   251→      src/repo_analyzer/infrastructure/config/settings.py (config.ai.enabled field)
+   252→Evidence:
+   253→  analyze.py:68-70 -> # The review phase always runs with at least the MockLLMProvider so the
+   254→                      # deterministic review engines produce structured output. When
+   255→                      # ``config.ai.enabled`` is True a real provider can be injected instead.
+   256→  analyze.py:71-78 -> from repo_analyzer.adapters.llm import MockLLMProvider
+   257→                      orchestrator = Orchestrator(..., llm=MockLLMProvider())
+   258→  grep "config.ai.enabled" src/ → ZERO reads (the field is defined in settings.py but never queried).
+   259→Impact: The comment promises real-LLM injection when `config.ai.enabled=True`, but the code unconditionally uses `MockLLMProvider()`. A user who configures `ai.enabled: true` and `ai.provider: openai` in their config.yaml gets the same mock commentary every time, with no warning. The `LLMProviderFactory` (which the SDD and providers.py module advertise as the way to select providers) is never called from the CLI/API path — it's only used in api/app.py:102 for the `/status` endpoint's display, never to actually construct a provider.
+   260→Fix: Read `config.ai.enabled` and `config.ai.provider` in the CLI/API. If enabled, use `LLMProviderFactory.create(config.ai.provider, **config.ai.options)`. Otherwise fall back to `MockLLMProvider()`. Update the comment to match the implementation.
+   261→
+   262→[LOW] AUDIT-2 #20 — `_infer_purpose` is duplicated in file_level/engine.py and directory_level/engine.py with overlapping logic
+   263→File: src/repo_analyzer/review/file_level/engine.py:107-125
+   264→      src/repo_analyzer/review/directory_level/engine.py:73-89
+   265→Evidence: Both are static methods named `_infer_purpose(path: str) -> str` that map filename/directory-name to a human purpose string using a hardcoded dict. They use different mappings (file_level: main.py, models.py, views.py...; directory_level: src, tests, docs...).
+   266→Impact: Two parallel mappings to maintain. When a new file/directory pattern becomes common (e.g., `cmd/`, `internal/` for Go projects), both must be updated. Minor duplication; mostly a smell.
+   267→Fix: Either keep them separate (justified — they map different namespaces) but document why, OR consolidate into a single `infer_purpose(path: str, *, kind: Literal["file","dir"]) -> str` in a shared `review/purpose.py` module.
+   268→
+   269→[LOW] AUDIT-2 #21 — `HealthScore` (core/domain/health_score.py) and `ExtendedHealthScore` (review_outputs.py) are two parallel health-score models with divergent grade enums
+   270→File: src/repo_analyzer/core/domain/health_score.py:11-34 (Grade enum: A,B,C,D,E,F — 6 values)
+   271→      src/repo_analyzer/core/domain/review_outputs.py:31-75 (Grade enum: A_PLUS,A,...,F — 13 values)
+   272→Evidence:
+   273→  health_score.py:11-34  -> class Grade(str, Enum): A,B,C,D,E,F  (6 values, 90+ → A)
+   274→  review_outputs.py:31-75 -> class Grade(str, Enum): A_PLUS,A,A_MINUS,B_PLUS,...,F  (13 values, 97+ → A_PLUS)
+   275→  AnalysisResult.health_score: HealthScore | None  (uses 6-value enum, never populated — see #3)
+   276→  AIReview.health_score: ExtendedHealthScore | None (uses 13-value enum, populated by HealthScoreReviewEngine)
+   277→Impact: Two `Grade` enums with the same name `Grade` and incompatible values coexist in the domain layer. The CLI renders `review.health_score.grade.value` (analyze.py:196,249) — that's the 13-value enum. The dead `result.health_score` field would use the 6-value enum if it were ever populated. The naming collision is confusing and the divergence suggests the second model was added without refactoring the first.
+   278→Fix: Delete `core/domain/health_score.py` (it's only used by `HealthScoreEngine` in `core/health_score_engine.py`, which is itself unused — grep "HealthScoreEngine" src/ → 0 production callers, only test_health_score_engine.py). Keep `ExtendedHealthScore` as the single health-score model and rename it `HealthScore`.
+   279→
+   280→[LOW] AUDIT-2 #22 — `HealthScoreEngine` (core/health_score_engine.py, 84 lines) is dead code
+   281→File: src/repo_analyzer/core/health_score_engine.py (entire file)
+   282→Evidence:
+   283→  grep "HealthScoreEngine" src/ → ZERO hits outside the class definition and __all__.
+   284→  grep "HealthScoreEngine" tests/ → only test_health_score_engine.py (5 tests with `_clamp`, `compute`).
+   285→Impact: The "infrastructure-stage" health-score engine (combines 4 subscores with weights) was superseded by `HealthScoreReviewEngine` (combines 10 subscores). The old engine, its 84-line file, its model (`HealthScore` + `ScoreWeights`), and its 5 tests are dead weight.
+   286→Fix: Delete `core/health_score_engine.py`, `core/domain/health_score.py`, `tests/unit/test_health_score_engine.py`. Migrate any useful bits (the `_clamp` helper is duplicated in `HealthScoreReviewEngine._overall` already) into the active engine.
+   287→
+   288→====================================================================
+   289→WHAT WAS VERIFIED CLEAN (with evidence)
+   290→====================================================================
+   291→- No circular imports: AST-level walk of all 148 modules → 0 cycles. Even the suspected `ai_review.py:111` late-import is fictional (verified `review_outputs.py` has no `repo_analyzer.*` imports). SAFE.
+   292→- Domain models are NOT anemic across the board: `Repository` has `parse_repository_url` (factory) + `_require_credential_for_private` validator; `HealthScore` has `recompute_overall` and `grade`; `AnalysisResult` has `mark_running`/`mark_completed`/`mark_failed`/`add_error`/`total_findings`. However, the `review_outputs.py` models (SecurityFindingDetail, CodeSmellFinding, ArchitectureObservation, FileReview, DirectoryReview, ProjectReview, RiskItem, TechnicalDebtItem, RefactorItem, QuickWin) are pure data — zero behavior, zero validators beyond `extra="forbid"`. They are anemic DTOs. This is defensible for output models, but the SDD's "rich domain model" claim is overstated.
+   293→- LLM port abstraction IS correctly applied: `AICommentEngine.__init__` takes `llm: LLMPort` (engine.py:44), and `MockLLMProvider`/`OpenAIProvider`/etc. all inherit from `BaseLLMProvider(LLMPort)`. The review engine never imports a concrete provider. SAFE (the one issue is that the CLI always injects Mock — see #19).
+   294→- Cache port abstraction IS correctly applied: `Orchestrator.__init__` takes `cache: CachePort` (orchestrator.py:57). `SQLiteCacheAdapter` implements `CachePort`. The orchestrator never imports the concrete adapter. SAFE.
+   295→- `RepositoryProvider` / `RepositoryProviderFactory` ports exist and are used correctly inside `CloneService` (which itself should be behind a port — see #2). The factory pattern is properly applied at the VCS-provider level.
+   296→- AnalyzerPort contract is well-defined and the 12 built-in analyzers correctly implement it via `BaseAnalyzer`. The lifecycle (initialize → can_run → run → dispose) is real and exercised. The problem is not the port — it's that the orchestrator doesn't use the plugin subsystem to discover implementations (see #1).
+   297→
+   298→====================================================================
+   299→CODE CHANGES MADE
+   300→====================================================================
+   301→None. This was a read-only audit per task scope. All findings above are recommendations for the implementation team. No files were modified.
+   302→
+   303→====================================================================
+   304→NEXT ACTIONS (priority order)
+   305→====================================================================
+   306→1. CRITICAL #1: Wire `PluginManager` into the Orchestrator (replace `_default_analyzers()` with `list(plugin_manager.all())` after registering the 12 built-ins), OR delete the plugins/ package entirely. The current state — 430 lines of dead plugin code with passing tests — is the worst option.
+   307→2. CRITICAL #2: Refactor `Orchestrator.__init__` to accept `clone_service`, `analyzers`, and `review_engine` as injected dependencies. Define `CloneServicePort` and `ReviewEnginePort` in `core/ports/`. Move all concrete-adapter construction out of the core.
+   308→3. CRITICAL #3: Populate `result.architecture` from the GraphEngine output (compute coupling/cohesion from the import graph), OR delete the dead `result.architecture`/`result.metrics`/`result.issues`/`result.dependencies`/`result.health_score` fields and update the 5+ review engines that read them.
+   309→4. HIGH #4: Tighten `OutputPort.render` to `AnalysisResult` (honest) or define a `Reportable` Protocol (extensible). Pick one — `Any` is the worst of both.
+   310→5. HIGH #5: Fix `RefactorEngine.plan`: `quick_wins=quick_wins` (not `high_impact[:3]`). Add a type-asserting test.
+   311→6. HIGH #6: Fix `HealthScoreReviewEngine._overall`: pass all 9 scores, or use a 6-element weight list summing to 1.0. Use `zip(..., strict=True)`.
+   312→7. HIGH #7: Rewrite `CodeQualityEngine._detect_god_classes` to actually group methods by class (using `result.symbols.classes[i].methods`), not by file.
+   313→8. HIGH #8: Compute DIP from layer-violation data in `ArchitectureReviewEngine._solid_assessment`, or remove the field.
+   314→9. HIGH #9: Introduce a composition root; CLI/API call `compose_app(config)` and stop importing concrete adapters directly.
+   315→10. MEDIUM #10-#18: Refactor `_merge_output` to data-driven, split God Functions, fix the `Any` types in `AICommentEngine`, remove the fictional late-import in `ai_review.py`, deduplicate the file-walker, fix the `_assess_di` heuristic, reuse the ThreadPoolExecutor across phases, define a `Reviewable` Protocol.
+   316→11. LOW #19-#22: Wire `config.ai.enabled` to actually select an LLM provider; consolidate or document the `_infer_purpose` duplication; delete the dead `HealthScoreEngine`/`HealthScore` model and its tests.
+   317→
+   318→Stage Summary:
+   319→- 22 findings: 3 CRITICAL, 6 HIGH, 9 MEDIUM, 4 LOW.
+   320→- Top architectural problems: (1) the plugin subsystem and the DI container are both dead code — the two pillars of the "Hexagonal + Plugin" claim are fictional; (2) the orchestrator is a partial God class that imports concrete adapters from 3 different layers; (3) five `AnalysisResult` fields (architecture, metrics, issues, dependencies, health_score) are never populated, making ~30% of the review-engine logic unreachable at runtime.
+   321→- Top code-quality problems: 15 God Functions (>50 lines); `_merge_output` 58-line if-chain; two parallel health-score models with divergent grade enums; cargo-cult late-imports; `OutputPort.render(Any)` defeats the port abstraction.
+   322→- Verified clean: no circular imports (AST-verified across 148 modules); LLM and Cache port abstractions are correctly applied; `BaseAnalyzer`/`AnalyzerPort` contract is real and exercised; `RepositoryProvider` factory pattern is correctly applied at the VCS-provider level.
+   323→- No code modified (read-only audit). All fixes are recommendations for the implementation team.
