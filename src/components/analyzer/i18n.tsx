@@ -136,6 +136,7 @@ const translations: Record<Language, TranslationDict> = {
 
     // AI Review
     "ai.offlineMode": "Offline mode — this review was produced without an LLM. Enable a provider for richer analysis.",
+    "ai.keySavedMode": "Your API key is saved. Run a new analysis to generate an LLM-powered review.",
     "ai.supportedByEvidence": "Supported by Evidence",
     "ai.aiOpinion": "AI Opinion",
     "ai.challenges": "Planning Engine Challenges",
@@ -166,6 +167,7 @@ const translations: Record<Language, TranslationDict> = {
     "trust.hallucinationRisk": "Hallucination Risk",
     "trust.llmStatus": "LLM Status",
     "trust.active": "Active",
+    "trust.ready": "Ready",
     "trust.offline": "Offline",
     "trust.low": "Low",
     "trust.medium": "Medium",
@@ -178,6 +180,12 @@ const translations: Record<Language, TranslationDict> = {
     "llm.status": "LLM Status",
     "llm.estimatedTokens": "Estimated Tokens",
     "llm.analysisTime": "Analysis Time",
+    "llm.ready": "Ready",
+    "llm.readyHint": "API key saved — will be used on the next analysis",
+    "llm.noKey": "No API key configured",
+    "llm.configureInSettings": "Configure in Settings",
+    "llm.usingSavedProvider": "Using saved provider",
+    "llm.lastUsed": "Last used",
 
     // Settings
     "settings.title": "Settings",
@@ -203,6 +211,10 @@ const translations: Record<Language, TranslationDict> = {
     "settings.llm.connected": "✓ Connected",
     "settings.llm.connectionFailed": "Connection failed",
     "settings.llm.save": "Save",
+    "settings.llm.saved": "✓ Configuration saved",
+    "settings.llm.deleted": "Configuration deleted",
+    "settings.llm.emptyKey": "Please enter an API key before saving",
+    "settings.llm.emptyProvider": "Please select a provider first",
     "settings.llm.delete": "Delete",
     "settings.llm.copy": "Copy",
     "settings.llm.reveal": "Reveal",
@@ -369,6 +381,7 @@ const translations: Record<Language, TranslationDict> = {
 
     // AI Review
     "ai.offlineMode": "Çevrimdışı mod — bu inceleme LLM olmadan üretildi. Daha zengin analiz için bir sağlayıcı etkinleştirin.",
+    "ai.keySavedMode": "API anahtarınız kaydedildi. LLM destekli inceleme üretmek için yeni bir analiz çalıştırın.",
     "ai.supportedByEvidence": "Kanıt Destekli",
     "ai.aiOpinion": "AI Görüşü",
     "ai.challenges": "Planlama Motoru Eleştirileri",
@@ -399,6 +412,7 @@ const translations: Record<Language, TranslationDict> = {
     "trust.hallucinationRisk": "Halüsinasyon Riski",
     "trust.llmStatus": "LLM Durumu",
     "trust.active": "Aktif",
+    "trust.ready": "Hazır",
     "trust.offline": "Çevrimdışı",
     "trust.low": "Düşük",
     "trust.medium": "Orta",
@@ -411,6 +425,12 @@ const translations: Record<Language, TranslationDict> = {
     "llm.status": "LLM Durumu",
     "llm.estimatedTokens": "Tahmini Token",
     "llm.analysisTime": "Analiz Süresi",
+    "llm.ready": "Hazır",
+    "llm.readyHint": "API anahtarı kaydedildi — bir sonraki analizde kullanılacak",
+    "llm.noKey": "API anahtarı yapılandırılmadı",
+    "llm.configureInSettings": "Ayarlar'dan yapılandır",
+    "llm.usingSavedProvider": "Kayıtlı sağlayıcı kullanılıyor",
+    "llm.lastUsed": "Son kullanım",
 
     // Settings
     "settings.title": "Ayarlar",
@@ -436,6 +456,10 @@ const translations: Record<Language, TranslationDict> = {
     "settings.llm.connected": "✓ Bağlandı",
     "settings.llm.connectionFailed": "Bağlantı başarısız",
     "settings.llm.save": "Kaydet",
+    "settings.llm.saved": "✓ Yapılandırma kaydedildi",
+    "settings.llm.deleted": "Yapılandırma silindi",
+    "settings.llm.emptyKey": "Kaydetmeden önce lütfen bir API anahtarı girin",
+    "settings.llm.emptyProvider": "Lütfen önce bir sağlayıcı seçin",
     "settings.llm.delete": "Sil",
     "settings.llm.copy": "Kopyala",
     "settings.llm.reveal": "Göster",

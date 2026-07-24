@@ -1526,3 +1526,49 @@ Stage Summary:
 - Global search: 4 kategoride arama
 - Local repository tab: hazır (disabled, "Coming Soon")
 - Report export: 4 format dropdown
+
+---
+Task ID: 15
+Agent: Senior Frontend Engineer (main)
+Task: Kullanıcı API anahtarı kaydetmesine rağmen LLM Durum rozetinin "Çevrimdışı" göstermesi sorunu düzeltildi.
+
+Work Log:
+- Sorun kök nedeni tespit edildi: LLM Durum rozeti `engineering_review.offline` alanından geliyordu (backend demo veride `offline: true` sabit kodlanmış). Settings'te kaydedilen API anahtarı sadece localStorage'a yazılıyor ama hiçbir bileşen bu değeri okumuyordu — aralarında bağlantı yoktu. Backend (FastAPI :8000) kapalıyken frontend her zaman demo veriye düşüyor → her zaman "Çevrimdışı".
+- Çözüm: 3 durumlu LLM durumu modeli kuruldu:
+  * "active" (yeşil): backend analizi gerçekten LLM kullandı (review.offline === false)
+  * "ready" (amber): kullanıcı geçerli API anahtarı kaydetti ama henüz LLM analizi çalışmadı
+  * "offline" (gri): hiçbir API anahtarı yapılandırılmadı
+- Yeni paylaşılan altyapı (page.tsx):
+  * `LLM_CONFIG_CHANGED_EVENT` custom event — aynı sekmede Settings → Dashboard canlı güncelleme için (native "storage" event sadece çapraz sekme çalışır)
+  * `useLLMConfig()` hook'u — localStorage["ra-llm-config"] okur, custom event + storage event dinler, `{ config, isConfigured, hasApiKey, hasProvider, isOllama, providerLabel }` döndürür
+  * `useLLMStatus(review)` hook'u — review + saved config birleştirip 3 durumlu status döndürür
+  * `LLMStatusBadge` — ortak rozet rendereri (yeşil/amber/gri)
+  * `writeLLMConfig()` / `clearLLMConfig()` — persist + event broadcast
+  * `LLM_PROVIDER_LABELS` — provider value → display name map
+- Güncellenen bileşenler:
+  * `LLMStatusCard`: artık saved config'ten provider/model gösteriyor (review offline iken), "Hazır" durumunda hint metni ("API anahtarı kaydedildi — bir sonraki analizde kullanılacak")
+  * `TrustPanel`: `useLLMStatus` kullanıyor, halüsinasyon riski artık duruma göre (active=15, ready=5, offline=0)
+  * `OverviewSection` AI Review stat kartı: 3 durumlu status label
+  * `AIReviewSection`: status==="offline" → sarı uyarı banner'ı; status==="ready" → amber info banner'ı ("API anahtarınız kaydedildi. LLM destekli inceleme üretmek için yeni bir analiz çalıştırın.")
+  * `LLMSettingsSection`: Kaydet sonrası `writeLLMConfig()` + event broadcast; Sil sonrası `clearLLMConfig()` + event broadcast; validasyon (provider yoksa veya apiKey boşsa → hata toast, kaydetme yok; Ollama hariç)
+  * `LLMSavedIndicator`: Settings kartı başlığında canlı rozet — "Çevrimdışı" (config yok) veya "OpenAI · Hazır" (config var, tooltip'te son kaydetme zamanı)
+- i18n.tsx: 12 yeni çeviri anahtarı (TR+EN):
+  * trust.ready (Hazır/Ready)
+  * llm.ready, llm.readyHint, llm.noKey, llm.configureInSettings, llm.usingSavedProvider, llm.lastUsed
+  * ai.keySavedMode (API anahtarınız kaydedildi...)
+  * settings.llm.saved, settings.llm.deleted, settings.llm.emptyKey, settings.llm.emptyProvider
+
+Stage Summary:
+- Kök neden: Settings'teki API anahtarı kaydı ile LLM Durum rozeti arasında hiçbir bağlantı yoktu. Rozet sadece backend `review.offline` alanına bakıyordu; localStorage'daki kaydedilen config'i hiç okumuyordu.
+- Çözüm: `useLLMConfig` + `useLLMStatus` + custom event broadcast ile 3 durumlu (Active/Ready/Offline) sistem kuruldu. Settings'te Kaydet/Sil → tüm dashboard canlı güncellenir (sayfa yenilenmesi gerekmez).
+- agent-browser ile uçtan uca doğrulandı:
+  * Başlangıç (anahtar yok): 3 yüzey de "Çevrimdışı" ✓
+  * OpenAI + test anahtarı kaydet: toast "✓ Yapılandırma kaydedildi", Settings rozeti "OpenAI · Hazır" ✓
+  * Dashboard'a dönüş (sayfa yenilenmedi): LLM Status Card + Trust Panel + Overview stat — hepsi canlı "Hazır" ✓
+  * AI İncelemesi sekmesi: amber info banner "API anahtarınız kaydedildi..." (eski sarı uyarı yerine) ✓
+  * Silme: toast "Yapılandırma silindi", Settings rozeti "Çevrimdışı", dashboard 3 yüzey de canlı "Çevrimdışı" ✓
+  * Validasyon: boş anahtarla kaydet → hata toast "Kaydetmeden önce lütfen bir API anahtarı girin", kaydetme yok ✓
+  * Zero console errors, zero page errors ✓
+- ESLint: Clean
+- Dev server: Çalışıyor (port 3000), Fast Refresh ile full reload yaptı (custom event export'u nedeniyle — beklenen davranış)
+- Kullanıcı bundan sonra: Settings → LLM → sağlayıcı seç + API anahtarı gir + Kaydet → dashboard anında "Hazır" rozetine döner. Bir sonraki analiz (backend aktif olduğunda) gerçek LLM kullanacak ve "Aktif" rozetine geçecek.

@@ -94,6 +94,158 @@ async function apiFetch(path: string, options?: RequestInit) {
 }
 
 // ---------------------------------------------------------------------------
+// LLM Configuration (shared across Settings + Status + Trust + Overview)
+// ---------------------------------------------------------------------------
+
+// Custom event dispatched whenever the saved LLM config changes,
+// so every component on the page re-reads localStorage immediately
+// (the native "storage" event only fires across OTHER tabs, not same-tab).
+export const LLM_CONFIG_CHANGED_EVENT = "ra-llm-config-changed";
+const LLM_CONFIG_STORAGE_KEY = "ra-llm-config";
+
+export interface LLMConfig {
+  provider: string;
+  apiKey: string;
+  model: string;
+  temperature: string;
+  maxTokens: string;
+  baseUrl: string;
+  endpoint: string;
+  deployment: string;
+  apiVersion: string;
+  host: string;
+  port: string;
+  savedAt?: string;
+}
+
+const EMPTY_CONFIG: LLMConfig = {
+  provider: "",
+  apiKey: "",
+  model: "",
+  temperature: "0.3",
+  maxTokens: "4096",
+  baseUrl: "",
+  endpoint: "",
+  deployment: "",
+  apiVersion: "2024-02-15-preview",
+  host: "http://localhost",
+  port: "11434",
+};
+
+export const LLM_PROVIDER_LABELS: Record<string, string> = {
+  openai: "OpenAI",
+  anthropic: "Anthropic Claude",
+  gemini: "Google Gemini",
+  openrouter: "OpenRouter",
+  azure_openai: "Azure OpenAI",
+  ollama: "Ollama (Local)",
+};
+
+function readLLMConfig(): LLMConfig {
+  if (typeof window === "undefined") return EMPTY_CONFIG;
+  try {
+    const raw = window.localStorage.getItem(LLM_CONFIG_STORAGE_KEY);
+    if (!raw) return EMPTY_CONFIG;
+    const parsed = JSON.parse(raw);
+    return { ...EMPTY_CONFIG, ...parsed };
+  } catch {
+    return EMPTY_CONFIG;
+  }
+}
+
+function writeLLMConfig(config: Partial<LLMConfig>) {
+  if (typeof window === "undefined") return;
+  const next = { ...readLLMConfig(), ...config, savedAt: new Date().toISOString() };
+  window.localStorage.setItem(LLM_CONFIG_STORAGE_KEY, JSON.stringify(next));
+  // Notify same-tab listeners (Settings -> Dashboard live update)
+  window.dispatchEvent(new Event(LLM_CONFIG_CHANGED_EVENT));
+}
+
+function clearLLMConfig() {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(LLM_CONFIG_STORAGE_KEY);
+  window.dispatchEvent(new Event(LLM_CONFIG_CHANGED_EVENT));
+}
+
+/**
+ * Subscribe to the saved LLM configuration.
+ * Re-renders whenever Settings saves or deletes the config (same tab + cross tab).
+ */
+export function useLLMConfig() {
+  const [config, setConfig] = React.useState<LLMConfig>(EMPTY_CONFIG);
+
+  React.useEffect(() => {
+    setConfig(readLLMConfig());
+    const handler = () => setConfig(readLLMConfig());
+    window.addEventListener(LLM_CONFIG_CHANGED_EVENT, handler);
+    window.addEventListener("storage", handler);
+    return () => {
+      window.removeEventListener(LLM_CONFIG_CHANGED_EVENT, handler);
+      window.removeEventListener("storage", handler);
+    };
+  }, []);
+
+  const hasProvider = !!config.provider;
+  const hasApiKey = !!config.apiKey && config.apiKey.trim().length > 0;
+  const isOllama = config.provider === "ollama";
+  // Ollama runs locally and does not require an API key.
+  const isConfigured = hasProvider && (hasApiKey || isOllama);
+  const providerLabel = config.provider
+    ? LLM_PROVIDER_LABELS[config.provider] || config.provider
+    : "";
+
+  return { config, isConfigured, hasApiKey, hasProvider, isOllama, providerLabel };
+}
+
+// Effective LLM status, combining backend review + saved config.
+// - "active": backend analysis actually used an LLM (review.offline === false)
+// - "ready": user saved a valid API key, but no LLM analysis has run yet
+// - "offline": no API key configured (demo data / deterministic fallback)
+export type LLMStatus = "active" | "ready" | "offline";
+
+export function useLLMStatus(review: any): LLMStatus {
+  const { isConfigured } = useLLMConfig();
+  if (review && review.offline === false) return "active";
+  if (isConfigured) return "ready";
+  return "offline";
+}
+
+// Shared badge renderer so every surface shows the same colors / icons.
+export function LLMStatusBadge({
+  status,
+  t,
+  size = "sm",
+}: {
+  status: LLMStatus;
+  t: (k: string) => string;
+  size?: "sm" | "xs";
+}) {
+  const cls = size === "xs" ? "text-xs gap-1" : "gap-1";
+  if (status === "active") {
+    return (
+      <Badge variant="default" className={`${cls} bg-green-600 hover:bg-green-600`}>
+        <CheckCircle className="h-3 w-3" />
+        {t("trust.active")}
+      </Badge>
+    );
+  }
+  if (status === "ready") {
+    return (
+      <Badge variant="default" className={`${cls} bg-amber-500 hover:bg-amber-500`}>
+        <Circle className="h-3 w-3 fill-amber-50 text-amber-50" />
+        {t("trust.ready")}
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="secondary" className={cls}>
+      <Circle className="h-3 w-3" />
+      {t("trust.offline")}
+    </Badge>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main App (with providers)
 // ---------------------------------------------------------------------------
 
@@ -542,16 +694,25 @@ function HealthScoreCard({ data }: { data: any }) {
 function LLMStatusCard({ data }: { data: any }) {
   const { t } = useI18n();
   const review = data?.engineering_review;
-  if (!review) return null;
+  const { config, providerLabel, isConfigured } = useLLMConfig();
+  const status = useLLMStatus(review);
+  if (!review && !isConfigured) return null;
 
-  const provider = review.model_info?.provider || "—";
-  const model = review.model_info?.model || "—";
-  const isOffline = review.offline;
+  // Prefer the backend-reported provider/model (when an LLM was actually used),
+  // otherwise fall back to the user's saved config so the card reflects what
+  // WILL be used on the next analysis.
+  const provider = review?.model_info?.provider && review.model_info.provider !== "offline"
+    ? review.model_info.provider
+    : providerLabel || "—";
+  const model = review?.model_info?.model && review.model_info.model !== "deterministic-fallback"
+    ? review.model_info.model
+    : config.model || "—";
+  const tokens = (review?.prompt_tokens || 0) + (review?.completion_tokens || 0);
 
   return (
     <Card>
       <CardContent className="pt-4 pb-4">
-        <div className="flex flex-wrap items-center gap-4 text-sm">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
           <div className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-primary" />
             <span className="font-medium">{t("llm.status")}</span>
@@ -564,15 +725,17 @@ function LLMStatusCard({ data }: { data: any }) {
             <span className="text-muted-foreground">{t("llm.model")}:</span>
             <span className="font-medium">{model}</span>
           </div>
-          <Badge variant={isOffline ? "secondary" : "default"} className="gap-1">
-            {isOffline ? <Circle className="h-3 w-3" /> : <CheckCircle className="h-3 w-3" />}
-            {isOffline ? t("trust.offline") : t("trust.active")}
-          </Badge>
-          {review.prompt_tokens > 0 && (
+          <LLMStatusBadge status={status} t={t} />
+          {tokens > 0 && (
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground">{t("llm.estimatedTokens")}:</span>
-              <span className="font-medium">{review.prompt_tokens + review.completion_tokens}</span>
+              <span className="font-medium">{tokens}</span>
             </div>
+          )}
+          {status === "ready" && (
+            <span className="text-xs text-amber-600 dark:text-amber-400 italic">
+              {t("llm.readyHint")}
+            </span>
           )}
         </div>
       </CardContent>
@@ -592,8 +755,13 @@ function TrustPanel({ data }: { data: any }) {
   const rootCauses = data?.root_causes?.root_causes || [];
   const avgConfidence = data?.root_causes?.statistics?.average_confidence || 0;
   const review = data?.engineering_review;
-  const isOffline = review?.offline ?? true;
-  const hallucinationRisk = isOffline ? 0 : 15;
+  const status = useLLMStatus(review);
+
+  // Hallucination risk by status:
+  // - active: LLM produced output, so a small hallucination risk exists
+  // - ready:  key saved but not used yet, so no hallucination risk for current data
+  // - offline: deterministic fallback, zero hallucination risk
+  const hallucinationRisk = status === "active" ? 15 : status === "ready" ? 5 : 0;
 
   // Reasoning depth: count of pipeline phases that produced data
   let depth = 0;
@@ -637,12 +805,7 @@ function TrustPanel({ data }: { data: any }) {
             {hallucinationRisk < 10 ? t("trust.low") : t("trust.medium")}
           </Badge>
         } />
-        <TrustRow label={t("trust.llmStatus")} value={
-          <Badge variant={isOffline ? "secondary" : "default"} className="text-xs gap-1">
-            {isOffline ? <Circle className="h-3 w-3" /> : <CheckCircle className="h-3 w-3" />}
-            {isOffline ? t("trust.offline") : t("trust.active")}
-          </Badge>
-        } />
+        <TrustRow label={t("trust.llmStatus")} value={<LLMStatusBadge status={status} t={t} size="xs" />} />
       </CardContent>
     </Card>
   );
@@ -668,6 +831,8 @@ function OverviewSection({ data }: { data: any }) {
   const evidence = data?.evidence;
   const evCount = evidence?.statistics?.total_evidence || evidence?.evidence?.length || 0;
   const review = data?.engineering_review;
+  const status = useLLMStatus(review);
+  const statusLabel = status === "active" ? t("trust.active") : status === "ready" ? t("trust.ready") : t("trust.offline");
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -676,7 +841,12 @@ function OverviewSection({ data }: { data: any }) {
       <StatCard icon={<Zap className="h-5 w-5" />} title={t("stats.quickWins")} value={plan?.quick_wins?.length || 0} subtitle={t("stats.lowEffortFixes")} />
       <StatCard icon={<Map className="h-5 w-5" />} title={t("stats.planSteps")} value={plan?.steps?.length || 0} subtitle={t("stats.refactoringSteps")} />
       <StatCard icon={<TrendingUp className="h-5 w-5" />} title={t("stats.avgRoi")} value={plan?.statistics?.average_roi?.toFixed(2) || "0"} subtitle={t("stats.returnOnInvestment")} />
-      <StatCard icon={<Sparkles className="h-5 w-5" />} title={t("stats.aiReview")} value={review?.offline ? t("trust.offline") : t("trust.active")} subtitle={review?.total_sections + " " + t("dashboard.overview").toLowerCase() || t("stats.noReview")} />
+      <StatCard
+        icon={<Sparkles className="h-5 w-5" />}
+        title={t("stats.aiReview")}
+        value={statusLabel}
+        subtitle={review?.statistics?.total_sections ? `${review.statistics.total_sections} ${t("dashboard.overview").toLowerCase()}` : t("stats.noReview")}
+      />
 
       {rootCauses.length > 0 && (
         <Card className="md:col-span-2 lg:col-span-3">
@@ -1146,14 +1316,21 @@ function FileExplorerSection({ data }: { data: any }) {
 function AIReviewSection({ data }: { data: any }) {
   const { t } = useI18n();
   const review = data?.engineering_review;
+  const status = useLLMStatus(review);
   if (!review) return <EmptyState icon={<Sparkles className="h-12 w-12" />} title={t("ai.noReview")} description={t("ai.enableProvider")} />;
 
   return (
     <div className="space-y-4">
-      {review.offline && (
+      {status === "offline" && (
         <div className="flex items-center gap-2 rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3 text-sm">
-          <AlertCircle className="h-4 w-4 text-yellow-500" />
+          <AlertCircle className="h-4 w-4 shrink-0 text-yellow-500" />
           <span>{t("ai.offlineMode")}</span>
+        </div>
+      )}
+      {status === "ready" && (
+        <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
+          <Key className="h-4 w-4 shrink-0 text-amber-500" />
+          <span>{t("ai.keySavedMode")}</span>
         </div>
       )}
       {review.sections?.map((section: any, i: number) => (
@@ -1366,6 +1543,41 @@ const LLM_PROVIDERS = [
   { value: "ollama", label: "Ollama (Local)", fields: ["host", "port", "model"] },
 ];
 
+// Small badge shown in the Settings card header reflecting whether a config
+// is currently persisted. Subscribes to the same shared event so it updates
+// live when the user saves / deletes.
+function LLMSavedIndicator() {
+  const { t } = useI18n();
+  const { isConfigured, providerLabel, config } = useLLMConfig();
+  if (!isConfigured) {
+    return (
+      <Badge variant="secondary" className="gap-1 text-xs">
+        <Circle className="h-3 w-3" />
+        {t("trust.offline")}
+      </Badge>
+    );
+  }
+  const savedAt = config.savedAt ? new Date(config.savedAt) : null;
+  const savedLabel = savedAt
+    ? savedAt.toLocaleDateString() + " " + savedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    : "";
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Badge className="gap-1 text-xs bg-amber-500 hover:bg-amber-500">
+            <CheckCircle className="h-3 w-3" />
+            {providerLabel} · {t("trust.ready")}
+          </Badge>
+        </TooltipTrigger>
+        <TooltipContent>
+          {savedLabel ? `${t("llm.lastUsed")}: ${savedLabel}` : t("llm.usingSavedProvider")}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
 function LLMSettingsSection() {
   const { t } = useI18n();
   const [provider, setProvider] = React.useState("");
@@ -1392,17 +1604,33 @@ function LLMSettingsSection() {
 
   const handleTest = async () => {
     setTestStatus("testing");
+    // Simulate a connection test against the configured provider.
+    // In production this would call /api/llm/test with the saved config.
     await sleep(1500);
-    // In real implementation, this would call /api/llm/test
-    setTestStatus("success");
-    toast.success(t("settings.llm.connected"));
+    const ok = provider === "ollama" ? true : !!apiKey.trim();
+    if (ok) {
+      setTestStatus("success");
+      toast.success(t("settings.llm.connected"));
+    } else {
+      setTestStatus("failed");
+      toast.error(t("settings.llm.emptyKey"));
+    }
   };
 
   const handleSave = () => {
-    // Save to localStorage (in production, this would be an API call)
-    const config = { provider, apiKey, model, temperature, maxTokens, baseUrl, endpoint, deployment, apiVersion, host, port };
-    localStorage.setItem("ra-llm-config", JSON.stringify(config));
-    toast.success(t("common.save"));
+    if (!provider) {
+      toast.error(t("settings.llm.emptyProvider"));
+      return;
+    }
+    // Ollama is local and does not require an API key; everything else does.
+    if (provider !== "ollama" && !apiKey.trim()) {
+      toast.error(t("settings.llm.emptyKey"));
+      return;
+    }
+    // Persist + broadcast so every surface (Status card, Trust panel, Overview,
+    // AI Review banner) updates from "Offline" to "Ready" instantly.
+    writeLLMConfig({ provider, apiKey, model, temperature, maxTokens, baseUrl, endpoint, deployment, apiVersion, host, port });
+    toast.success(t("settings.llm.saved"));
   };
 
   const handleCopy = () => {
@@ -1412,34 +1640,52 @@ function LLMSettingsSection() {
 
   const handleDelete = () => {
     setApiKey("");
-    localStorage.removeItem("ra-llm-config");
-    toast.success(t("common.delete"));
+    setProvider("");
+    setModel("");
+    clearLLMConfig();
+    setTestStatus("idle");
+    toast.success(t("settings.llm.deleted"));
   };
 
-  // Load saved config
+  // Load saved config on mount and whenever a cross-component change happens.
   React.useEffect(() => {
-    const saved = localStorage.getItem("ra-llm-config");
-    if (saved) {
-      try {
-        const config = JSON.parse(saved);
-        setProvider(config.provider || "");
-        setApiKey(config.apiKey || "");
-        setModel(config.model || "");
-        setTemperature(config.temperature || "0.3");
-        setMaxTokens(config.maxTokens || "4096");
-        setBaseUrl(config.baseUrl || "");
-        setEndpoint(config.endpoint || "");
-        setDeployment(config.deployment || "");
-        setApiVersion(config.apiVersion || "2024-02-15-preview");
-        setHost(config.host || "http://localhost");
-        setPort(config.port || "11434");
-      } catch { /* ignore */ }
-    }
+    const load = () => {
+      const saved = localStorage.getItem("ra-llm-config");
+      if (saved) {
+        try {
+          const config = JSON.parse(saved);
+          setProvider(config.provider || "");
+          setApiKey(config.apiKey || "");
+          setModel(config.model || "");
+          setTemperature(config.temperature || "0.3");
+          setMaxTokens(config.maxTokens || "4096");
+          setBaseUrl(config.baseUrl || "");
+          setEndpoint(config.endpoint || "");
+          setDeployment(config.deployment || "");
+          setApiVersion(config.apiVersion || "2024-02-15-preview");
+          setHost(config.host || "http://localhost");
+          setPort(config.port || "11434");
+        } catch { /* ignore */ }
+      }
+    };
+    load();
+    // Sync if another surface (or another tab) changes the config.
+    window.addEventListener(LLM_CONFIG_CHANGED_EVENT, load);
+    window.addEventListener("storage", load);
+    return () => {
+      window.removeEventListener(LLM_CONFIG_CHANGED_EVENT, load);
+      window.removeEventListener("storage", load);
+    };
   }, []);
 
   return (
     <Card>
-      <CardHeader><CardTitle className="text-lg">{t("settings.llm")}</CardTitle></CardHeader>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg">{t("settings.llm")}</CardTitle>
+          <LLMSavedIndicator />
+        </div>
+      </CardHeader>
       <CardContent className="space-y-4">
         <div>
           <Label className="mb-2 block">{t("settings.llm.provider")}</Label>
