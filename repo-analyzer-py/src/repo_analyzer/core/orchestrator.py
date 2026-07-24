@@ -206,6 +206,19 @@ class Orchestrator:
                 _logger.warning("Evidence build failed: %s", exc)
                 result.add_error({"phase": "evidence", "error": str(exc)})
 
+            # Phase 7: engineering knowledge graph.
+            # Non-breaking: if it fails, knowledge_graph stays None.
+            try:
+                from repo_analyzer.core.evidence import GraphBuilder
+
+                if result.evidence is not None:
+                    result.knowledge_graph = GraphBuilder.build(result.evidence, result)
+                    if progress:
+                        progress.success("Knowledge graph built")
+            except Exception as exc:
+                _logger.warning("Knowledge graph build failed: %s", exc)
+                result.add_error({"phase": "graph", "error": str(exc)})
+
             if cancel_event and cancel_event.is_set():
                 result.add_error({"phase": "post", "error": "cancelled"})
             result.mark_completed()

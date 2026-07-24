@@ -1209,3 +1209,71 @@ Stage Summary:
 - 1 yeni test dosyası: test_evidence.py (36 test)
 - Backward compatibility: evidence alanı None default, builder hatası non-fatal, hiçbir analyzer değiştirilmedi.
 - Performans: sadece in-memory AnalysisResult okunuyor, repository re-scan yok, yeni I/O yok.
+
+---
+Task ID: 9
+Agent: Principal Software Architect (Engineering Knowledge Graph)
+Task: Mevcut Evidence Engine üzerine Engineering Knowledge Graph katmanı eklemek.
+
+Work Log:
+- Mevcut kod tabanı tamamen analiz edildi: Evidence modeli (Evidence, EvidenceCollection, EvidenceBuilder), AnalysisResult yapısı, orchestrator fazları (0-7), GraphReport, SymbolCollection, ImportAnalysis, DependencyAnalysis incelendi.
+- Yeni dosyalar:
+  * src/repo_analyzer/core/evidence/graph_models.py — GraphNode, GraphEdge, EngineeringGraph, GraphIndex, NodeType (14 tür), EdgeType (10 tür)
+  * src/repo_analyzer/core/evidence/graph_builder.py — GraphBuilder (EvidenceCollection + AnalysisResult → EngineeringGraph)
+  * tests/unit/test_knowledge_graph.py — 41 unit test
+- Değiştirilen dosyalar:
+  * src/repo_analyzer/core/evidence/__init__.py — Graph modelleri export edildi
+  * src/repo_analyzer/core/domain/analysis_result.py — knowledge_graph: Any | None = None alanı eklendi (backward compatible)
+  * src/repo_analyzer/core/orchestrator.py — Faz 7 (knowledge graph build) eklendi (non-breaking try/except)
+- Graph Modeli:
+  * NodeType: REPOSITORY, PACKAGE, MODULE, FILE, CLASS, FUNCTION, METHOD, SYMBOL, DEPENDENCY, SECURITY_FINDING, ARCHITECTURE_FINDING, METRIC_FINDING, EVIDENCE
+  * EdgeType: IMPORTS, CALLS, DEPENDS_ON, BELONGS_TO, REFERENCES, USES, AFFECTS, REPORTS, DERIVED_FROM, RELATED_TO
+  * GraphNode: id, node_type, label, key (dedup), file_path, line, module, class_name, function_name, severity, metadata, evidence_id — frozen=True
+  * GraphEdge: id, source_id, target_id, edge_type, detail, metadata — frozen=True
+  * GraphIndex: by_node_id, by_file, by_function, by_class, by_evidence, by_analyzer, by_type, by_key, outgoing, incoming — O(1) lookup
+  * EngineeringGraph: nodes, edges, index, statistics — frozen=True
+- GraphBuilder: 17 node/edge builder metodu:
+  * _build_repository_node (REPOSITORY node)
+  * _build_file_nodes (FILE nodes from evidence + inventory)
+  * _build_symbol_nodes (FUNCTION/CLASS/METHOD from AST symbols)
+  * _build_module_nodes (MODULE from import graph)
+  * _build_dependency_nodes (DEPENDENCY from dependency analysis)
+  * _build_evidence_nodes (EVIDENCE/SECURITY_FINDING/METRIC_FINDING from evidence collection)
+  * _build_belongs_to_edges (file→repo, func→file, class→file, file→module)
+  * _build_import_edges (module→module IMPORTS)
+  * _build_dependency_edges (file/module→dependency DEPENDS_ON)
+  * _build_inheritance_edges (class→class DERIVED_FROM)
+  * _build_evidence_edges (evidence→file/func/class/module AFFECTS + evidence→evidence RELATED_TO)
+  * _build_index (all indexes built in single pass)
+  * _build_statistics (node/edge type counts, unique files/functions/classes)
+- Graph API (EngineeringGraph üzerinde):
+  * get_node(id) — O(1)
+  * nodes_for_file(path) — O(1)+O(k)
+  * nodes_for_function(name) — O(1)+O(k)
+  * nodes_for_class(name) — O(1)+O(k)
+  * node_for_evidence(evidence_id) — O(1)
+  * nodes_by_type(type) — O(1)+O(k)
+  * nodes_by_analyzer(analyzer) — O(1)+O(k)
+  * outgoing_edges(id) / incoming_edges(id) — O(1)+O(k)
+  * neighbors(id, edge_type) / reverse_neighbors(id, edge_type)
+  * evidence_for_file(path) — "Bu dosyayla ilişkili tüm Evidence"
+  * dependencies_of(id) — "Bu node'un dependency'leri"
+  * security_findings_in(id) — "Bu node'daki güvenlik bulguları"
+  * metrics_for_node(id) — "Bu node ile ilişkili metrikler"
+  * symbol_of_evidence(evidence_id) — "Bu Evidence hangi sembole ait"
+  * files_of_module(module_name) — "Bu modüldeki dosyalar"
+  * traverse(start_id, max_depth, edge_types) — BFS traversal
+- Duplicate prevention: her node doğal key (örn "file:src/app.py", "func:src/app.py:greet") ile dedup edilir. Aynı dosya/fonksiyon/class için iki node oluşmaz.
+- Orchestrator: Faz 7 (knowledge graph) eklendi — non-breaking, hata olursa knowledge_graph None kalır, analiz başarılı sayılır.
+- Lint: ruff check → All checks passed.
+- Type check: mypy --strict → 184 files, 0 errors.
+- Test: 538 passed / coverage 83.85%.
+  * test_knowledge_graph.py: 41 test (empty graph, single file, multi file, duplicate, API queries, traversal, immutability)
+
+Stage Summary:
+- Engineering Knowledge Graph mevcut mimariye entegre edildi, hiçbir mevcut özellik bozulmadı.
+- 3 yeni dosya: graph_models.py (GraphNode + GraphEdge + EngineeringGraph + GraphIndex + NodeType + EdgeType), graph_builder.py (GraphBuilder), test_knowledge_graph.py (41 test)
+- 3 değiştirilen dosya: analysis_result.py (knowledge_graph alanı), orchestrator.py (faz 7), evidence/__init__.py (exports)
+- Backward compatibility: knowledge_graph alanı None default, builder hatası non-fatal, hiçbir analyzer/evidence builder/review engine değiştirilmedi.
+- Performans: sadece in-memory EvidenceCollection + AnalysisResult okunuyor, repository re-scan yok, yeni I/O yok, tek-pass index build.
+- Gelecekteki Reasoning Engine bu graph'ı traverse ederek: root cause detection (AFFECTS chain), impact analysis (BFS from changed file), dependency risk (DEPENDS_ON chain), security blast radius (AFFECTS + RELATED_TO) yapabilir.

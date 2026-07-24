@@ -98,6 +98,11 @@ class AnalysisResult(BaseModel):
     # Backward compatible: defaults to None, existing consumers are unaffected.
     evidence: Any | None = None
 
+    # Engineering knowledge graph (in-memory graph of engineering relationships).
+    # Populated by GraphBuilder after the evidence phase completes.
+    # Backward compatible: defaults to None, existing consumers are unaffected.
+    knowledge_graph: Any | None = None
+
     @property
     def total_findings(self) -> int:
         """Total number of findings across all categories."""

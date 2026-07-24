@@ -1,13 +1,24 @@
-"""Evidence Engine package.
+"""Evidence Engine + Engineering Knowledge Graph package.
 
-Provides a unified representation of all findings produced by the analysis
-pipeline. See :mod:`repo_analyzer.core.evidence.models` for the domain
-models and :mod:`repo_analyzer.core.evidence.builder` for the builder.
+Provides:
+    - **Evidence models** (:mod:`.models`): unified finding representation.
+    - **Evidence builder** (:mod:`.builder`): AnalysisResult → EvidenceCollection.
+    - **Graph models** (:mod:`.graph_models`): in-memory engineering graph.
+    - **Graph builder** (:mod:`.graph_builder`): EvidenceCollection → EngineeringGraph.
 """
 
 from __future__ import annotations
 
 from repo_analyzer.core.evidence.builder import EvidenceBuilder
+from repo_analyzer.core.evidence.graph_builder import GraphBuilder
+from repo_analyzer.core.evidence.graph_models import (
+    EdgeType,
+    EngineeringGraph,
+    GraphEdge,
+    GraphIndex,
+    GraphNode,
+    NodeType,
+)
 from repo_analyzer.core.evidence.models import (
     Evidence,
     EvidenceCollection,
@@ -19,6 +30,7 @@ from repo_analyzer.core.evidence.models import (
 )
 
 __all__ = [
+    # Evidence models
     "Evidence",
     "EvidenceBuilder",
     "EvidenceCollection",
@@ -27,4 +39,12 @@ __all__ = [
     "EvidenceType",
     "ReferenceKind",
     "RelationshipType",
+    # Graph models
+    "EdgeType",
+    "EngineeringGraph",
+    "GraphBuilder",
+    "GraphEdge",
+    "GraphIndex",
+    "GraphNode",
+    "NodeType",
 ]
