@@ -1918,10 +1918,10 @@ function EvidenceSection({ data }: { data: any }) {
           <div className="col-span-2">{t("evidence.category")}</div>
           <div className="col-span-3">{t("evidence.message")}</div>
           <div className="col-span-2">{t("evidence.file")}</div>
-          <div className="col-span-1">{t("evidence.confidence")}</div>
-          <div className="col-span-1">{t("evidence.type")}</div>
+          <div className="col-span-1 text-right">{t("evidence.confidence")}</div>
+          <div className="col-span-1 text-right">{t("evidence.type")}</div>
         </div>
-        <ScrollArea className="h-[500px]">
+        <ScrollArea className="max-h-[500px]">
           {filtered.map((ev: any, i: number) => (
             <div key={ev.id || i} className="grid grid-cols-12 gap-2 border-b p-3 text-sm hover:bg-muted/30">
               <div className="col-span-1"><Badge variant={severityVariant(ev.severity)} className="text-xs">{ev.severity}</Badge></div>
@@ -1929,8 +1929,8 @@ function EvidenceSection({ data }: { data: any }) {
               <div className="col-span-2 truncate text-xs" title={humanize(ev.category)}>{humanize(ev.category)}</div>
               <div className="col-span-3 truncate text-xs" title={ev.message}>{ev.message}</div>
               <div className="col-span-2 truncate text-xs text-muted-foreground" title={ev.file_path}>{ev.file_path || "—"}</div>
-              <div className="col-span-1 text-xs">{(ev.confidence * 100).toFixed(0)}%</div>
-              <div className="col-span-1 text-xs text-muted-foreground" title={humanize(ev.finding_type)}>{humanize(ev.finding_type)}</div>
+              <div className="col-span-1 text-right text-xs tabular-nums">{(ev.confidence * 100).toFixed(0)}%</div>
+              <div className="col-span-1 text-right text-xs text-muted-foreground" title={humanize(ev.finding_type)}>{humanize(ev.finding_type)}</div>
             </div>
           ))}
         </ScrollArea>
@@ -2341,7 +2341,12 @@ function FileExplorerSection({ data }: { data: any }) {
                     <span className="flex h-5 w-5 shrink-0 items-center justify-center text-xs font-mono">{fileIcon(f)}</span>
                     <span className="truncate flex-1">{f}</span>
                     {evCount > 0 && (
-                      <Badge variant="secondary" className="shrink-0 text-xs h-5 px-1.5">{evCount}</Badge>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Badge variant="secondary" className="shrink-0 text-xs h-5 px-1.5 cursor-help">{evCount}</Badge>
+                        </TooltipTrigger>
+                        <TooltipContent>{t("files.evidenceCount")}: {evCount}</TooltipContent>
+                      </Tooltip>
                     )}
                     {size && <span className="shrink-0 text-xs text-muted-foreground/70 tabular-nums">{size}</span>}
                   </button>
@@ -2477,6 +2482,33 @@ function FilePreviewOverview({ data, formatTotalSize }: { data: any; formatTotal
           </div>
         </div>
       )}
+      {/* Top files by evidence count — fills the empty space VLM flagged */}
+      {(() => {
+        const evByFile: Record<string, number> = {};
+        evidence.forEach((e: any) => { if (e.file_path) evByFile[e.file_path] = (evByFile[e.file_path] || 0) + 1; });
+        const topFiles = Object.entries(evByFile).sort((a, b) => b[1] - a[1]).slice(0, 5);
+        const maxCount = topFiles.length > 0 ? topFiles[0][1] : 1;
+        if (topFiles.length === 0) return null;
+        return (
+          <div>
+            <h4 className="mb-2 text-sm font-semibold">{t("files.topFiles")}</h4>
+            <div className="space-y-1.5">
+              {topFiles.map(([path, count]) => (
+                <div key={path} className="flex items-center gap-2">
+                  <span className="w-48 shrink-0 truncate font-mono text-xs text-muted-foreground" title={path}>{path}</span>
+                  <div className="relative h-4 flex-1 overflow-hidden rounded bg-muted">
+                    <div
+                      className="absolute inset-y-0 left-0 rounded bg-amber-500/60"
+                      style={{ width: `${(count / maxCount) * 100}%` }}
+                    />
+                  </div>
+                  <span className="w-6 shrink-0 text-right text-xs font-semibold tabular-nums">{count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -2513,6 +2545,12 @@ function RoiRefactoringBody({ body, t }: { body: string; t: (k: string) => strin
     estimate: { label: t("ai.estimate"), badge: "outline" },
   };
 
+  // Fallback: if we couldn't parse any pairs or title, render the raw body
+  // text so the section never shows an empty badge grid.
+  if (pairs.length === 0 && !title) {
+    return <p className="whitespace-pre-wrap text-sm text-muted-foreground">{body}</p>;
+  }
+
   return (
     <div className="space-y-3">
       {title && (
@@ -2521,17 +2559,21 @@ function RoiRefactoringBody({ body, t }: { body: string; t: (k: string) => strin
           <span className="text-sm font-medium">{title}</span>
         </div>
       )}
-      <div className="flex flex-wrap gap-2">
-        {pairs.map((p, i) => {
-          const meta = keyLabel[p.key] || { label: humanize(p.key), badge: "outline" as const };
-          return (
-            <div key={i} className="flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs">
-              <span className="text-muted-foreground">{meta.label}:</span>
-              <span className={`font-semibold ${meta.color || ""}`}>{p.value}</span>
-            </div>
-          );
-        })}
-      </div>
+      {pairs.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {pairs.map((p, i) => {
+            const meta = keyLabel[p.key] || { label: humanize(p.key), badge: "outline" as const };
+            return (
+              <div key={i} className="flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs">
+                <span className="text-muted-foreground">{meta.label}:</span>
+                <span className={`font-semibold ${meta.color || ""}`}>{p.value}</span>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="whitespace-pre-wrap text-sm text-muted-foreground">{body}</p>
+      )}
     </div>
   );
 }
@@ -2652,6 +2694,7 @@ function SettingsView({ onBack }: { onBack: () => void }) {
   const { t } = useI18n();
   const { theme, setTheme } = useTheme();
   const { lang, setLang } = useI18n();
+  const [settingsTab, setSettingsTab] = React.useState("general");
 
   return (
     <div className="container mx-auto max-w-4xl px-4 py-6">
@@ -2659,7 +2702,7 @@ function SettingsView({ onBack }: { onBack: () => void }) {
         <Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft className="mr-2 h-4 w-4" /> {t("settings.back")}</Button>
       </div>
       <h1 className="mb-6 text-2xl font-bold">{t("settings.title")}</h1>
-      <Tabs defaultValue="general">
+      <Tabs value={settingsTab} onValueChange={setSettingsTab}>
         <TabsList className="grid w-full grid-cols-3 sm:grid-cols-5">
           <TabsTrigger value="general" className="gap-1.5"><SettingsIcon className="h-4 w-4" /> <span className="hidden sm:inline">{t("settings.general")}</span></TabsTrigger>
           <TabsTrigger value="llm" className="gap-1.5"><Key className="h-4 w-4" /> <span className="hidden sm:inline">{t("settings.llm")}</span></TabsTrigger>
@@ -2672,20 +2715,31 @@ function SettingsView({ onBack }: { onBack: () => void }) {
           <Card>
             <CardHeader><CardTitle className="text-lg">{t("settings.general")}</CardTitle></CardHeader>
             <CardContent className="space-y-4">
-              {/* General tab now only shows a summary + quick links to Appearance/Language.
-                  Theme + Language were duplicated here and in their own tabs — removed
-                  to avoid the redundancy VLM flagged. */}
+              {/* General tab shows a summary + quick links to Appearance/Language.
+                  Cards are clickable to switch to the relevant tab. */}
               <p className="text-sm text-muted-foreground">{t("settings.about.description")}</p>
               <Separator />
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-lg border p-3">
-                  <div className="mb-1 flex items-center gap-2 text-sm font-medium"><Sun className="h-4 w-4 text-amber-500" /> {t("settings.appearance.theme")}</div>
+                <button
+                  onClick={() => setSettingsTab("appearance")}
+                  className="group rounded-lg border p-3 text-left transition-all hover:border-primary/40 hover:shadow-sm hover:-translate-y-0.5"
+                >
+                  <div className="mb-1 flex items-center justify-between">
+                    <span className="flex items-center gap-2 text-sm font-medium"><Sun className="h-4 w-4 text-amber-500" /> {t("settings.appearance.theme")}</span>
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+                  </div>
                   <p className="text-xs text-muted-foreground">{theme === "dark" ? t("settings.appearance.darkMode") : t("settings.appearance.lightMode")}</p>
-                </div>
-                <div className="rounded-lg border p-3">
-                  <div className="mb-1 flex items-center gap-2 text-sm font-medium"><Globe className="h-4 w-4 text-sky-500" /> {t("settings.language")}</div>
+                </button>
+                <button
+                  onClick={() => setSettingsTab("language")}
+                  className="group rounded-lg border p-3 text-left transition-all hover:border-primary/40 hover:shadow-sm hover:-translate-y-0.5"
+                >
+                  <div className="mb-1 flex items-center justify-between">
+                    <span className="flex items-center gap-2 text-sm font-medium"><Globe className="h-4 w-4 text-sky-500" /> {t("settings.language")}</span>
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+                  </div>
                   <p className="text-xs text-muted-foreground">{lang === "tr" ? "Türkçe" : "English"}</p>
-                </div>
+                </button>
               </div>
             </CardContent>
           </Card>

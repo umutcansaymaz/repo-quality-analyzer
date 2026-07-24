@@ -2042,3 +2042,65 @@ Stage Summary:
   3. (Low) Accessibility audit on WHY? toggle + edge legend (ARIA labels, screen reader announcements).
   4. (Low) Graph: node drag snap-to-grid option + edge weight from numeric field when available.
   5. (Low) "Full backup" history export option (include result payloads).
+
+---
+Task ID: 24
+Agent: Senior Full-Stack Engineer (cron web-dev-review round 9)
+Task: QA via agent-browser + VLM, fix RoiRefactoringBody fallback + Evidence alignment + Files overview empty space + General tab clickable cards.
+
+Work Log:
+- Worklog reviewed (Tasks 1-23): Next.js 16 "AI Software Architect" repo analyzer. Mock API online. Top recommendations from Task 23: RoiRefactoringBody fallback, clickable General cards, accessibility, graph snap-to-grid.
+- QA performed via agent-browser + VLM (z-ai vision) on Evidence + Files tabs:
+  * Real issue 1: Evidence table confidence column not right-aligned — VLM flagged "numeric values not right-aligned, difficult to compare".
+  * Real issue 2: Evidence table had excessive whitespace at the bottom (fixed h-[500px] ScrollArea even when few rows).
+  * Real issue 3: Files tab "Repository overview" had a "massive empty void at the bottom" — VLM flagged.
+  * Real issue 4: Files list evidence count badges had no tooltip — VLM flagged "unclear what these metrics represent".
+  * Real issue 5: RoiRefactoringBody showed empty badge grid if no pairs found (Task 23 recommendation).
+  * Real issue 6: General tab summary cards were read-only (Task 23 recommendation: make clickable).
+- Phase 1 — RoiRefactoringBody fallback:
+  * Added fallback: if `pairs.length === 0 && !title`, render raw body text (`whitespace-pre-wrap` paragraph).
+  * Also added inner fallback: if title is found but no pairs, render the raw body text below the title.
+  * The section now never shows an empty badge grid — gracefully degrades to raw text for unparseable LLM output.
+- Phase 2 — Evidence table alignment + whitespace fix:
+  * Confidence column header: added `text-right` class.
+  * Confidence column values: added `text-right` + `tabular-nums` for monospaced number alignment.
+  * Type column header + values: also right-aligned for consistency.
+  * ScrollArea: changed from fixed `h-[500px]` to `max-h-[500px]` — the table now only takes as much vertical space as needed, eliminating the excessive whitespace at the bottom when there are few rows.
+  * Verified: confidence header class = "col-span-1 text-right".
+- Phase 3 — Files tab tooltip + top files section:
+  * Evidence count badges in the file list now wrapped in a Tooltip component — hovering shows "Evidence count: N" (i18n: files.evidenceCount).
+  * New "Top files by evidence" section in FilePreviewOverview: shows top 5 files sorted by evidence count, each with a horizontal progress bar (amber/60 fill proportional to the max count), file path (truncate + tooltip), and count number.
+  * This fills the empty void VLM flagged and adds useful at-a-glance information about which files have the most findings.
+  * i18n: 3 new keys (TR+EN) — files.evidenceCount, files.topFiles.
+  * Verified: VLM confirmed "Top files by evidence section is present with horizontal progress bars, no visual bugs or empty gaps".
+- Phase 4 — General tab clickable summary cards:
+  * SettingsView Tabs converted from uncontrolled (`defaultValue="general"`) to controlled (`value={settingsTab} onValueChange={setSettingsTab}`).
+  * Theme summary card: converted from `<div>` to `<button>` with `onClick={() => setSettingsTab("appearance")}` — clicking switches to the Appearance tab.
+  * Language summary card: same pattern, `onClick={() => setSettingsTab("language")}` — clicking switches to the Language tab.
+  * Both cards have hover affordance: `hover:border-primary/40 hover:shadow-sm hover:-translate-y-0.5` + a ChevronRight icon that appears on hover (opacity-0 → group-hover:opacity-100).
+  * Verified: clicking Theme card → Appearance tab selected ✓; clicking Language card → Language tab selected ✓.
+- Phase 5 — i18n: 3 new keys (TR+EN) — files.evidenceCount, files.topFiles.
+- Verification (agent-browser, 1440×900):
+  * RoiRefactoringBody fallback: verified in code (can't trigger without unparseable LLM output, but logic is sound).
+  * Evidence confidence: header class = "col-span-1 text-right" ✓, values have text-right + tabular-nums ✓.
+  * Files overview: "Top files by evidence" heading + progress bars render ✓ (VLM confirmed: "no visual bugs or empty gaps").
+  * Files tooltip: "Evidence Count" label present ✓.
+  * General tab: Theme card click → Appearance tab ✓, Language card click → Language tab ✓.
+  * Turkish: "Kanıt Sayısı" (Evidence Count) ✓.
+  * Zero page errors, zero console errors.
+- ESLint: Clean (0 errors)
+
+Stage Summary:
+- Current project status: Frontend is polished and feature-complete. RoiRefactoringBody now has a fallback for unparseable LLM output. Evidence table confidence/type columns are right-aligned with tabular-nums. Evidence ScrollArea uses max-h instead of fixed h (no more excessive whitespace). Files tab has evidence count tooltips + a "Top files by evidence" progress bar section that fills the previous empty void. General tab summary cards are now clickable navigation shortcuts to Appearance/Language tabs. Mock API online. All 7 dashboard tabs rich. Zero runtime errors.
+- Completed modifications: 1 file modified (page.tsx — RoiRefactoringBody fallback, Evidence alignment + max-h, Files tooltip + top files section, General tab clickable cards + controlled Tabs). 1 file modified (i18n.tsx — 3 new keys ×2 langs). No new files.
+- Verification results: agent-browser full QA passed. Evidence confidence header has text-right class. Files overview "Top files by evidence" section renders with progress bars (VLM confirmed no empty gaps). General tab cards switch to correct tabs on click. Turkish translations complete. ESLint clean. Zero runtime errors.
+- Unresolved issues / risks:
+  * RoiRefactoringBody fallback couldn't be triggered in QA (demo data always has parseable "Key: Value" format) — logic is correct but untested with real unparseable LLM output.
+  * "Top files by evidence" progress bars use a fixed w-48 for the file path — on very narrow screens this might overflow. Acceptable for now (the path truncates).
+  * Tooltip on evidence count badges requires a TooltipProvider wrapper — if one isn't already present in the component tree, the tooltip may not show. Verified it renders in the snapshot.
+- Priority recommendations for next phase:
+  1. (Medium) Accessibility audit: ARIA labels on WHY? toggle, graph nodes, compare dialog, evidence tooltips.
+  2. (Medium) Graph: node drag snap-to-grid option + edge weight from numeric field when available.
+  3. (Low) "Full backup" history export option (include result payloads, not just metadata).
+  4. (Low) Evidence table: add column sorting (click header to sort by severity/confidence/analyzer).
+  5. (Low) Files tab: make the "Top files by evidence" bars clickable to select that file in the list.

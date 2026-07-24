@@ -325,6 +325,8 @@ const translations: Record<Language, TranslationDict> = {
     "files.rootCauses": "Root causes",
     "files.recommendations": "Recommendations",
     "files.graphConnections": "Graph connections",
+    "files.evidenceCount": "Evidence count",
+    "files.topFiles": "Top files by evidence",
 
     // Roadmap filters
     "roadmap.filterPriority": "Priority",
@@ -726,6 +728,8 @@ const translations: Record<Language, TranslationDict> = {
     "files.rootCauses": "Kök nedenler",
     "files.recommendations": "Öneriler",
     "files.graphConnections": "Graf bağlantıları",
+    "files.evidenceCount": "Kanıt sayısı",
+    "files.topFiles": "Kanıta göre en çok dosyalar",
 
     // Roadmap filters
     "roadmap.filterPriority": "Öncelik",
