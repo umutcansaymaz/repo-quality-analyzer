@@ -1477,3 +1477,52 @@ Stage Summary:
 - Confidence göstergeleri tüm önerilerde
 - Dark/Light mode tam çalışıyor
 - Responsive (desktop öncelikli, tablet/mobile destekli)
+
+---
+Task ID: 14
+Agent: Principal Product Architect & Staff Frontend Engineer & Senior UX Designer
+Task: Production-level UI: i18n (TR/EN), Settings, API Key, Trust Panel, Explainability, Global Search, Local Repo tab, performance.
+
+Work Log:
+- i18n altyapısı kuruldu: src/components/analyzer/i18n.tsx — LanguageProvider + useI18n hook + 200+ çeviri anahtarı (TR/EN). Dil localStorage'da saklanır, sayfa yenilenince korunur.
+- Layout güncellendi: LanguageProvider ile sarmalandı.
+- page.tsx tamamen yeniden yazıldı (~1300 satır): tüm hardcoded string'ler i18n'ye taşındı.
+- Settings sayfası: 5 tab (General, LLM, Appearance, Language, About) — header'dan settings ikonu ile erişilir.
+- API Key yönetimi: 6 sağlayıcı (OpenAI, Anthropic, Gemini, OpenRouter, Azure OpenAI, Ollama). Provider seçilince dinamik form alanları. API Key masking (sk-••••••••ab12), Reveal/Hide, Copy, Delete butonları. Test Connection butonu. Save → localStorage.
+- Trust Panel: sağ sabit panel — Trust Score, Confidence, Evidence Count, Analyzer Count, Reasoning Depth (5/5), Hallucination Risk, LLM Status. Trust Score weighted combination: confidence(30%) + evidence(20%) + analyzer(15%) + depth(20%) + hallucination(15%).
+- LLM Status kartı: Health Score card altında — Provider, Model, Temperature, Status (Active/Offline), Estimated Tokens.
+- Dashboard sıralaması: Health → Top Root Causes → Roadmap → Evidence → Graph → Files → AI Review (LLM en son).
+- Explainability zinciri: her root cause ve plan step'inde "NEDEN?" / "WHY?" butonu. Tıklayınca açılan zincir: Recommendation → Root Cause → Category → Confidence → Evidence Count → Affected Files (root cause için) veya Recommendation → Root Cause → Estimated Effort → Risk Level → ROI (step için). Tüm metinler i18n'den.
+- "Supported by Evidence" / "AI Opinion" etiketleri: AI Review section'ında her section'da confidence tag + "Kanıt Destekli" / "AI Görüşü" badge.
+- File Inspector: dosya seçilince Evidence + Root Causes + Recommendations + Graph Connections tek ekranda.
+- Global Search: header'da search box — Evidence, Root Causes, Recommendations, Files içinde arama. Dropdown sonuç listesi.
+- Report Export: header'da download butonu — HTML, PDF, Markdown, JSON seçenekleri dropdown.
+- Yerel repository sekmesi: Landing'de GitHub/Local tab. Local tab disabled + "Yakında" / "Coming Soon" badge.
+- Loading states: ProgressView'da skeleton-like animasyon. Empty states: tüm tab'larda. Error states: API failure → demo data fallback.
+- Dil değiştirici: header'da EN/TR select. Anında tüm UI çevrilir.
+- Dark/Light mode: next-themes + header toggle.
+- Responsive: Desktop öncelikli, tablet/mobile destekli.
+- ESLint: Clean.
+- Agent-browser doğrulama:
+  * Landing: EN/TR dil değişimi ✓, GitHub/Local tab ✓, URL input ✓
+  * Progress: Pipeline animasyonu ✓
+  * Results: 7 tab (TR çevirili) ✓, Health Score + LLM Status + Trust Panel ✓
+  * Root Causes: Genişletilebilir kartlar, Explainability Chain (TR) ✓
+  * Roadmap: "NEDEN?" butonları, Explainability Chain açılır ✓
+  * Settings: 5 tab, LLM provider form (OpenAI seçili, API Key alanları) ✓
+  * Global search ✓, Report export dropdown ✓
+  * Zero console errors ✓, Zero page errors ✓
+
+Stage Summary:
+- 1 yeni dosya: i18n.tsx (200+ çeviri, LanguageProvider, useI18n hook)
+- 2 güncellenen dosya: layout.tsx (LanguageProvider), page.tsx (tamamen yeniden yazıldı)
+- Tüm UI metinleri i18n'den gelir, hardcoded string yok
+- TR/EN dil destei tam çalışıyor
+- Settings sayfası: General/LLM/Appearance/Language/About
+- API Key yönetimi: 6 sağlayıcı, masking, test connection, save
+- Trust Panel: sağ sabit panel, 7 metrik
+- LLM Status kartı: provider/model/status
+- Explainability: "NEDEN?" / "WHY?" butonları, zincir görünüm
+- Global search: 4 kategoride arama
+- Local repository tab: hazır (disabled, "Coming Soon")
+- Report export: 4 format dropdown
