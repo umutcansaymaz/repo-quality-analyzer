@@ -2583,7 +2583,7 @@ function SettingsView({ onBack }: { onBack: () => void }) {
   return (
     <div className="container mx-auto max-w-4xl px-4 py-6">
       <div className="mb-6">
-        <Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft className="mr-2 h-4 w-4" /> {t("app.newAnalysis")}</Button>
+        <Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft className="mr-2 h-4 w-4" /> {t("settings.back")}</Button>
       </div>
       <h1 className="mb-6 text-2xl font-bold">{t("settings.title")}</h1>
       <Tabs defaultValue="general">
@@ -2599,27 +2599,20 @@ function SettingsView({ onBack }: { onBack: () => void }) {
           <Card>
             <CardHeader><CardTitle className="text-lg">{t("settings.general")}</CardTitle></CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <Label>{t("settings.appearance.theme")}</Label>
-                <Select value={theme || "dark"} onValueChange={setTheme}>
-                  <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="dark">{t("settings.appearance.darkMode")}</SelectItem>
-                    <SelectItem value="light">{t("settings.appearance.lightMode")}</SelectItem>
-                    <SelectItem value="system">{t("settings.appearance.system")}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              {/* General tab now only shows a summary + quick links to Appearance/Language.
+                  Theme + Language were duplicated here and in their own tabs — removed
+                  to avoid the redundancy VLM flagged. */}
+              <p className="text-sm text-muted-foreground">{t("settings.about.description")}</p>
               <Separator />
-              <div className="flex items-center justify-between">
-                <Label>{t("settings.language")}</Label>
-                <Select value={lang} onValueChange={(v) => setLang(v as Language)}>
-                  <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="en">English</SelectItem>
-                    <SelectItem value="tr">Türkçe</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-lg border p-3">
+                  <div className="mb-1 flex items-center gap-2 text-sm font-medium"><Sun className="h-4 w-4 text-amber-500" /> {t("settings.appearance.theme")}</div>
+                  <p className="text-xs text-muted-foreground">{theme === "dark" ? t("settings.appearance.darkMode") : t("settings.appearance.lightMode")}</p>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <div className="mb-1 flex items-center gap-2 text-sm font-medium"><Globe className="h-4 w-4 text-sky-500" /> {t("settings.language")}</div>
+                  <p className="text-xs text-muted-foreground">{lang === "tr" ? "Türkçe" : "English"}</p>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -2841,6 +2834,31 @@ function LLMSettingsSection() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Provider cards — shown when no provider is selected, to make options
+            more discoverable than a bare dropdown (VLM recommendation). */}
+        {!provider && (
+          <div>
+            <p className="mb-3 text-sm text-muted-foreground">{t("settings.llm.providerHelp")}</p>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {LLM_PROVIDERS.map((p) => (
+                <button
+                  key={p.value}
+                  onClick={() => setProvider(p.value)}
+                  className="group flex flex-col items-start gap-1 rounded-lg border bg-card p-3 text-left transition-all hover:border-primary/40 hover:shadow-sm hover:-translate-y-0.5"
+                >
+                  <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
+                    <Key className="h-4 w-4" />
+                  </div>
+                  <span className="text-sm font-medium">{p.label}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {p.fields.includes("apiKey") ? "API Key" : "Local"}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div>
           <Label className="mb-2 block">{t("settings.llm.provider")}</Label>
           <Select value={provider} onValueChange={setProvider}>
@@ -3281,6 +3299,26 @@ function CompareDialog({
     }
   }, [current, baseline]);
 
+  // Count-based diffs: evidence, roadmap steps, quick wins.
+  const countDiffs = React.useMemo(() => {
+    if (!current || !baseline || !baseline.result) return null;
+    try {
+      const curEv = current?.evidence?.statistics?.total_evidence || current?.evidence?.evidence?.length || 0;
+      const baseEv = baseline.result?.evidence?.statistics?.total_evidence || baseline.result?.evidence?.evidence?.length || 0;
+      const curSteps = current?.engineering_plan?.steps?.length || 0;
+      const baseSteps = baseline.result?.engineering_plan?.steps?.length || 0;
+      const curQw = current?.engineering_plan?.quick_wins?.length || 0;
+      const baseQw = baseline.result?.engineering_plan?.quick_wins?.length || 0;
+      return [
+        { label: t("compare.evidence"), cur: curEv, base: baseEv },
+        { label: t("compare.roadmap"), cur: curSteps, base: baseSteps },
+        { label: t("compare.quickWins"), cur: curQw, base: baseQw },
+      ];
+    } catch {
+      return null;
+    }
+  }, [current, baseline, t]);
+
   const fmtNum = (n: any) => (n == null ? "—" : Number(n).toFixed(1));
   const delta = (cur: any, base: any) => {
     if (cur == null || base == null) return null;
@@ -3344,6 +3382,31 @@ function CompareDialog({
                           <span className="tabular-nums font-medium">{fmtNum(d.cur)}</span>
                           <span className="ml-2 text-xs text-muted-foreground">{d.label}</span>
                         </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Count diffs: evidence, roadmap steps, quick wins */}
+            {countDiffs && (
+              <div>
+                <h4 className="mb-2 text-sm font-semibold">{t("stats.evidenceItems")} & {t("dashboard.roadmap")}</h4>
+                <div className="grid grid-cols-3 gap-2">
+                  {countDiffs.map((d, i) => {
+                    const dl = d.cur - d.base;
+                    const status = dl > 0 ? "better" : dl < 0 ? "worse" : "same";
+                    const color = status === "better" ? "text-emerald-500" : status === "worse" ? "text-rose-500" : "text-muted-foreground";
+                    const sign = dl > 0 ? "+" : "";
+                    return (
+                      <div key={i} className="rounded border p-2 text-center">
+                        <div className="text-xs text-muted-foreground">{d.label}</div>
+                        <div className="mt-1 text-lg font-bold tabular-nums">{d.cur}</div>
+                        <div className={`text-xs font-mono font-semibold tabular-nums ${color}`}>
+                          {dl === 0 ? "±0" : `${sign}${dl}`}
+                        </div>
+                        <div className="text-xs text-muted-foreground/70 tabular-nums">was {d.base}</div>
                       </div>
                     );
                   })}

@@ -374,6 +374,12 @@ const translations: Record<Language, TranslationDict> = {
     "history.reanalyzing": "Re-analyzing…",
     "health.grade": "Grade",
 
+    // Settings extras
+    "settings.back": "Back",
+    "settings.llm.providerCards": "Choose a provider",
+    "settings.llm.providerHelp": "Select a provider to enable AI-powered engineering review. Your key is stored locally in this browser.",
+    "settings.llm.status": "Status",
+
     // Compare view
     "compare.title": "Compare Analyses",
     "compare.current": "Current",
@@ -392,6 +398,9 @@ const translations: Record<Language, TranslationDict> = {
     "compare.worse": "worse",
     "compare.same": "same",
     "compare.close": "Close comparison",
+    "compare.evidence": "Evidence",
+    "compare.roadmap": "Roadmap Steps",
+    "compare.quickWins": "Quick Wins",
 
     // Footer
     "footer.builtWith": "Built with Next.js, TypeScript, Tailwind CSS, and shadcn/ui",
@@ -757,6 +766,12 @@ const translations: Record<Language, TranslationDict> = {
     "history.reanalyzing": "Yeniden analiz ediliyor…",
     "health.grade": "Not",
 
+    // Ayarlar ekstraları
+    "settings.back": "Geri",
+    "settings.llm.providerCards": "Bir sağlayıcı seçin",
+    "settings.llm.providerHelp": "AI destekli mühendislik incelemesini etkinleştirmek için bir sağlayıcı seçin. Anahtarınız bu tarayıcıda yerel olarak saklanır.",
+    "settings.llm.status": "Durum",
+
     // Karşılaştırma görünümü
     "compare.title": "Analizleri Karşılaştır",
     "compare.current": "Mevcut",
@@ -775,6 +790,9 @@ const translations: Record<Language, TranslationDict> = {
     "compare.worse": "daha kötü",
     "compare.same": "aynı",
     "compare.close": "Karşılaştırmayı kapat",
+    "compare.evidence": "Kanıtlar",
+    "compare.roadmap": "Yol Haritası Adımları",
+    "compare.quickWins": "Hızlı Kazanımlar",
 
     // Footer
     "footer.builtWith": "Next.js, TypeScript, Tailwind CSS ve shadcn/ui ile yapıldı",

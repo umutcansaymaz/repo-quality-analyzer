@@ -1943,3 +1943,49 @@ Stage Summary:
   3. (Low) Accessibility audit on new Re-analyze button + graph drag (ARIA labels, keyboard alternatives for drag).
   4. (Low) When real backend is ready, add USE_MOCK_API env flag to toggle between mock routes and the proxy.
   5. (Low) "Full backup" history export option (include result payloads, not just metadata).
+
+---
+Task ID: 22
+Agent: Senior Full-Stack Engineer (cron web-dev-review round 7)
+Task: QA via agent-browser + VLM, fix Settings page issues (back button label, duplicate Theme/Language, missing provider cards), enhance Compare dialog with count diffs.
+
+Work Log:
+- Worklog reviewed (Tasks 1-21): Next.js 16 "AI Software Architect" repo analyzer. Mock API online. Prior phases: 7-tab dashboard, landing page, history drawer (reopen + re-analyze + JSON export), compare dialog (health + root cause diff), graph node drag, humanized categories, phase count fix. Top recommendations: compare dialog enhancements (evidence/roadmap diff), graph edge weight, accessibility audit.
+- QA performed via agent-browser + VLM (z-ai vision) on Settings page (General + LLM tabs):
+  * Real bug 1: Back button said "New Analysis" instead of "Back" — confusing navigation context.
+  * Real issue 2: Theme + Language duplicated — appeared in General tab AND their own dedicated tabs (Appearance, Language). Redundant + confusing.
+  * Real issue 3: LLM tab showed only a bare dropdown when no provider selected — not discoverable. VLM recommended clickable provider cards.
+  * Real issue 4: Compare dialog only showed health score + root cause diffs — missing evidence/roadmap count diffs (top recommendation from Task 21).
+- Phase 1 — i18n: 7 new keys (TR+EN) — settings.back, settings.llm.providerCards, settings.llm.providerHelp, settings.llm.status, compare.evidence, compare.roadmap, compare.quickWins.
+- Phase 2 — Settings page fixes:
+  * Back button: `t("app.newAnalysis")` → `t("settings.back")` ("Back" / "Geri").
+  * General tab: removed the Theme + Language dropdowns that duplicated the Appearance/Language tabs. Replaced with read-only summary cards showing current Theme ("Dark Mode"/"Karanlık Tema") + Language ("English"/"Türkçe") values, with a description + separator. The actual editing happens in the dedicated Appearance/Language tabs — no more redundancy.
+  * LLM tab: added provider cards grid (shown only when no provider is selected). 6 cards (OpenAI, Anthropic Claude, Google Gemini, OpenRouter, Azure OpenAI, Ollama) in a responsive grid (sm:2 cols, lg:3 cols). Each card has a Key icon in a primary-tinted square, provider name, and "API Key"/"Local" label. Hover: border-primary/40 + shadow + lift. Clicking a card selects that provider and reveals the form. Help text above the grid explains why a provider is needed + that the key is stored locally.
+  * The dropdown remains below the cards for changing the provider after selection.
+- Phase 3 — Compare dialog enhancements:
+  * Added `countDiffs` useMemo: computes evidence count, roadmap step count, quick wins count for both current + baseline.
+  * New "Evidence Items & Roadmap" section in the compare dialog (between Health Scores and Root Causes): 3 cards in a grid-cols-3, each showing label, current count (large bold), delta (colored: +green/-red/±0 grey), and "was X" baseline value.
+  * Verified: Evidence 8 ±0 was 8, Roadmap Steps 4 ±0 was 4, Quick Wins 2 ±0 was 2 (all ±0 because demo data is the same, but the feature works — real backend data will show meaningful deltas).
+- Verification (agent-browser, 1440×900):
+  * Settings back button: "Back" (EN) ✓ / "Geri" (TR) ✓
+  * General tab: no duplicate dropdowns, summary cards show "Dark Mode" + "Language" ✓
+  * LLM tab: provider cards render (6 cards: OpenAI/Anthropic/Gemini/OpenRouter/Azure/Ollama) ✓, help text "Select a provider to enable AI-powered engineering review..." ✓, clicking OpenAI card → form reveals (API Key, Model, Temperature) ✓
+  * Compare dialog: count diffs section renders — "Evidence Items & Roadmap" heading, 3 cards (Evidence 8 ±0 was 8, Roadmap Steps 4 ±0 was 4, Quick Wins 2 ±0 was 2) ✓
+  * Turkish: "Geri" ✓, "Tema: Karanlık Tema" ✓, "AI destekli mühendislik incelemesini etkinleştirmek için bir sağlayıcı seçin. Anahtarınız bu tarayıcıda yerel olarak saklanır." ✓
+  * Zero page errors, zero console errors
+- ESLint: Clean (0 errors)
+
+Stage Summary:
+- Current project status: Frontend is polished and feature-complete. Settings page fixed (back button label, no duplicate controls, provider cards for discoverability). Compare dialog now shows 3 diff sections (health scores, count diffs, root causes). Mock API online. All 7 dashboard tabs rich. Landing page complete. History drawer with reopen + re-analyze + JSON export. Graph node drag. All snake_case humanized. Phase counts consistent. Zero runtime errors.
+- Completed modifications: 1 file modified (page.tsx — Settings back button fix, General tab dedup + summary cards, LLM provider cards, Compare dialog countDiffs section). 1 file modified (i18n.tsx — 7 new keys ×2 langs). No new files.
+- Verification results: agent-browser full QA passed. Settings back button correct in both languages. General tab no longer duplicates Theme/Language. LLM provider cards render + clickable. Compare dialog count diffs render (3 cards). Turkish translations complete. ESLint clean. Zero runtime errors.
+- Unresolved issues / risks:
+  * Count diffs show ±0 for all repos because demo data is hardcoded (same 8 evidence, 4 steps, 2 quick wins for every repo). Real backend data will show meaningful deltas.
+  * Provider cards all use the same Key icon — could use provider-specific logos, but that requires external image assets.
+  * The General tab summary cards are read-only — clicking them doesn't navigate to the Appearance/Language tabs (could add tab-switching on click).
+- Priority recommendations for next phase:
+  1. (Medium) Graph: edge weight visualization (thicker lines for stronger relationships) + node drag snap-to-grid option.
+  2. (Medium) General tab summary cards: make them clickable to switch to the Appearance/Language tab.
+  3. (Low) Accessibility audit on Settings + Compare dialog (ARIA labels, focus management).
+  4. (Low) When real backend is ready, add USE_MOCK_API env flag to toggle between mock routes and the proxy.
+  5. (Low) "Full backup" history export option (include result payloads, not just metadata).
