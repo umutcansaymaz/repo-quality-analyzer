@@ -47,6 +47,11 @@ import {
   Minus,
   Maximize,
   RotateCcw,
+  History,
+  Clock,
+  Rocket,
+  Workflow,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -61,6 +66,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from "@/components/ui/sheet";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import { LanguageProvider, useI18n, type Language } from "@/components/analyzer/i18n";
@@ -252,6 +258,77 @@ export function LLMStatusBadge({
 }
 
 // ---------------------------------------------------------------------------
+// Analysis History (localStorage-persisted list of past analyses)
+// ---------------------------------------------------------------------------
+
+export const HISTORY_CHANGED_EVENT = "ra-history-changed";
+const HISTORY_STORAGE_KEY = "ra-analysis-history";
+const HISTORY_MAX = 20;
+
+export interface HistoryEntry {
+  id: string;            // job id (or generated)
+  repoUrl: string;
+  owner: string;
+  name: string;
+  analyzedAt: string;    // ISO timestamp
+  grade: string;         // health grade (e.g. "B-")
+  overall: number;       // health score 0-100
+  rootCauseCount: number;
+  evidenceCount: number;
+  isDemo: boolean;
+  result: any;           // full analysis result payload
+}
+
+function readHistory(): HistoryEntry[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(HISTORY_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeHistory(entries: HistoryEntry[]) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(entries.slice(0, HISTORY_MAX)));
+  window.dispatchEvent(new Event(HISTORY_CHANGED_EVENT));
+}
+
+export function addHistoryEntry(entry: HistoryEntry) {
+  const all = readHistory();
+  // Dedupe by repoUrl — keep the latest analysis per repo
+  const filtered = all.filter((e) => e.repoUrl !== entry.repoUrl);
+  filtered.unshift(entry);
+  writeHistory(filtered);
+}
+
+export function removeHistoryEntry(id: string) {
+  writeHistory(readHistory().filter((e) => e.id !== id));
+}
+
+export function clearHistory() {
+  writeHistory([]);
+}
+
+export function useHistoryEntries(): HistoryEntry[] {
+  const [entries, setEntries] = React.useState<HistoryEntry[]>([]);
+  React.useEffect(() => {
+    const load = () => setEntries(readHistory());
+    load();
+    window.addEventListener(HISTORY_CHANGED_EVENT, load);
+    window.addEventListener("storage", load);
+    return () => {
+      window.removeEventListener(HISTORY_CHANGED_EVENT, load);
+      window.removeEventListener("storage", load);
+    };
+  }, []);
+  return entries;
+}
+
+// ---------------------------------------------------------------------------
 // Main App (with providers)
 // ---------------------------------------------------------------------------
 
@@ -274,7 +351,9 @@ function AppContent() {
   const [globalSearch, setGlobalSearch] = React.useState("");
   const [searchResults, setSearchResults] = React.useState<any[] | null>(null);
   const [showShortcuts, setShowShortcuts] = React.useState(false);
+  const [showHistory, setShowHistory] = React.useState(false);
   const searchInputRef = React.useRef<HTMLInputElement>(null);
+  const historyEntries = useHistoryEntries();
 
   React.useEffect(() => setMounted(true), []);
 
@@ -356,6 +435,7 @@ function AppContent() {
       }
 
       let resultData: any = null;
+      let isDemo = false;
       const apiRes = await apiPromise;
       if (apiRes) {
         try {
@@ -364,17 +444,59 @@ function AppContent() {
           resultData = await resultRes.json();
         } catch {
           resultData = getDemoData(repoUrl);
+          isDemo = true;
         }
       } else {
         resultData = getDemoData(repoUrl);
+        isDemo = true;
       }
 
       setAnalysisData({ jobId: "demo", status: "completed", repository: repoUrl, result: resultData });
+      // Persist to history so the user can reopen past analyses from the header drawer.
+      try {
+        const owner = repoUrl.split("/").slice(-2)[0] || "unknown";
+        const name = repoUrl.split("/").slice(-1)[0]?.replace(".git", "") || "repo";
+        const hs = resultData?.ai_review?.health_score;
+        // Always generate a unique id per entry — demo data shares "demo-001" across runs,
+        // which would cause React key collisions in the history drawer.
+        addHistoryEntry({
+          id: `hist-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          repoUrl,
+          owner,
+          name,
+          analyzedAt: new Date().toISOString(),
+          grade: hs?.grade || "N/A",
+          overall: hs?.overall || 0,
+          rootCauseCount: resultData?.root_causes?.root_causes?.length || 0,
+          evidenceCount: resultData?.evidence?.statistics?.total_evidence || resultData?.evidence?.evidence?.length || 0,
+          isDemo,
+          result: resultData,
+        });
+      } catch { /* localStorage might be full — non-fatal */ }
       setView("results");
       toast.success(t("analysis.complete"));
     } catch {
       const demoData = getDemoData(repoUrl);
       setAnalysisData({ jobId: "demo", status: "completed", repository: repoUrl, result: demoData });
+      // Persist demo run to history too.
+      try {
+        const owner = repoUrl.split("/").slice(-2)[0] || "unknown";
+        const name = repoUrl.split("/").slice(-1)[0]?.replace(".git", "") || "repo";
+        const hs = demoData?.ai_review?.health_score;
+        addHistoryEntry({
+          id: `hist-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          repoUrl,
+          owner,
+          name,
+          analyzedAt: new Date().toISOString(),
+          grade: hs?.grade || "N/A",
+          overall: hs?.overall || 0,
+          rootCauseCount: demoData?.root_causes?.root_causes?.length || 0,
+          evidenceCount: demoData?.evidence?.statistics?.total_evidence || demoData?.evidence?.evidence?.length || 0,
+          isDemo: true,
+          result: demoData,
+        });
+      } catch { /* non-fatal */ }
       setView("results");
       toast.info(t("analysis.demoMode"));
     }
@@ -387,6 +509,16 @@ function AppContent() {
     setPipelineSteps([]);
     setGlobalSearch("");
     setSearchResults(null);
+  };
+
+  // Reopen a past analysis from the history drawer — restores the full result
+  // payload without re-running the pipeline.
+  const handleReopenHistory = (entry: HistoryEntry) => {
+    setRepoUrl(entry.repoUrl);
+    setAnalysisData({ jobId: entry.id, status: "completed", repository: entry.repoUrl, result: entry.result });
+    setView("results");
+    setShowHistory(false);
+    toast.success(t("analysis.complete"));
   };
 
   const setStepStatus = (id: string, status: PipelineStep["status"]) => {
@@ -435,7 +567,7 @@ function AppContent() {
   }, [globalSearch, analysisData]);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex min-h-screen flex-col bg-background">
       <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-sm">
         <div className="container mx-auto flex h-14 max-w-7xl items-center justify-between px-4">
           <button onClick={handleReset} className="flex items-center gap-2 font-bold tracking-tight">
@@ -470,6 +602,14 @@ function AppContent() {
                     <SelectItem value="tr">TR</SelectItem>
                   </SelectContent>
                 </Select>
+                <Button variant="ghost" size="icon" onClick={() => setShowHistory(true)} title={t("history.title")} className="relative">
+                  <History className="h-4 w-4" />
+                  {historyEntries.length > 0 && (
+                    <span className="absolute -right-0.5 -top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+                      {historyEntries.length > 9 ? "9+" : historyEntries.length}
+                    </span>
+                  )}
+                </Button>
                 <Button variant="ghost" size="icon" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
                   {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                 </Button>
@@ -507,31 +647,59 @@ function AppContent() {
         )}
       </header>
 
-      <AnimatePresence mode="wait">
-        {view === "landing" && (
-          <motion.div key="landing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, y: -20 }}>
-            <LandingView repoUrl={repoUrl} setRepoUrl={setRepoUrl} onAnalyze={handleAnalyze} />
-          </motion.div>
-        )}
-        {view === "progress" && (
-          <motion.div key="progress" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <ProgressView steps={pipelineSteps} repoUrl={repoUrl} />
-          </motion.div>
-        )}
-        {view === "results" && analysisData && (
-          <motion.div key="results" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-            <ResultsDashboard data={analysisData.result} onReset={handleReset} />
-          </motion.div>
-        )}
-        {view === "settings" && (
-          <motion.div key="settings" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-            <SettingsView onBack={() => setView(analysisData ? "results" : "landing")} />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <main className="flex-1">
+        <AnimatePresence mode="wait">
+          {view === "landing" && (
+            <motion.div key="landing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, y: -20 }}>
+              <LandingView repoUrl={repoUrl} setRepoUrl={setRepoUrl} onAnalyze={handleAnalyze} />
+            </motion.div>
+          )}
+          {view === "progress" && (
+            <motion.div key="progress" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <ProgressView steps={pipelineSteps} repoUrl={repoUrl} />
+            </motion.div>
+          )}
+          {view === "results" && analysisData && (
+            <motion.div key="results" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+              <ResultsDashboard data={analysisData.result} onReset={handleReset} />
+            </motion.div>
+          )}
+          {view === "settings" && (
+            <motion.div key="settings" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+              <SettingsView onBack={() => setView(analysisData ? "results" : "landing")} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </main>
+
+      {/* Sticky footer — sits at viewport bottom when content is short,
+          pushed down naturally when content overflows. */}
+      <footer className="mt-auto border-t bg-background/80 backdrop-blur-sm">
+        <div className="container mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 py-3 text-xs text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <Brain className="h-3.5 w-3.5 text-primary" />
+            <span className="font-medium">{t("footer.copyright")}</span>
+            <span className="hidden text-muted-foreground/60 sm:inline">·</span>
+            <span className="hidden sm:inline">{t("footer.builtWith")}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span>{t("footer.shortcutsHint")}</span>
+            <kbd className="inline-flex h-5 min-w-5 items-center justify-center rounded border border-border bg-muted px-1 font-mono text-[10px] font-semibold">?</kbd>
+            <span>{t("footer.toSeeShortcuts")}</span>
+          </div>
+        </div>
+      </footer>
 
       {/* Keyboard shortcuts help dialog */}
       <ShortcutsHelpDialog open={showShortcuts} onOpenChange={setShowShortcuts} />
+
+      {/* Analysis history drawer */}
+      <HistorySheet
+        open={showHistory}
+        onOpenChange={setShowHistory}
+        entries={historyEntries}
+        onReopen={handleReopenHistory}
+      />
     </div>
   );
 }
@@ -544,25 +712,46 @@ function LandingView({ repoUrl, setRepoUrl, onAnalyze }: { repoUrl: string; setR
   const { t } = useI18n();
   const [activeTab, setActiveTab] = React.useState("github");
 
+  const features: { icon: React.ReactNode; title: string; desc: string; accent: string }[] = [
+    { icon: <Bug className="h-5 w-5" />,        title: t("landing.feature.rootCausesTitle"),    desc: t("landing.feature.rootCausesDesc"),    accent: "text-rose-500 bg-rose-500/10" },
+    { icon: <Network className="h-5 w-5" />,    title: t("landing.feature.graphTitle"),         desc: t("landing.feature.graphDesc"),         accent: "text-sky-500 bg-sky-500/10" },
+    { icon: <Map className="h-5 w-5" />,        title: t("landing.feature.roadmapTitle"),       desc: t("landing.feature.roadmapDesc"),       accent: "text-violet-500 bg-violet-500/10" },
+    { icon: <Eye className="h-5 w-5" />,        title: t("landing.feature.explainabilityTitle"),desc: t("landing.feature.explainabilityDesc"),accent: "text-amber-500 bg-amber-500/10" },
+    { icon: <Shield className="h-5 w-5" />,     title: t("landing.feature.trustTitle"),          desc: t("landing.feature.trustDesc"),          accent: "text-emerald-500 bg-emerald-500/10" },
+    { icon: <Sparkles className="h-5 w-5" />,   title: t("landing.feature.aiTitle"),             desc: t("landing.feature.aiDesc"),             accent: "text-pink-500 bg-pink-500/10" },
+  ];
+
+  const steps: { num: string; title: string; desc: string; icon: React.ReactNode }[] = [
+    { num: "1", title: t("landing.howItWorks.step1Title"), desc: t("landing.howItWorks.step1Desc"), icon: <Github className="h-5 w-5" /> },
+    { num: "2", title: t("landing.howItWorks.step2Title"), desc: t("landing.howItWorks.step2Desc"), icon: <Workflow className="h-5 w-5" /> },
+    { num: "3", title: t("landing.howItWorks.step3Title"), desc: t("landing.howItWorks.step3Desc"), icon: <Rocket className="h-5 w-5" /> },
+  ];
+
+  const examples = [
+    "https://github.com/facebook/react",
+    "https://github.com/microsoft/vscode",
+    "https://github.com/torvalds/linux",
+  ];
+
   return (
-    <div className="flex min-h-[calc(100vh-3.5rem)] flex-col items-center justify-center px-4">
+    <div className="flex min-h-[calc(100vh-3.5rem)] flex-col items-center px-4 py-12">
       <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="w-full max-w-2xl text-center">
         <div className="mb-6 flex justify-center">
-          <div className="relative flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary/60 shadow-lg">
+          <div className="relative flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary/60 shadow-lg shadow-primary/20">
             <Brain className="h-10 w-10 text-primary-foreground" />
           </div>
         </div>
         <h1 className="mb-3 text-4xl font-bold tracking-tight sm:text-5xl">{t("app.title")}</h1>
-        <p className="mb-8 text-lg text-muted-foreground whitespace-pre-line">{t("app.subtitle")}</p>
+        <p className="mb-8 whitespace-pre-line text-base text-muted-foreground sm:text-lg">{t("app.subtitle")}</p>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="github" className="gap-1.5">
               <Github className="h-4 w-4" /> {t("tabs.github")}
             </TabsTrigger>
-            <TabsTrigger value="local" className="gap-1.5" disabled>
+            <TabsTrigger value="local" className="gap-1.5 text-muted-foreground" disabled>
               <FolderOpen className="h-4 w-4" /> {t("tabs.local")}
-              <Badge variant="secondary" className="ml-1 text-xs">{t("app.comingSoon")}</Badge>
+              <Badge variant="outline" className="ml-1 text-xs">{t("app.comingSoon")}</Badge>
             </TabsTrigger>
           </TabsList>
           <TabsContent value="github" className="mt-4">
@@ -573,31 +762,84 @@ function LandingView({ repoUrl, setRepoUrl, onAnalyze }: { repoUrl: string; setR
                 {t("app.analyze")}
               </Button>
             </div>
+            {/* Example repo chips */}
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className="text-xs text-muted-foreground">{t("landing.exampleRepos")}</span>
+              {examples.map((ex) => {
+                const short = ex.replace("https://github.com/", "");
+                return (
+                  <button
+                    key={ex}
+                    onClick={() => setRepoUrl(ex)}
+                    className="rounded-full border bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  >
+                    {short}
+                  </button>
+                );
+              })}
+            </div>
           </TabsContent>
           <TabsContent value="local" className="mt-4">
             <div className="flex flex-col items-center gap-3 rounded-lg border-2 border-dashed p-8 text-center">
               <FolderOpen className="h-10 w-10 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">{t("app.uploadLocal")}</p>
-              <Badge variant="secondary">{t("app.comingSoon")}</Badge>
+              <Badge variant="outline">{t("app.comingSoon")}</Badge>
             </div>
           </TabsContent>
         </Tabs>
+      </motion.div>
 
-        <div className="mt-12 flex flex-wrap justify-center gap-3">
-          {[
-            { icon: <Bug className="h-4 w-4" />, label: t("dashboard.rootCauses") },
-            { icon: <Network className="h-4 w-4" />, label: t("dashboard.graph") },
-            { icon: <Map className="h-4 w-4" />, label: t("dashboard.roadmap") },
-            { icon: <Shield className="h-4 w-4" />, label: t("health.security") },
-            { icon: <Activity className="h-4 w-4" />, label: t("dashboard.health") },
-            { icon: <Eye className="h-4 w-4" />, label: t("explainability.why") },
-          ].map((f, i) => (
-            <motion.div key={i} initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.3 + i * 0.08 }}>
-              <Badge variant="secondary" className="gap-1.5 px-3 py-1.5 text-sm">{f.icon}{f.label}</Badge>
+      {/* Feature cards grid */}
+      <div className="mt-20 w-full max-w-5xl">
+        <div className="mb-8 text-center">
+          <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">{t("landing.featuresTitle")}</h2>
+          <p className="mt-2 text-sm text-muted-foreground sm:text-base">{t("landing.featuresSubtitle")}</p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {features.map((f, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 + i * 0.07 }}
+              className="group rounded-xl border bg-card p-5 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5"
+            >
+              <div className={`mb-3 inline-flex h-10 w-10 items-center justify-center rounded-lg ${f.accent}`}>{f.icon}</div>
+              <h3 className="text-base font-semibold">{f.title}</h3>
+              <p className="mt-1 text-sm text-muted-foreground">{f.desc}</p>
             </motion.div>
           ))}
         </div>
-      </motion.div>
+      </div>
+
+      {/* How it works */}
+      <div className="mt-20 w-full max-w-4xl">
+        <h2 className="mb-8 text-center text-2xl font-bold tracking-tight sm:text-3xl">{t("landing.howItWorks")}</h2>
+        <div className="grid gap-4 sm:grid-cols-3">
+          {steps.map((s, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 + i * 0.1 }}
+              className="relative rounded-xl border bg-card p-5"
+            >
+              <div className="mb-3 flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">{s.num}</div>
+                <div className="text-primary">{s.icon}</div>
+              </div>
+              <h3 className="text-sm font-semibold">{s.title}</h3>
+              <p className="mt-1 text-xs text-muted-foreground">{s.desc}</p>
+              {/* Connector arrow (desktop only, not on last card) */}
+              {i < steps.length - 1 && (
+                <div className="absolute -right-3 top-1/2 hidden -translate-y-1/2 text-muted-foreground/40 sm:block">
+                  <ChevronRight className="h-5 w-5" />
+                </div>
+              )}
+            </motion.div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -2702,6 +2944,118 @@ function ShortcutsHelpDialog({ open, onOpenChange }: { open: boolean; onOpenChan
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// Right-side drawer listing past analyses. Each entry shows repo, grade,
+// timestamp, and counts; clicking reopens the full dashboard from localStorage
+// without re-running the pipeline.
+function HistorySheet({
+  open, onOpenChange, entries, onReopen,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  entries: HistoryEntry[];
+  onReopen: (entry: HistoryEntry) => void;
+}) {
+  const { t } = useI18n();
+
+  const fmtDate = (iso: string) => {
+    try {
+      const d = new Date(iso);
+      const now = new Date();
+      const diffMs = now.getTime() - d.getTime();
+      const diffMin = Math.floor(diffMs / 60000);
+      if (diffMin < 1) return t("history.justNow");
+      if (diffMin < 60) return t("history.minutesAgo").replace("{m}", String(diffMin));
+      const diffHr = Math.floor(diffMin / 60);
+      if (diffHr < 24) return t("history.hoursAgo").replace("{h}", String(diffHr));
+      return d.toLocaleDateString() + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    } catch { return iso; }
+  };
+
+  const gradeColor = (overall: number) =>
+    overall >= 80 ? "text-emerald-500" : overall >= 60 ? "text-amber-500" : "text-rose-500";
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="w-full sm:max-w-md flex flex-col">
+        <SheetHeader>
+          <SheetTitle className="flex items-center gap-2">
+            <History className="h-5 w-5 text-primary" /> {t("history.title")}
+          </SheetTitle>
+          <SheetDescription>
+            {entries.length > 0
+              ? t("history.count").replace("{count}", String(entries.length))
+              : t("history.empty")}
+          </SheetDescription>
+        </SheetHeader>
+
+        {entries.length === 0 ? (
+          <div className="flex flex-1 flex-col items-center justify-center py-16 text-center">
+            <div className="mb-3 text-muted-foreground/30"><History className="h-12 w-12" /></div>
+            <p className="text-sm text-muted-foreground">{t("history.empty")}</p>
+          </div>
+        ) : (
+          <ScrollArea className="flex-1 -mx-6 px-6">
+            <div className="space-y-2 pb-4">
+              {entries.map((entry) => (
+                <div
+                  key={entry.id}
+                  className="group rounded-lg border p-3 transition-colors hover:bg-muted/40"
+                >
+                  <div className="flex items-start gap-3">
+                    {/* Grade circle */}
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border">
+                      <span className={`text-sm font-bold ${gradeColor(entry.overall)}`}>{entry.grade}</span>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="truncate text-sm font-medium">{entry.owner}/{entry.name}</span>
+                        {entry.isDemo && (
+                          <Badge variant="outline" className="shrink-0 text-[10px] h-4 px-1">{t("history.demoBadge")}</Badge>
+                        )}
+                      </div>
+                      <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
+                        <Clock className="h-3 w-3" />
+                        <span>{fmtDate(entry.analyzedAt)}</span>
+                      </div>
+                      <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1"><Bug className="h-3 w-3" />{entry.rootCauseCount}</span>
+                        <span className="flex items-center gap-1"><Beaker className="h-3 w-3" />{entry.evidenceCount}</span>
+                        <span className="flex items-center gap-1"><Gauge className="h-3 w-3" />{entry.overall.toFixed(0)}/100</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-2 flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
+                    <Button size="sm" variant="default" className="h-7 text-xs" onClick={() => onReopen(entry)}>
+                      <ArrowLeft className="mr-1 h-3 w-3 rotate-180" /> {t("history.reopen")}
+                    </Button>
+                    <Button
+                      size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground hover:text-destructive"
+                      onClick={() => { removeHistoryEntry(entry.id); toast.success(t("common.delete")); }}
+                    >
+                      <Trash2 className="mr-1 h-3 w-3" /> {t("history.remove")}
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+        )}
+
+        {entries.length > 0 && (
+          <SheetFooter>
+            <Button
+              variant="outline" size="sm"
+              onClick={() => { clearHistory(); toast.success(t("history.clearAll")); }}
+            >
+              <Trash2 className="mr-1.5 h-3.5 w-3.5" /> {t("history.clearAll")}
+            </Button>
+          </SheetFooter>
+        )}
+      </SheetContent>
+    </Sheet>
   );
 }
 

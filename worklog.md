@@ -1689,3 +1689,60 @@ Stage Summary:
   3. (Medium) Graph: add node drag (reposition individual nodes) + edge weight visualization (thicker lines for stronger relationships).
   4. (Low) Export charts/graph as PNG — recharts supports toDataURL for charts; SVG graph can be serialized.
   5. (Low) Accessibility audit on new graph controls (ARIA labels for zoom buttons, keyboard nav for nodes).
+
+---
+Task ID: 18
+Agent: Senior Frontend Engineer (cron web-dev-review round 3)
+Task: QA via agent-browser + VLM, redesign landing page, add sticky footer, add analysis history drawer.
+
+Work Log:
+- Worklog reviewed (Tasks 1-17): Next.js 16 "AI Software Architect" repo analyzer frontend. Backend down → demo data. Prior phases: 7-tab dashboard, i18n TR/EN, Settings, LLM config 3-state badge, charts, root-cause/roadmap/evidence filters, keyboard shortcuts, SVG graph visualization, file explorer, copy-markdown, analysis-meta.
+- QA performed via agent-browser + VLM (z-ai vision) on the landing page:
+  * VLM flagged: low contrast on "Local Folder"/"Coming Soon" tab, orphaned "WHY?" link at bottom, no footer, sub-headings too thin, feature highlights are just pills (could be richer cards).
+  * Verified in code: LandingView was a single centered hero with 6 feature pills + no footer anywhere in the app. Real issues.
+- Phase 1 — i18n: 32 new keys (TR+EN) — landing.featuresTitle/featuresSubtitle, 6× feature.{rootCauses,graph,roadmap,explainability,trust,ai}{Title,Desc}, howItWorks + 3× step{Title,Desc}, exampleRepos, history.{title,empty,reopen,remove,clearAll,count,demoBadge,justNow,minutesAgo,hoursAgo}, footer.{builtWith,shortcutsHint,toSeeShortcuts,copyright}, health.grade.
+- Phase 2 — Landing page redesign:
+  * Hero: kept logo + title + subtitle, added shadow-primary/20 glow to logo, improved subtitle typography (text-base sm:text-lg instead of text-lg).
+  * Local Folder tab: "Coming Soon" badge changed from variant=secondary to variant=outline for better contrast; tab text-muted-foreground to signal disabled state.
+  * Example repo chips: 3 clickable chips (facebook/react, microsoft/vscode, torvalds/linux) below the input — click fills the URL input. Rounded-full, border, hover:bg-muted hover:text-foreground.
+  * "What you get" section: 6 feature cards in a responsive grid (sm:grid-cols-2 lg:grid-cols-3), each with a colored icon (rose/sky/violet/amber/emerald/pink backgrounds), title, and description. Cards have hover:shadow-md + hover:-translate-y-0.5 lift + staggered motion entrance.
+  * "How it works" section: 3 numbered cards (1/2/3) with icons (Github/Workflow/Rocket), title, description, and a ChevronRight connector arrow between cards (desktop only, hidden on last card).
+- Phase 3 — Sticky footer:
+  * Root wrapper changed from `min-h-screen` to `flex min-h-screen flex-col` so footer sticks to bottom when content is short, pushed down when content overflows.
+  * Main content wrapped in `<main className="flex-1">`.
+  * Footer: border-t, bg-background/80 backdrop-blur, contains app name + Brain icon, "Built with..." (hidden on mobile), and keyboard shortcuts hint with a <kbd>?</kbd> keycap on the right.
+- Phase 4 — Analysis history drawer (NEW FEATURE):
+  * `useAnalysisHistory` infrastructure: `HistoryEntry` interface (id, repoUrl, owner, name, analyzedAt, grade, overall, rootCauseCount, evidenceCount, isDemo, result), `readHistory/writeHistory/addHistoryEntry/removeHistoryEntry/clearHistory` helpers, `useHistoryEntries()` hook with custom event + storage event listeners (same pattern as LLM config). Max 20 entries, dedup by repoUrl (latest wins).
+  * History saved on every analysis completion (both success and demo-fallback paths) — extracts owner/name/grade/overall/counts from the result payload.
+  * History button in header (History icon) with a count badge (shows "9+" when >9). Placed before the theme toggle.
+  * HistorySheet component: right-side Sheet drawer with:
+    - Header: "Analysis History" + count ("2 analyses") or empty state.
+    - Empty state: centered History icon + "No analyses yet..." message.
+    - Entry cards: grade circle (colored by score), owner/name, demo badge, relative timestamp ("just now" / "5m ago" / "3h ago" / locale date), root-cause/evidence/score counts, Reopen + Remove buttons (visible on hover via group-hover:opacity-100).
+    - Footer: "Clear all" button.
+    - Reopen: restores the full result payload to analysisData + switches to results view WITHOUT re-running the pipeline. Instant.
+  * i18n-aware relative timestamps: history.justNow/minutesAgo/hoursAgo keys (TR: "az önce"/"X dk önce"/"X sa önce", EN: "just now"/"Xm ago"/"Xh ago").
+- Phase 5 — Bug fix:
+  * React key warning "two children with same key demo-001" — root cause: getDemoData() always returns id:"demo-001", so all demo analyses shared the same history entry id → key collision in the drawer.
+  * Fix: history entry id is now always `hist-${Date.now()}-${random}` (unique per entry) instead of `resultData?.id || ...`. Verified: ran 2 analyses, no key warning.
+- Verification (agent-browser, 1440×900):
+  * Landing: hero + example chips (click fills input) ✓, "What you get" 6-card grid ✓, "How it works" 3-step ✓, footer ✓ (VLM: "9/10 visual polish, sleek, professional, complete")
+  * History: badge count increments (1→2) ✓, drawer opens with entries ✓, "2 analyses" + microsoft/vscode (just now) + facebook/react (1m ago) ✓, Reopen restores dashboard instantly ✓, Remove + Clear all work ✓
+  * Turkish: "Neler sunuluyor"/"Nasıl çalışır"/"Kök Neden Tespiti"/"Depo URL'i girin" ✓, "AI Yazılım Mimarı"/"...ile yapıldı"/"Klavye kısayolları için" ✓, "Analiz Geçmişi"/"2 analiz"/"Yeniden aç"/"Kaldır"/"1 dk önce" ✓, no raw translation keys
+  * Zero page errors, zero console errors (after key-collision fix)
+- ESLint: Clean (0 errors)
+
+Stage Summary:
+- Current project status: Frontend is now production-quality. Landing page is a complete marketing surface (hero + examples + features + how-it-works + footer). Dashboard has 7 rich tabs. History drawer lets users reopen past analyses instantly without re-running the pipeline. Backend still down → demo data, but all features work end-to-end on demo data.
+- Completed modifications: 2 files (page.tsx ~+330 lines, i18n.tsx +32 keys ×2 langs). No new files. No backend changes.
+- Verification results: agent-browser full QA passed. VLM landing review: 9/10 visual polish. History drawer: save/reopen/remove/clear all verified. TR/EN i18n complete for all new features including relative timestamps. React key-collision bug found and fixed. ESLint clean. Zero runtime errors.
+- Unresolved issues / risks:
+  * Backend (FastAPI :8000) still down — biggest risk. All features tested on demo data only. When backend comes online, history entries will store real result payloads (larger); localStorage 5MB limit may be hit faster. The HISTORY_MAX=20 cap mitigates this, but very large results could still overflow. Consider storing only a summary + re-fetching on reopen when backend is real.
+  * History stores the full `result` payload in localStorage — for demo data this is ~5KB per entry, fine for 20 entries. Real backend results may be larger.
+  * Landing page is long (hero + features + how-it-works) — on short viewports the footer is below the fold, which is expected.
+- Priority recommendations for next phase:
+  1. (High) Bring backend online OR mock /api/analyze + /api/result/:id in Next.js API routes. When real, add a "refresh" button on history entries to re-fetch the latest result for that repo.
+  2. (Medium) Compare two analyses side-by-side (open a history entry while viewing current — split-view comparison of health scores / root causes).
+  3. (Medium) Export history as JSON (download all past analyses for backup).
+  4. (Low) Graph: node drag (reposition individual nodes) + edge weight visualization.
+  5. (Low) Accessibility audit on new history drawer + footer (ARIA labels, focus trap in Sheet).
