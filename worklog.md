@@ -1158,3 +1158,54 @@ Stage Summary:
 - Test: 461 passed / coverage 82.88% (line), branch coverage CI'da ölçülüyor.
 - Kalite: ruff + mypy --strict temiz, bandit false-positive'ler ezedildi.
 - Production blocker kalmadı.
+
+---
+Task ID: 8
+Agent: Lead Software Architect (Evidence Engine)
+Task: Mevcut mimariyi bozmadan Evidence Engine katmanı eklemek.
+
+Work Log:
+- Mevcut kod tabanı tamamen analiz edildi: 15 domain modeli, 12 analyzer, 10 review engine, AnalysisResult aggregate'inin tüm alanları incelendi.
+- Yeni paket: src/repo_analyzer/core/evidence/ (models.py, builder.py, __init__.py)
+- Evidence domain modelleri oluşturuldu:
+  * Evidence (frozen=True, immutable): id, analyzer, finding_type, severity, confidence, category, file_path, line, module, class_name, function_name, symbol, message, explanation, metrics, tags, references, related_evidence_ids, source_id, timestamp
+  * EvidenceReference (frozen=True): kind (file/line/class/function/symbol/module/url/cwe/rule/cvss/other), value, line, detail
+  * EvidenceRelationship (frozen=True): source_id, target_id, relationship_type (duplicate/related/causes/blocks/depends_on/located_in), detail
+  * EvidenceCollection (frozen=True): evidence list, relationships list, by_analyzer/by_severity/by_file/by_type indexes, statistics
+  * EvidenceType enum: 16 finding tipi (security, code_quality, architecture, complexity, import, dependency, git, documentation, test, metric, symbol, risk, technical_debt, refactor, file_system, repository)
+- EvidenceBuilder servisi: AnalysisResult → EvidenceCollection dönüşümü. 17 extractor metodu:
+  * _extract_security_findings (SecurityFinding list)
+  * _extract_security_review (SecurityFindingDetail list from AIReview)
+  * _extract_code_quality (CodeSmellFinding list)
+  * _extract_architecture_smells (ArchitectureSmell + Cycle list)
+  * _extract_architecture_observations (ArchitectureObservation list)
+  * _extract_complexity (top_complex_functions)
+  * _extract_imports (unused/duplicate/circular imports)
+  * _extract_dependencies (unused/duplicate deps)
+  * _extract_git (high churn files)
+  * _extract_documentation (missing docs, low coverage)
+  * _extract_tests (no tests, low coverage)
+  * _extract_metrics (large files)
+  * _extract_symbols (functions, classes from AST)
+  * _extract_file_system (duplicate files)
+  * _extract_risks (RiskItem list)
+  * _extract_technical_debt (TechnicalDebtItem list)
+  * _extract_refactors (RefactorItem list)
+  * _extract_repository_metadata (repository info)
+- Normalization: dedup_key = (file_path, symbol, finding_type, category). Duplicate evidence merge ediliyor — yüksek severity/confidence korunuyor, düşük olan related_evidence_ids'e ekleniyor, DUPLICATE relationship kaydediliyor. Hiçbir veri kaybedilmiyor.
+- AnalysisResult'a backward-compatible `evidence: Any | None = None` alanı eklendi.
+- Orchestrator'a faz 6 (evidence collection) eklendi — non-breaking, hata olursa evidence None kalır.
+- Domain __init__.py temizlendi (duplicate import'lar kaldırıldı).
+- TestAnalysis modeline __test__ = False eklendi (pytest collection fix).
+- Unit testler: tests/unit/test_evidence.py (36 test) — empty result, single analyzer, multiple analyzers, duplicate normalization, partial fields, plugin compatibility, relationships, model properties.
+- Lint: ruff check → All checks passed.
+- Type check: mypy --strict → 181 files, 0 errors.
+- Test: 497 passed / coverage 83.48%.
+
+Stage Summary:
+- Evidence Engine mevcut mimariye entegre edildi, hiçbir mevcut özellik bozulmadı.
+- 3 yeni dosya: models.py ( Evidence + EvidenceReference + EvidenceRelationship + EvidenceCollection), builder.py (EvidenceBuilder), __init__.py
+- 2 değiştirilen dosya: analysis_result.py (evidence alanı eklendi), orchestrator.py (faz 6 eklendi), domain/__init__.py (temizlendi), analysis_outputs.py (TestAnalysis __test__=False)
+- 1 yeni test dosyası: test_evidence.py (36 test)
+- Backward compatibility: evidence alanı None default, builder hatası non-fatal, hiçbir analyzer değiştirilmedi.
+- Performans: sadece in-memory AnalysisResult okunuyor, repository re-scan yok, yeni I/O yok.

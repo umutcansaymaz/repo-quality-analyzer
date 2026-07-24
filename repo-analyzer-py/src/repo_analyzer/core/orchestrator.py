@@ -193,6 +193,19 @@ class Orchestrator:
                     if progress:
                         progress.warning(f"Review phase failed: {exc}")
 
+            # Phase 6: evidence collection (unified finding model).
+            # This is a non-breaking post-processing step: if it fails,
+            # the analysis result is still valid (evidence stays None).
+            try:
+                from repo_analyzer.core.evidence import EvidenceBuilder
+
+                result.evidence = EvidenceBuilder.build(result)
+                if progress:
+                    progress.success("Evidence collection built")
+            except Exception as exc:
+                _logger.warning("Evidence build failed: %s", exc)
+                result.add_error({"phase": "evidence", "error": str(exc)})
+
             if cancel_event and cancel_event.is_set():
                 result.add_error({"phase": "post", "error": "cancelled"})
             result.mark_completed()

@@ -27,6 +27,7 @@ from repo_analyzer.core.domain.analysis_result import AnalysisResult, AnalysisSt
 from repo_analyzer.core.domain.architecture_finding import (
     ArchitectureFinding,
     ArchitectureSmell,
+    ArchitectureSmellType,
     Cycle,
     Layer,
 )
@@ -106,6 +107,7 @@ __all__ = [
     # architecture
     "ArchitectureFinding",
     "ArchitectureSmell",
+    "ArchitectureSmellType",
     "Cycle",
     "Layer",
     # dependency

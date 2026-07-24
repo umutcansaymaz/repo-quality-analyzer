@@ -264,6 +264,9 @@ class DocumentationReport(BaseModel):
 class TestAnalysis(BaseModel):
     """Test-suite analysis result."""
 
+    # Tell pytest not to collect this class as a test case.
+    __test__ = False
+
     model_config = ConfigDict(extra="forbid")
 
     frameworks: list[str] = Field(default_factory=list)

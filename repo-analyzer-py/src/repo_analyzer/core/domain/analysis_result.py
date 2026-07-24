@@ -93,6 +93,11 @@ class AnalysisResult(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
     errors: list[dict[str, Any]] = Field(default_factory=list)
 
+    # Evidence collection (unified finding model).
+    # Populated by EvidenceBuilder after analysis phases complete.
+    # Backward compatible: defaults to None, existing consumers are unaffected.
+    evidence: Any | None = None
+
     @property
     def total_findings(self) -> int:
         """Total number of findings across all categories."""
