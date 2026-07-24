@@ -10,7 +10,7 @@ import {
   Bug,
   Network,
   Brain,
-  Map,
+  Map as MapIcon,
   Sparkles,
   Loader2,
   CheckCircle2,
@@ -353,6 +353,7 @@ function AppContent() {
   const [searchResults, setSearchResults] = React.useState<any[] | null>(null);
   const [showShortcuts, setShowShortcuts] = React.useState(false);
   const [showHistory, setShowHistory] = React.useState(false);
+  const [showCompare, setShowCompare] = React.useState(false);
   const searchInputRef = React.useRef<HTMLInputElement>(null);
   const historyEntries = useHistoryEntries();
 
@@ -593,6 +594,12 @@ function AppContent() {
               </div>
             )}
             {analysisData && view === "results" && <ReportExport data={analysisData.result} />}
+            {analysisData && view === "results" && historyEntries.length > 0 && (
+              <Button variant="ghost" size="sm" className="h-9 gap-1.5 px-2" onClick={() => setShowCompare(true)} title={t("compare.title")}>
+                <GitBranch className="h-4 w-4" />
+                <span className="hidden sm:inline">{t("compare.title")}</span>
+              </Button>
+            )}
             {mounted && (
               <>
                 <Select value={lang} onValueChange={(v) => setLang(v as Language)}>
@@ -635,7 +642,7 @@ function AppContent() {
                   <div key={i} className="flex items-center gap-3 rounded p-2 hover:bg-muted/50 cursor-pointer">
                     {r.type === "evidence" && <Beaker className="h-4 w-4 text-blue-500" />}
                     {r.type === "rootCause" && <Bug className="h-4 w-4 text-red-500" />}
-                    {r.type === "recommendation" && <Map className="h-4 w-4 text-purple-500" />}
+                    {r.type === "recommendation" && <MapIcon className="h-4 w-4 text-purple-500" />}
                     {r.type === "file" && <FileCode2 className="h-4 w-4 text-green-500" />}
                     <div className="flex-1 min-w-0">
                       <p className="truncate text-sm font-medium">{r.label}</p>
@@ -703,6 +710,14 @@ function AppContent() {
         entries={historyEntries}
         onReopen={handleReopenHistory}
       />
+
+      {/* Comparison dialog — diff current vs a baseline from history */}
+      <CompareDialog
+        open={showCompare}
+        onOpenChange={setShowCompare}
+        current={analysisData?.result}
+        historyEntries={historyEntries}
+      />
     </div>
   );
 }
@@ -718,7 +733,7 @@ function LandingView({ repoUrl, setRepoUrl, onAnalyze }: { repoUrl: string; setR
   const features: { icon: React.ReactNode; title: string; desc: string; accent: string }[] = [
     { icon: <Bug className="h-5 w-5" />,        title: t("landing.feature.rootCausesTitle"),    desc: t("landing.feature.rootCausesDesc"),    accent: "text-rose-500 bg-rose-500/10" },
     { icon: <Network className="h-5 w-5" />,    title: t("landing.feature.graphTitle"),         desc: t("landing.feature.graphDesc"),         accent: "text-sky-500 bg-sky-500/10" },
-    { icon: <Map className="h-5 w-5" />,        title: t("landing.feature.roadmapTitle"),       desc: t("landing.feature.roadmapDesc"),       accent: "text-violet-500 bg-violet-500/10" },
+    { icon: <MapIcon className="h-5 w-5" />,        title: t("landing.feature.roadmapTitle"),       desc: t("landing.feature.roadmapDesc"),       accent: "text-violet-500 bg-violet-500/10" },
     { icon: <Eye className="h-5 w-5" />,        title: t("landing.feature.explainabilityTitle"),desc: t("landing.feature.explainabilityDesc"),accent: "text-amber-500 bg-amber-500/10" },
     { icon: <Shield className="h-5 w-5" />,     title: t("landing.feature.trustTitle"),          desc: t("landing.feature.trustDesc"),          accent: "text-emerald-500 bg-emerald-500/10" },
     { icon: <Sparkles className="h-5 w-5" />,   title: t("landing.feature.aiTitle"),             desc: t("landing.feature.aiDesc"),             accent: "text-pink-500 bg-pink-500/10" },
@@ -860,7 +875,7 @@ function getInitialSteps(t: (k: string) => string): PipelineStep[] {
     { id: "evidence", labelKey: "pipeline.evidence", icon: <Beaker className="h-5 w-5" />, status: "pending" },
     { id: "graph", labelKey: "pipeline.graph", icon: <Network className="h-5 w-5" />, status: "pending" },
     { id: "rootcause", labelKey: "pipeline.rootcause", icon: <Bug className="h-5 w-5" />, status: "pending" },
-    { id: "planning", labelKey: "pipeline.planning", icon: <Map className="h-5 w-5" />, status: "pending" },
+    { id: "planning", labelKey: "pipeline.planning", icon: <MapIcon className="h-5 w-5" />, status: "pending" },
     { id: "review", labelKey: "pipeline.review", icon: <Sparkles className="h-5 w-5" />, status: "pending" },
   ];
 }
@@ -930,6 +945,9 @@ function ResultsDashboard({ data, onReset }: { data: any; onReset: () => void })
         <div className="space-y-4">
           <HealthScoreCard data={data} />
           <LLMStatusCard data={data} />
+          {/* Pipeline phases card — fills the vertical gap when the right
+              sidebar (Trust + Meta) is taller than the left column. */}
+          <PipelinePhasesCard data={data} />
         </div>
         {/* Sticky sidebar: Trust Panel stays visible while scrolling long dashboards */}
         <div className="lg:sticky lg:top-20 lg:self-start lg:w-72 space-y-4">
@@ -943,7 +961,7 @@ function ResultsDashboard({ data, onReset }: { data: any; onReset: () => void })
         <TabsList className="flex w-full flex-wrap gap-1">
           <TabsTrigger value="overview" data-tab="overview" className="gap-1.5"><Activity className="h-4 w-4" /> {t("dashboard.overview")}</TabsTrigger>
           <TabsTrigger value="rootcauses" data-tab="rootcauses" className="gap-1.5"><Bug className="h-4 w-4" /> {t("dashboard.rootCauses")}</TabsTrigger>
-          <TabsTrigger value="roadmap" data-tab="roadmap" className="gap-1.5"><Map className="h-4 w-4" /> {t("dashboard.roadmap")}</TabsTrigger>
+          <TabsTrigger value="roadmap" data-tab="roadmap" className="gap-1.5"><MapIcon className="h-4 w-4" /> {t("dashboard.roadmap")}</TabsTrigger>
           <TabsTrigger value="evidence" data-tab="evidence" className="gap-1.5"><Beaker className="h-4 w-4" /> {t("dashboard.evidence")}</TabsTrigger>
           <TabsTrigger value="graph" data-tab="graph" className="gap-1.5"><Network className="h-4 w-4" /> {t("dashboard.graph")}</TabsTrigger>
           <TabsTrigger value="files" data-tab="files" className="gap-1.5"><FileCode2 className="h-4 w-4" /> {t("dashboard.files")}</TabsTrigger>
@@ -1195,6 +1213,51 @@ function AnalysisMetaCard({ data }: { data: any }) {
   );
 }
 
+// Compact card showing the 9 pipeline phases and which ones produced data.
+// Fills the vertical gap in the left column when the right sidebar is taller.
+function PipelinePhasesCard({ data }: { data: any }) {
+  const { t } = useI18n();
+  const phases = [
+    { id: "detection",  label: t("pipeline.detection"),  present: !!data?.repository },
+    { id: "language",   label: t("pipeline.language"),    present: !!data?.file_inventory },
+    { id: "dependency", label: t("pipeline.dependency"),  present: !!data?.knowledge_graph?.nodes?.some((n: any) => n.node_type === "dependency") },
+    { id: "metrics",    label: t("pipeline.metrics"),     present: !!data?.evidence?.evidence?.some((e: any) => e.finding_type === "metric") },
+    { id: "evidence",   label: t("pipeline.evidence"),    present: !!data?.evidence?.evidence?.length },
+    { id: "graph",      label: t("pipeline.graph"),       present: !!data?.knowledge_graph?.nodes?.length },
+    { id: "rootcause",  label: t("pipeline.rootcause"),   present: !!data?.root_causes?.root_causes?.length },
+    { id: "planning",   label: t("pipeline.planning"),    present: !!data?.engineering_plan?.steps?.length },
+    { id: "review",     label: t("pipeline.review"),      present: !!data?.engineering_review },
+  ];
+  const completed = phases.filter((p) => p.present).length;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center justify-between text-sm">
+          <span className="flex items-center gap-2"><Workflow className="h-4 w-4" /> {t("meta.phases")}</span>
+          <span className="text-xs font-normal text-muted-foreground tabular-nums">{completed}/{phases.length}</span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-3 gap-2">
+          {phases.map((p) => (
+            <div
+              key={p.id}
+              className={`flex items-center gap-1.5 rounded-md border px-2 py-1.5 text-xs ${p.present ? "border-primary/30 bg-primary/5 text-foreground" : "border-border text-muted-foreground/50"}`}
+              title={p.label}
+            >
+              {p.present
+                ? <CheckCircle className="h-3 w-3 shrink-0 text-emerald-500" />
+                : <Circle className="h-3 w-3 shrink-0" />}
+              <span className="truncate">{p.label}</span>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function TrustRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between text-sm">
@@ -1223,7 +1286,7 @@ function OverviewSection({ data }: { data: any }) {
       <StatCard icon={<Bug className="h-5 w-5" />} title={t("stats.rootCauses")} value={rootCauses.length} subtitle={t("stats.architecturalIssues")} accent="rose" />
       <StatCard icon={<Beaker className="h-5 w-5" />} title={t("stats.evidenceItems")} value={evCount} subtitle={t("stats.totalFindings")} accent="sky" />
       <StatCard icon={<Zap className="h-5 w-5" />} title={t("stats.quickWins")} value={plan?.quick_wins?.length || 0} subtitle={t("stats.lowEffortFixes")} accent="amber" />
-      <StatCard icon={<Map className="h-5 w-5" />} title={t("stats.planSteps")} value={plan?.steps?.length || 0} subtitle={t("stats.refactoringSteps")} accent="violet" />
+      <StatCard icon={<MapIcon className="h-5 w-5" />} title={t("stats.planSteps")} value={plan?.steps?.length || 0} subtitle={t("stats.refactoringSteps")} accent="violet" />
       <StatCard icon={<TrendingUp className="h-5 w-5" />} title={t("stats.avgRoi")} value={plan?.statistics?.average_roi?.toFixed(2) || "0"} subtitle={t("stats.returnOnInvestment")} accent="emerald" />
       <StatCard
         icon={<Sparkles className="h-5 w-5" />}
@@ -1272,12 +1335,16 @@ function DistributionCharts({ rootCauses }: { rootCauses: any[] }) {
     critical: "#e11d48", high: "#f97316", medium: "#f59e0b", low: "#0ea5e9", info: "#94a3b8",
   };
 
-  // Confidence bar data
+  // Confidence bar data — shorten labels aggressively so they fit the Y-axis.
+  // Strip common prefixes ("God Class: ", "Circular Dependency: ") to save space.
   const confData = React.useMemo(() =>
-    rootCauses.slice(0, 8).map((rc, i) => ({
-      name: rc.title?.length > 22 ? rc.title.slice(0, 20) + "…" : (rc.title || `RC-${i + 1}`),
-      confidence: Math.round((rc.confidence || 0) * 100),
-    })),
+    rootCauses.slice(0, 8).map((rc, i) => {
+      const full = rc.title || `RC-${i + 1}`;
+      // Shorten: drop everything before the first colon if present, cap at 16 chars.
+      const short = full.includes(":") ? full.split(":").slice(1).join(":").trim() : full;
+      const label = short.length > 16 ? short.slice(0, 15) + "…" : short;
+      return { name: label, fullName: full, confidence: Math.round((rc.confidence || 0) * 100) };
+    }),
   [rootCauses]);
 
   if (rootCauses.length === 0) return null;
@@ -1311,10 +1378,10 @@ function DistributionCharts({ rootCauses }: { rootCauses: any[] }) {
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={confData} layout="vertical" margin={{ left: 10, right: 20, top: 5, bottom: 5 }}>
+            <BarChart data={confData} layout="vertical" margin={{ left: 0, right: 20, top: 5, bottom: 5 }}>
               <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11 }} />
-              <YAxis type="category" dataKey="name" width={130} tick={{ fontSize: 11 }} />
-              <RTooltip formatter={(v: any) => [`${v}%`, t("rootCause.confidence")]} />
+              <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 11 }} interval={0} />
+              <RTooltip formatter={(v: any, _n: any, p: any) => [`${v}%`, p?.payload?.fullName || t("rootCause.confidence")]} />
               <Bar dataKey="confidence" radius={[0, 4, 4, 0]}>
                 {confData.map((entry, i) => (
                   <Cell key={i} fill={entry.confidence >= 80 ? "#10b981" : entry.confidence >= 60 ? "#f59e0b" : "#f43f5e"} />
@@ -1598,7 +1665,7 @@ function RoadmapSection({ data }: { data: any }) {
   const [filterRisk, setFilterRisk] = React.useState("all");
   const [filterSprint, setFilterSprint] = React.useState("all");
 
-  if (!plan) return <EmptyState icon={<Map className="h-12 w-12" />} title={t("roadmap.noPlan")} />;
+  if (!plan) return <EmptyState icon={<MapIcon className="h-12 w-12" />} title={t("roadmap.noPlan")} />;
 
   const allSteps = plan.steps || [];
   const quickWins = plan.quick_wins || [];
@@ -1645,7 +1712,7 @@ function RoadmapSection({ data }: { data: any }) {
       {sprints.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg"><Map className="h-5 w-5" /> {t("roadmap.sprintRoadmap")}</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-lg"><MapIcon className="h-5 w-5" /> {t("roadmap.sprintRoadmap")}</CardTitle>
             <CardDescription>{plan.roadmap.summary}</CardDescription>
           </CardHeader>
           <CardContent>
@@ -2253,7 +2320,7 @@ function FileExplorerSection({ data }: { data: any }) {
                 <>
                   <Separator />
                   <div>
-                    <h4 className="mb-2 flex items-center gap-1.5 text-sm font-semibold"><Map className="h-4 w-4" /> {t("files.recommendations")} ({fileSteps.length})</h4>
+                    <h4 className="mb-2 flex items-center gap-1.5 text-sm font-semibold"><MapIcon className="h-4 w-4" /> {t("files.recommendations")} ({fileSteps.length})</h4>
                     <div className="space-y-2">
                       {fileSteps.map((s: any, i: number) => (<div key={i} className="rounded border p-2 text-sm"><span className="font-medium">{s.title}</span></div>))}
                     </div>
@@ -2304,7 +2371,7 @@ function FilePreviewOverview({ data, formatTotalSize }: { data: any; formatTotal
     { label: t("files.totalSize"), value: formatTotalSize(inv?.total_bytes || 0), icon: <Database className="h-4 w-4" />, accent: "text-violet-500" },
     { label: t("files.rootCauses"), value: rootCauses.length, icon: <Bug className="h-4 w-4" />, accent: "text-rose-500" },
     { label: t("stats.evidenceItems"), value: evidence.length, icon: <Beaker className="h-4 w-4" />, accent: "text-amber-500" },
-    { label: t("stats.planSteps"), value: plan?.steps?.length || 0, icon: <Map className="h-4 w-4" />, accent: "text-emerald-500" },
+    { label: t("stats.planSteps"), value: plan?.steps?.length || 0, icon: <MapIcon className="h-4 w-4" />, accent: "text-emerald-500" },
     { label: t("graph.nodes"), value: graph?.nodes?.length || 0, icon: <Network className="h-4 w-4" />, accent: "text-pink-500" },
   ];
 
@@ -2411,7 +2478,7 @@ function ExplainabilityChain({ rootCause, step }: { rootCause?: any; step?: any 
   const chain: { label: string; value: string; icon: React.ReactNode }[] = [];
 
   if (step) {
-    chain.push({ label: t("explainability.recommendation"), value: step.title, icon: <Map className="h-4 w-4" /> });
+    chain.push({ label: t("explainability.recommendation"), value: step.title, icon: <MapIcon className="h-4 w-4" /> });
     if (step.root_cause_category) chain.push({ label: t("explainability.rootCause"), value: step.root_cause_category, icon: <Bug className="h-4 w-4" /> });
     if (step.estimate) chain.push({ label: t("explainability.estimatedEffort"), value: step.estimate.display || `${step.estimate.hours}h`, icon: <Activity className="h-4 w-4" /> });
     if (step.risk) chain.push({ label: t("explainability.riskLevel"), value: step.risk, icon: <Shield className="h-4 w-4" /> });
@@ -3050,9 +3117,24 @@ function HistorySheet({
         )}
 
         {entries.length > 0 && (
-          <SheetFooter>
+          <SheetFooter className="flex-row gap-2">
             <Button
               variant="outline" size="sm"
+              onClick={() => {
+                const blob = new Blob([JSON.stringify(entries.map(({ result, ...meta }) => meta), null, 2)], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `analysis-history-${new Date().toISOString().slice(0, 10)}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+                toast.success(t("history.exportedJson"));
+              }}
+            >
+              <Download className="mr-1.5 h-3.5 w-3.5" /> {t("history.exportJson")}
+            </Button>
+            <Button
+              variant="outline" size="sm" className="text-muted-foreground hover:text-destructive"
               onClick={() => { clearHistory(); toast.success(t("history.clearAll")); }}
             >
               <Trash2 className="mr-1.5 h-3.5 w-3.5" /> {t("history.clearAll")}
@@ -3061,6 +3143,173 @@ function HistorySheet({
         )}
       </SheetContent>
     </Sheet>
+  );
+}
+
+// Comparison dialog: diff the current analysis against a baseline selected
+// from history. Shows health-score deltas + root-cause added/removed/changed.
+function CompareDialog({
+  open, onOpenChange, current, historyEntries,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  current: any;
+  historyEntries: HistoryEntry[];
+}) {
+  const { t } = useI18n();
+  const [baselineId, setBaselineId] = React.useState<string>("");
+
+  const baseline = React.useMemo(
+    () => historyEntries.find((e) => e.id === baselineId),
+    [historyEntries, baselineId]
+  );
+
+  // Health score dimensions to compare
+  const scoreDims = React.useMemo(() => {
+    if (!current || !baseline) return [];
+    const ch = current?.ai_review?.health_score || {};
+    const bh = baseline.result?.ai_review?.health_score || {};
+    return [
+      { key: "overall",        label: t("dashboard.health"),  cur: ch.overall,        base: bh.overall },
+      { key: "security",       label: t("health.security"),   cur: ch.security,       base: bh.security },
+      { key: "architecture",   label: t("health.architecture"), cur: ch.architecture, base: bh.architecture },
+      { key: "code_quality",   label: t("health.quality"),    cur: ch.code_quality,   base: bh.code_quality },
+      { key: "testing",        label: t("health.testing"),    cur: ch.testing,        base: bh.testing },
+      { key: "documentation",  label: t("health.docs"),       cur: ch.documentation,  base: bh.documentation },
+    ].filter((d) => d.cur != null || d.base != null);
+  }, [current, baseline, t]);
+
+  // Root cause diff: match by category (since titles vary)
+  const rcDiff = React.useMemo(() => {
+    if (!current || !baseline || !baseline.result) return null;
+    try {
+      const curRcs: any[] = (current?.root_causes?.root_causes as any[]) || [];
+      const baseRcs: any[] = (baseline.result?.root_causes?.root_causes as any[]) || [];
+      if (!Array.isArray(curRcs) || !Array.isArray(baseRcs)) return null;
+      const curByCat = new Map<string, any>();
+      curRcs.forEach((r: any) => { if (r && r.category) curByCat.set(r.category, r); });
+      const baseByCat = new Map<string, any>();
+      baseRcs.forEach((r: any) => { if (r && r.category) baseByCat.set(r.category, r); });
+      const allCats: string[] = [];
+      curByCat.forEach((_, k) => allCats.push(k));
+      baseByCat.forEach((_, k) => { if (!allCats.includes(k)) allCats.push(k); });
+      const rows: { category: string; cur?: any; base?: any; status: "new" | "gone" | "changed" | "unchanged" }[] = [];
+      allCats.forEach((cat) => {
+        const c = curByCat.get(cat);
+        const b = baseByCat.get(cat);
+        if (c && !b) rows.push({ category: cat, cur: c, status: "new" });
+        else if (!c && b) rows.push({ category: cat, base: b, status: "gone" });
+        else if (c && b) {
+          const confDelta = Math.abs((c.confidence || 0) - (b.confidence || 0));
+          rows.push({ category: cat, cur: c, base: b, status: confDelta > 0.01 ? "changed" : "unchanged" });
+        }
+      });
+      return rows;
+    } catch (e) {
+      console.error("rcDiff error", e);
+      return null;
+    }
+  }, [current, baseline]);
+
+  const fmtNum = (n: any) => (n == null ? "—" : Number(n).toFixed(1));
+  const delta = (cur: any, base: any) => {
+    if (cur == null || base == null) return null;
+    return Number(cur) - Number(base);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <GitBranch className="h-5 w-5 text-primary" /> {t("compare.title")}
+          </DialogTitle>
+          <DialogDescription>{t("compare.selectBaseline")}</DialogDescription>
+        </DialogHeader>
+
+        {/* Baseline selector */}
+        <div className="flex items-center gap-2">
+          <Select value={baselineId} onValueChange={setBaselineId}>
+            <SelectTrigger className="flex-1"><SelectValue placeholder={t("compare.selectBaseline")} /></SelectTrigger>
+            <SelectContent>
+              {historyEntries.map((e) => (
+                <SelectItem key={e.id} value={e.id}>
+                  {e.owner}/{e.name} · {e.grade} · {new Date(e.analyzedAt).toLocaleDateString()}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {!baseline ? (
+          <div className="py-8 text-center text-sm text-muted-foreground">
+            {t("compare.noBaseline")}
+          </div>
+        ) : (
+          <div className="space-y-5">
+            {/* Header row: current vs baseline labels */}
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-xs font-medium text-muted-foreground">
+              <span className="text-left">{t("compare.baseline")}: {baseline.owner}/{baseline.name}</span>
+              <span className="text-center">{t("compare.delta")}</span>
+              <span className="text-right">{t("compare.current")}: {current?.repository?.owner}/{current?.repository?.name}</span>
+            </div>
+
+            {/* Health scores table */}
+            {scoreDims.length > 0 && (
+              <div>
+                <h4 className="mb-2 text-sm font-semibold">{t("compare.healthScores")}</h4>
+                <div className="space-y-1">
+                  {scoreDims.map((d) => {
+                    const dl = delta(d.cur, d.base);
+                    const status = dl == null ? "same" : dl > 0.5 ? "better" : dl < -0.5 ? "worse" : "same";
+                    const color = status === "better" ? "text-emerald-500" : status === "worse" ? "text-rose-500" : "text-muted-foreground";
+                    const sign = dl != null && dl > 0 ? "+" : "";
+                    return (
+                      <div key={d.key} className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 rounded border px-3 py-1.5 text-sm">
+                        <span className="text-left tabular-nums">{fmtNum(d.base)}</span>
+                        <span className={`text-center font-mono text-xs font-semibold tabular-nums ${color}`}>
+                          {dl == null ? "—" : `${sign}${dl.toFixed(1)}`}
+                        </span>
+                        <span className="text-right">
+                          <span className="tabular-nums font-medium">{fmtNum(d.cur)}</span>
+                          <span className="ml-2 text-xs text-muted-foreground">{d.label}</span>
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Root causes diff */}
+            {rcDiff && rcDiff.length > 0 && (
+              <div>
+                <h4 className="mb-2 text-sm font-semibold">{t("compare.rootCauses")}</h4>
+                <div className="space-y-1">
+                  {rcDiff.map((r) => {
+                    const badge = r.status === "new" ? { text: t("compare.new"), cls: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" }
+                      : r.status === "gone" ? { text: t("compare.gone"), cls: "bg-rose-500/15 text-rose-600 dark:text-rose-400" }
+                      : r.status === "changed" ? { text: t("compare.improved"), cls: "bg-amber-500/15 text-amber-600 dark:text-amber-400" }
+                      : { text: t("compare.unchanged"), cls: "bg-muted text-muted-foreground" };
+                    return (
+                      <div key={r.category} className="flex items-center justify-between rounded border px-3 py-1.5 text-sm">
+                        <span className="font-mono text-xs">{r.category}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground tabular-nums">
+                            {r.base ? `${(r.base.confidence * 100).toFixed(0)}%` : "—"} → {r.cur ? `${(r.cur.confidence * 100).toFixed(0)}%` : "—"}
+                          </span>
+                          <Badge variant="outline" className={`text-xs ${badge.cls} border-0`}>{badge.text}</Badge>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 

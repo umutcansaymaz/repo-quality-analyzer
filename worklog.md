@@ -1810,3 +1810,69 @@ Stage Summary:
   3. (Medium) Graph: node drag (reposition individual nodes) + edge weight visualization.
   4. (Low) When real backend is ready, add an env flag (USE_MOCK_API) to toggle between mock routes and the proxy, so the mock can stay as a dev/test fallback.
   5. (Low) Add a "Re-analyze" button on history entries to re-run the pipeline for that repo (currently Reopen just restores cached data).
+
+---
+Task ID: 20
+Agent: Senior Full-Stack Engineer (cron web-dev-review round 5)
+Task: QA via agent-browser + VLM, fix chart label truncation + overview layout gap, add side-by-side comparison feature + history JSON export.
+
+Work Log:
+- Worklog reviewed (Tasks 1-19): Next.js 16 "AI Software Architect" repo analyzer. Mock API online since Task 19. Top recommendations: side-by-side comparison, export history as JSON, graph node drag.
+- QA performed via agent-browser + VLM (z-ai vision) on Overview/RootCauses/Roadmap/AIReview tabs:
+  * Real issue 1: Confidence bar chart Y-axis labels truncated ("God Class: OrderMana…" at 72px). VLM confirmed.
+  * Real issue 2: Large empty gap between LLM Status bar and tab navigation — right sidebar (Trust+Meta) taller than left column (Health+LLM). VLM confirmed: "significant vertical gap of empty black space".
+  * False positives: "sort dropdown shows lc" (actually "low", VLM misread), "two search inputs" (header global search + tab filter search — by design).
+- Phase 1 — Fix chart label truncation:
+  * Shortened labels: strip text before first colon (e.g. "God Class: UserService" → "UserService"), cap at 16 chars.
+  * Added `fullName` field to chart data; tooltip now shows the full root cause title.
+  * YAxis width 130 → 100, margin left 10 → 0 (labels are shorter now).
+  * Added `interval={0}` to show all ticks.
+  * Verified: labels now render at full width ("UserService" 66px, "auth ↔ user" 66px — within 100px axis).
+- Phase 2 — Fix Overview layout gap:
+  * Added new `PipelinePhasesCard` to the left column (below LLM Status) to fill the vertical gap.
+  * Card shows 9 pipeline phases in a 3×3 grid: each phase has a green check (present) or grey circle (absent), colored border (present=primary/30, absent=border).
+  * Header shows "Phases" + "9/9" completion count.
+  * Phase presence detected from actual data: detection (repository exists), language (file_inventory), dependency (graph has dependency node), metrics (evidence has metric type), evidence (evidence array), graph (nodes), rootcause (root_causes), planning (steps), review (engineering_review).
+  * VLM confirmed: "gap filled by new Phases card, 9/9 completion, all green checkmarks".
+- Phase 3 — Side-by-side comparison (NEW FEATURE):
+  * "Compare Analyses" button in header (GitBranch icon, only on results view when history exists).
+  * `CompareDialog` component: select a baseline from history → shows diff vs current analysis.
+  * Health Scores section: 3-column grid (baseline value | Δ delta | current value + label), deltas colored green (better >+0.5) / red (worse <-0.5) / grey (same). 6 dimensions: overall, security, architecture, quality, testing, docs.
+  * Root Causes section: match by category, show confidence "85% → 85%" + status badge (new=emerald, gone=rose, changed=amber, unchanged=muted).
+  * Header: "Baseline: owner/name | Δ | Current: owner/name".
+  * Empty state when no baseline selected.
+  * Defensive: try/catch around rcDiff useMemo, Array.isArray guards, null checks.
+  * i18n: 17 new keys (TR+EN) — compare.title/current/baseline/selectBaseline/healthScores/rootCauses/delta/improved/regressed/unchanged/new/gone/noBaseline/better/worse/same/close.
+- Phase 4 — History JSON export:
+  * "Export all (JSON)" button in HistorySheet footer (next to Clear all).
+  * Client-side download: strips the heavy `result` payload, exports only metadata (id, repoUrl, owner, name, analyzedAt, grade, overall, rootCauseCount, evidenceCount, isDemo).
+  * Filename: `analysis-history-YYYY-MM-DD.json`.
+  * i18n: history.exportJson + history.exportedJson keys.
+- Phase 5 — Bug fix (critical):
+  * Runtime TypeError: "Map is not a constructor" in CompareDialog rcDiff useMemo.
+  * Root cause: `Map` imported from lucide-react (line 13) shadowed the global `Map` constructor. `new Map()` in rcDiff tried to call the icon component as a constructor → crash.
+  * Fix: renamed import `Map as MapIcon` + sed-replaced all 11 `<Map ` → `<MapIcon ` usages.
+  * This was a latent bug that would have affected ANY use of `new Map()` / `new Set()` in the file — the comparison feature just happened to be the first to use it.
+  * Verified: after rename, rcDiff renders correctly with 4 root cause categories.
+- Verification (agent-browser, 1440×900):
+  * Overview: gap fixed ✓, Phases card 9/9 ✓, chart labels readable ✓ (VLM confirmed)
+  * Compare dialog: opens ✓, baseline dropdown shows 2 entries ✓, Health Scores diff renders (66.3→66.6 +0.3, etc.) ✓, Root Causes diff renders (god_class 85%→85% unchanged, etc.) ✓
+  * History JSON export: "Export all (JSON)" button ✓, toast "History exported as JSON" ✓, client-side download (no API call) ✓
+  * Turkish: "Analizleri Karşılaştır" ✓, "Karşılaştırılacak tabanı seçin" ✓, "Taban"/"Mevcut" ✓, "Tümünü dışa aktar (JSON)" ✓
+  * Zero page errors, zero console errors (after Map→MapIcon fix)
+- ESLint: Clean (0 errors)
+
+Stage Summary:
+- Current project status: Frontend is production-quality with a complete feature set. Mock API online (Task 19). All 7 dashboard tabs rich. Landing page complete. History drawer with reopen + JSON export. NEW: side-by-side comparison dialog (health score deltas + root cause diff). Overview layout gap fixed with Pipeline Phases card. Chart label truncation fixed. The critical Map-shadowing bug (lucide `Map` icon import shadowing global `Map` constructor) is fixed — this was latent and would have crashed any future use of `new Map()`.
+- Completed modifications: 1 file modified (page.tsx — chart label fix, PipelinePhasesCard, CompareDialog, history JSON export, Map→MapIcon rename). 1 file modified (i18n.tsx — 19 new keys ×2 langs). No new files. No backend changes.
+- Verification results: agent-browser full QA passed. VLM confirmed gap fix + chart labels. Compare dialog verified with 2 repos (react vs vscode) — health deltas + root cause diff render correctly. History JSON export verified. Turkish translations complete. ESLint clean. Zero runtime errors after Map rename.
+- Unresolved issues / risks:
+  * Mock data still uses hardcoded root causes (same 4 categories, same confidence for all repos) — so comparison always shows "unchanged" for root causes. When real backend provides varying data, the diff will be meaningful.
+  * Comparison matches root causes by `category`, not by `id` — since demo data uses the same categories, they always match. Real data may have different categories per repo, which would show as new/gone.
+  * History JSON export strips the `result` payload (metadata only). A "full backup" option could be added later.
+- Priority recommendations for next phase:
+  1. (Medium) Graph: node drag (reposition individual nodes) + edge weight visualization.
+  2. (Medium) "Re-analyze" button on history entries to re-run the pipeline for that repo (currently Reopen just restores cached data).
+  3. (Low) Compare dialog: add Evidence count diff + Roadmap step count diff (currently only health scores + root causes).
+  4. (Low) Accessibility audit on Compare dialog (ARIA labels for the 3-column grid, screen reader announcements for deltas).
+  5. (Low) When real backend is ready, add USE_MOCK_API env flag to toggle between mock routes and the proxy.
