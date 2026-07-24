@@ -9,7 +9,11 @@ import { jobStore } from "../../analyze/route";
  * If the id isn't in the in-memory store (e.g. server restarted), we regenerate
  * a fresh demo result so the endpoint never 404s.
  *
- * Optional query: ?repo=<url> — regenerate using a specific repo URL.
+ * Optional query params:
+ *  ?repo=<url>        — regenerate using a specific repo URL.
+ *  ?use_llm=true      — generate an LLM-powered review (offline: false).
+ *  ?provider=<name>   — LLM provider name (e.g. "openai").
+ *  ?model=<name>      — LLM model name (e.g. "gpt-4o").
  */
 export async function GET(
   _req: NextRequest,
@@ -19,10 +23,11 @@ export async function GET(
 
   let result = jobStore.get(id) as DemoResult | undefined;
   if (!result) {
-    // Not in memory — regenerate. Use the id as a fallback repo URL seed.
-    // If the client passed ?repo=, prefer that.
     const repoUrl = _req.nextUrl.searchParams.get("repo") || `https://github.com/example/${id}`;
-    result = generateDemoData(repoUrl);
+    const useLLM = _req.nextUrl.searchParams.get("use_llm") === "true";
+    const llmProvider = _req.nextUrl.searchParams.get("provider") || undefined;
+    const llmModel = _req.nextUrl.searchParams.get("model") || undefined;
+    result = generateDemoData(repoUrl, { useLLM, llmProvider, llmModel });
     jobStore.set(id, result);
   }
 

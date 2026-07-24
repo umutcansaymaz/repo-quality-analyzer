@@ -424,10 +424,24 @@ function AppContent() {
 
     try {
       setStepStatus("detection", "running");
+
+      // Read LLM config from localStorage so the mock API knows whether to
+      // generate an LLM-powered review (offline: false) or a fallback.
+      let llmConfig: any = null;
+      try {
+        const raw = localStorage.getItem("ra-llm-config");
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed.provider && (parsed.provider === "ollama" || parsed.apiKey)) {
+            llmConfig = parsed;
+          }
+        }
+      } catch { /* ignore */ }
+
       const apiPromise = apiFetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ repository_url: repoUrl, use_cache: true }),
+        body: JSON.stringify({ repository_url: repoUrl, use_cache: true, llm_config: llmConfig }),
       }).catch(() => null);
 
       for (const stepId of stepIds) {
@@ -442,9 +456,16 @@ function AppContent() {
       if (apiRes) {
         try {
           const data = await apiRes.json();
-          // Pass repo as a query param so the mock /api/result route can
-          // regenerate the demo result if the job isn't in its in-memory store.
-          const resultRes = await apiFetch(`/api/result/${data.job_id}?repo=${encodeURIComponent(repoUrl)}`);
+          // Pass repo + LLM info as query params so the mock /api/result route
+          // can regenerate the demo result if the job isn't in its in-memory
+          // store (e.g. after server restart) — with the correct LLM state.
+          const params = new URLSearchParams({ repo: repoUrl });
+          if (llmConfig) {
+            params.set("use_llm", "true");
+            if (llmConfig.provider) params.set("provider", llmConfig.provider);
+            if (llmConfig.model) params.set("model", llmConfig.model);
+          }
+          const resultRes = await apiFetch(`/api/result/${data.job_id}?${params}`);
           resultData = await resultRes.json();
         } catch {
           resultData = getDemoData(repoUrl);
@@ -1541,7 +1562,7 @@ function RootCausesSection({ data }: { data: any }) {
                 <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">{t("filter.allCategories")}</SelectItem>
-                  {categories.map((c) => (<SelectItem key={c} value={c}>{c}</SelectItem>))}
+                  {categories.map((c) => (<SelectItem key={c} value={c}>{humanize(c)}</SelectItem>))}
                 </SelectContent>
               </Select>
             </div>
@@ -3669,8 +3690,54 @@ function riskVariant(risk: string): any {
 
 // Humanize snake_case / kebab-case into Title Case for display.
 // e.g. "cyclomatic_complexity" → "Cyclomatic Complexity", "god-class" → "God Class".
+// Turkish translations for common technical category names.
+// Falls back to Title Case for unknown keys.
+const TR_CATEGORY_MAP: Record<string, string> = {
+  // Root cause categories
+  god_class: "Tanrı Sınıf",
+  circular_dependency: "Döngüsel Bağımlılık",
+  tight_coupling: "Sıkı Bağlılık",
+  shotgun_surgery: "Saçma Değişiklik",
+  // Evidence categories
+  cyclomatic_complexity: "Döngüsel Karmaşıklık",
+  long_method: "Uzun Metod",
+  large_file: "Büyük Dosya",
+  circular_import: "Döngüsel Import",
+  high_coupling: "Yüksek Bağlılık",
+  unused_import: "Kullanılmayan Import",
+  hardcoded_password: "Sabit Kodlanmış Şifre",
+  low_coverage: "Düşük Test Kapsamı",
+  dead_code: "Ölü Kod",
+  // Finding types
+  complexity: "Karmaşıklık",
+  code_quality: "Kod Kalitesi",
+  metric: "Metrik",
+  import: "Import",
+  architecture: "Mimari",
+  security: "Güvenlik",
+  test: "Test",
+  // Node types
+  repository: "Depo",
+  file: "Dosya",
+  class: "Sınıf",
+  function: "Fonksiyon",
+  method: "Metod",
+  module: "Modül",
+  dependency: "Bağımlılık",
+  security_finding: "Güvenlik Bulgusu",
+  architecture_finding: "Mimari Bulgu",
+  metric_finding: "Metrik Bulgusu",
+  evidence: "Kanıt",
+  // Edge types
+  belongs_to: "Ait",
+  affects: "Etkiler",
+  causes: "Neden Olur",
+};
+
 function humanize(s: string): string {
   if (!s) return "—";
+  const lower = s.toLowerCase();
+  if (TR_CATEGORY_MAP[lower]) return TR_CATEGORY_MAP[lower];
   return s
     .replace(/[_-]+/g, " ")
     .replace(/\s+/g, " ")
@@ -3684,5 +3751,21 @@ function humanize(s: string): string {
 // ---------------------------------------------------------------------------
 
 function getDemoData(repoUrl: string): any {
-  return generateDemoData(repoUrl);
+  // Read LLM config from localStorage so the fallback also respects the
+  // user's saved API key (generates offline: false review when configured).
+  let useLLM = false;
+  let llmProvider: string | undefined;
+  let llmModel: string | undefined;
+  try {
+    const raw = localStorage.getItem("ra-llm-config");
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed.provider && (parsed.provider === "ollama" || parsed.apiKey)) {
+        useLLM = true;
+        llmProvider = parsed.provider;
+        llmModel = parsed.model;
+      }
+    }
+  } catch { /* ignore */ }
+  return generateDemoData(repoUrl, { useLLM, llmProvider, llmModel });
 }

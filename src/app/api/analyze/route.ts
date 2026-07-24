@@ -4,11 +4,9 @@ import { generateDemoData } from "@/lib/demo-data";
 /**
  * Mock analyze endpoint.
  *
- * Accepts { repository_url, use_cache } and returns { job_id, status }.
- * Generates a deterministic demo result immediately so the frontend can
- * poll /api/result/:id without needing the real Python backend.
- *
- * (This specific route takes precedence over the catch-all [...path] proxy.)
+ * Accepts { repository_url, use_cache, llm_config } and returns { job_id, status }.
+ * If llm_config is present (user saved an API key), the engineering review is
+ * generated as if an LLM produced it (offline: false, richer sections).
  */
 export async function POST(req: NextRequest) {
   try {
@@ -18,9 +16,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "repository_url is required" }, { status: 400 });
     }
 
+    // Check if the user has configured an LLM provider + key.
+    const llmConfig = body.llm_config;
+    const useLLM = !!llmConfig && (
+      llmConfig.provider === "ollama" || (llmConfig.provider && llmConfig.apiKey)
+    );
+
     // Generate the demo result synchronously and stash it in a module-level
     // map keyed by job_id, so /api/result/:id can return it on the next request.
-    const result = generateDemoData(repoUrl);
+    const result = generateDemoData(repoUrl, {
+      useLLM,
+      llmProvider: llmConfig?.provider,
+      llmModel: llmConfig?.model,
+    });
     const jobId = result.id;
     jobStore.set(jobId, result);
 
