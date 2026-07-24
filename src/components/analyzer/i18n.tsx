@@ -251,6 +251,7 @@ const translations: Record<Language, TranslationDict> = {
     "common.delete": "Delete",
     "common.copy": "Copy",
     "common.copied": "Copied!",
+    "common.copyMarkdown": "Copy as Markdown",
     "common.loading": "Loading...",
     "common.noData": "No data available",
     "common.error": "Something went wrong",
@@ -260,6 +261,43 @@ const translations: Record<Language, TranslationDict> = {
     "analysis.complete": "Analysis complete!",
     "analysis.demoMode": "Showing demo results (API unavailable)",
     "analysis.failed": "Analysis failed",
+
+    // Charts
+    "charts.severityDistribution": "Severity Distribution",
+    "charts.confidenceByRootCause": "Confidence by Root Cause",
+    "charts.categoryBreakdown": "Category Breakdown",
+    "charts.critical": "Critical",
+    "charts.count": "count",
+
+    // Filters (Root Causes)
+    "filter.title": "Filters",
+    "filter.allSeverities": "All Severities",
+    "filter.allCategories": "All Categories",
+    "filter.sortBy": "Sort by",
+    "filter.sort.confidence": "Confidence (high → low)",
+    "filter.sort.severity": "Severity (critical → low)",
+    "filter.sort.evidence": "Evidence count (most → least)",
+    "filter.searchPlaceholder": "Search root causes...",
+    "filter.results": "{count} of {total} root causes",
+    "filter.noMatch": "No root causes match the current filters",
+    "filter.clear": "Clear filters",
+
+    // Analysis Meta
+    "meta.title": "Analysis Meta",
+    "meta.repository": "Repository",
+    "meta.jobId": "Job ID",
+    "meta.analyzedAt": "Analyzed at",
+    "meta.phases": "Phases",
+    "meta.files": "Files",
+    "meta.languages": "Languages",
+
+    // Keyboard Shortcuts
+    "shortcuts.title": "Keyboard Shortcuts",
+    "shortcuts.openHelp": "Open this help",
+    "shortcuts.switchTab": "Switch tab (1-7)",
+    "shortcuts.focusSearch": "Focus search",
+    "shortcuts.closeDialog": "Close dialog",
+    "shortcuts.toggleTheme": "Toggle theme",
   },
 
   tr: {
@@ -496,6 +534,7 @@ const translations: Record<Language, TranslationDict> = {
     "common.delete": "Sil",
     "common.copy": "Kopyala",
     "common.copied": "Kopyalandı!",
+    "common.copyMarkdown": "Markdown olarak kopyala",
     "common.loading": "Yükleniyor...",
     "common.noData": "Veri mevcut değil",
     "common.error": "Bir şeyler ters gitti",
@@ -505,6 +544,43 @@ const translations: Record<Language, TranslationDict> = {
     "analysis.complete": "Analiz tamamlandı!",
     "analysis.demoMode": "Demo sonuçları gösteriliyor (API erişilemez)",
     "analysis.failed": "Analiz başarısız",
+
+    // Charts
+    "charts.severityDistribution": "Önem Dağılımı",
+    "charts.confidenceByRootCause": "Kök Nedenlere Göre Güven",
+    "charts.categoryBreakdown": "Kategori Dağılımı",
+    "charts.critical": "Kritik",
+    "charts.count": "adet",
+
+    // Filters (Root Causes)
+    "filter.title": "Filtreler",
+    "filter.allSeverities": "Tüm Önem Seviyeleri",
+    "filter.allCategories": "Tüm Kategoriler",
+    "filter.sortBy": "Sırala",
+    "filter.sort.confidence": "Güven (yüksek → düşük)",
+    "filter.sort.severity": "Önem (kritik → düşük)",
+    "filter.sort.evidence": "Kanıt sayısı (çok → az)",
+    "filter.searchPlaceholder": "Kök neden ara...",
+    "filter.results": "{total} kök nedenin {count} tanesi",
+    "filter.noMatch": "Mevcut filtrelere uyan kök neden yok",
+    "filter.clear": "Filtreleri temizle",
+
+    // Analysis Meta
+    "meta.title": "Analiz Meta",
+    "meta.repository": "Depo",
+    "meta.jobId": "İş ID",
+    "meta.analyzedAt": "Analiz zamanı",
+    "meta.phases": "Fazlar",
+    "meta.files": "Dosyalar",
+    "meta.languages": "Diller",
+
+    // Keyboard Shortcuts
+    "shortcuts.title": "Klavye Kısayolları",
+    "shortcuts.openHelp": "Bu yardımı aç",
+    "shortcuts.switchTab": "Sekme değiştir (1-7)",
+    "shortcuts.focusSearch": "Arama odakla",
+    "shortcuts.closeDialog": "Diyalog kapat",
+    "shortcuts.toggleTheme": "Tema değiştir",
   },
 };
 

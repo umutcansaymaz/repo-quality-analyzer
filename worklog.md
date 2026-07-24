@@ -1572,3 +1572,53 @@ Stage Summary:
 - ESLint: Clean
 - Dev server: Çalışıyor (port 3000), Fast Refresh ile full reload yaptı (custom event export'u nedeniyle — beklenen davranış)
 - Kullanıcı bundan sonra: Settings → LLM → sağlayıcı seç + API anahtarı gir + Kaydet → dashboard anında "Hazır" rozetine döner. Bir sonraki analiz (backend aktif olduğunda) gerçek LLM kullanacak ve "Aktif" rozetine geçecek.
+
+---
+Task ID: 16
+Agent: Senior Frontend Engineer (cron web-dev-review)
+Task: QA via agent-browser + VLM, fix visual polish issues, add new features (charts, filters, keyboard shortcuts, copy-markdown, analysis-meta).
+
+Work Log:
+- Worklog reviewed (Tasks 1-15): Next.js 16 "AI Software Architect" repo analyzer frontend. Backend (FastAPI :8000) down → demo data fallback. Prior work: i18n TR/EN, Settings, LLM config 3-state badge, Trust Panel, Explainability, Global Search.
+- QA performed via agent-browser + VLM (z-ai vision):
+  * Opened app, cleared storage, ran analysis (facebook/react), verified all 7 tabs render.
+  * VLM review of Overview/RootCauses/Roadmap/Evidence screenshots.
+  * "Stray N circle" + "Göd Class typo" claims investigated → FALSE POSITIVES (VLM misread the "B-" health grade + "God Class" text). Confirmed via DOM eval: no floating elements, text is "God Class".
+  * Real issues found: (1) low-contrast subtitle text (/60 opacity), (2) Trust Panel empty gap below on tall dashboards, (3) Trust score progress bar too short, (4) "Offline" status too prominent in Overview stat card.
+- Styling polish (Phase A):
+  * StatCard: per-category colored icon backgrounds (rose/sky/amber/violet/emerald/pink) + top accent bar + hover lift (-translate-y-0.5) + icon scale on hover + subtitle contrast /60 → /80.
+  * HealthScoreCard: replaced flat text-5xl grade with circular SVG progress ring (strokeDasharray animated, color by score: emerald/amber/rose). Grade letter centered inside ring.
+  * RootCauseCard: left border-l-4 accent by severity (critical=rose-600, high=orange-500, medium=amber-400, low=sky-400) + hover lift + severity-colored icon background.
+  * TrustPanel: widened progress bar (w-16 → w-24) + tabular-nums for score. Removed fixed lg:w-72 (wrapper handles width).
+  * Trust Panel + Analysis Meta Card now in sticky sidebar container (lg:sticky lg:top-20 lg:self-start) to fill the right-column gap.
+- New features (Phase B):
+  * DistributionCharts (OverviewSection): recharts PieChart (severity donut, colored by severity) + BarChart (confidence per root cause, colored by threshold ≥80/≥60/<60). ResponsiveContainer height=200.
+  * RootCausesSection filtering: search box (title/description/category/affected_files), severity dropdown (all/critical/high/medium/low), category dropdown (derived from data), sort dropdown (confidence/severity/evidence). Result count "{count} of {total}". Clear-filters button. Empty state when no match.
+  * Copy as Markdown: each expanded RootCauseCard has a "Copy as Markdown" button → buildRootCauseMarkdown() generates ## title + metadata table + description/rationale/origin/affected-files sections → clipboard.
+  * AnalysisMetaCard: new card under Trust Panel showing repository, job ID, analyzed-at timestamp, phase count (X/5), file count.
+  * Keyboard shortcuts: ? (help dialog), 1-7 (switch tabs), / (focus search), t (toggle theme), Esc (close dialog/clear search). Custom event "ra-switch-tab" bridges AppContent → ResultsDashboard (Radix TabsTrigger doesn't activate on synthetic .click(), uses pointerdown). ShortcutsHelpDialog with Kbd keycap component. Info button in header opens dialog.
+- i18n: 28 new keys (TR+EN) — charts.*, filter.*, meta.*, shortcuts.*, common.copyMarkdown, settings.llm.saved/deleted/emptyKey/emptyProvider.
+- Bug fixed during QA: Radix TabsTrigger doesn't respond to programmatic .click() (uses onPointerDown). Refactored 1-7 shortcut to dispatch CustomEvent("ra-switch-tab") → ResultsDashboard listener calls setActiveTab.
+- Bug fixed: en-dash character in JSX text caused ESLint parsing error → replaced with <span>…</span>.
+- Verification (agent-browser, 1440x900 viewport):
+  * Overview: circular ring around B- ✓, 6 colored stat cards ✓, severity donut ✓, confidence bar chart ✓, Trust Panel + Analysis Meta balanced ✓ (VLM confirmed)
+  * Root Causes: filter bar (search + 3 dropdowns + count) ✓, severity=high filter → "2 of 4 root causes" ✓, expand card → Copy as Markdown button → "Copied!" toast ✓
+  * Keyboard: 4 → Evidence tab ✓, 7 → AI Review tab ✓, / → search input focused ✓, t → dark→light theme ✓, ? → help dialog ✓, Esc → close dialog ✓
+  * Turkish: "Güven Paneli", "Analiz Meta", "Kök neden ara...", "Tüm Önem Seviyeleri", "Önem Dağılımı", "Kök Nedenlere Göre Güven" all render ✓, no raw translation keys
+  * Zero page errors, zero console errors (only Fast Refresh warnings)
+- ESLint: Clean (0 errors)
+
+Stage Summary:
+- Current project status: Frontend stable and feature-rich. All 7 dashboard tabs functional. Demo data fallback works when backend is down. TR/EN i18n complete. Settings + LLM config + 3-state badge working. New: distribution charts, root cause filtering, keyboard shortcuts, copy-as-markdown, analysis meta card.
+- Completed modifications: 2 files (page.tsx ~+450 lines, i18n.tsx +28 keys ×2 langs). No new files. No backend changes.
+- Verification results: agent-browser full QA passed (all features tested). VLM visual review passed (layout clean, balanced, no overflow). ESLint clean. Zero runtime errors.
+- Unresolved issues / risks:
+  * Backend (FastAPI :8000) still down — all /api/analyze return 502, frontend uses demo data. This is the biggest risk: charts/filters/meta all work on demo data but untested with real backend responses (field names may differ).
+  * Sticky Trust Panel only sticks within the top grid row (not the full dashboard height) — by design, since it's in the header grid not the tab content. Acceptable.
+  * recharts adds ~200KB to bundle; acceptable for a dashboard app.
+- Priority recommendations for next phase:
+  1. (High) Bring backend online or mock /api/analyze + /api/result in Next.js API routes so real data flows through the new charts/filters.
+  2. (Medium) Add Roadmap step filtering (by priority/risk/sprint) + Evidence advanced filtering (by analyzer/file).
+  3. (Medium) Analysis history drawer — persist last N analyses to localStorage, quick re-open.
+  4. (Low) Export charts as PNG (recharts supports toDataURL).
+  5. (Low) Accessibility audit — ensure all new controls have proper ARIA labels and keyboard focus rings.

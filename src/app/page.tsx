@@ -56,9 +56,11 @@ import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import { LanguageProvider, useI18n, type Language } from "@/components/analyzer/i18n";
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, Legend } from "recharts";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -267,8 +269,63 @@ function AppContent() {
   const [mounted, setMounted] = React.useState(false);
   const [globalSearch, setGlobalSearch] = React.useState("");
   const [searchResults, setSearchResults] = React.useState<any[] | null>(null);
+  const [showShortcuts, setShowShortcuts] = React.useState(false);
+  const searchInputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => setMounted(true), []);
+
+  // Keyboard shortcuts:
+  //  ?       → open shortcuts help
+  //  /       → focus global search
+  //  1-7     → switch dashboard tabs (only when on results view)
+  //  Esc     → close dialog / clear search
+  //  t       → toggle theme
+  React.useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const typing = target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
+
+      // Esc always works
+      if (e.key === "Escape") {
+        if (showShortcuts) { setShowShortcuts(false); return; }
+        if (globalSearch) { setGlobalSearch(""); setSearchResults(null); return; }
+        return;
+      }
+
+      // ? opens help (even when typing? no — only when not typing to avoid hijack)
+      if (e.key === "?" && !typing) {
+        e.preventDefault();
+        setShowShortcuts(true);
+        return;
+      }
+
+      // / focuses search
+      if (e.key === "/" && !typing) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        return;
+      }
+
+      // t toggles theme
+      if (e.key.toLowerCase() === "t" && !typing) {
+        setTheme(theme === "dark" ? "light" : "dark");
+        return;
+      }
+
+      // 1-7 switch tabs (only on results view, not typing)
+      if (view === "results" && !typing && /^[1-7]$/.test(e.key)) {
+        const tabs = ["overview", "rootcauses", "roadmap", "evidence", "graph", "files", "ai"];
+        const idx = parseInt(e.key, 10) - 1;
+        if (tabs[idx]) {
+          // Radix TabsTrigger activates on pointerdown, not click — use a custom
+          // event that ResultsDashboard listens for and feeds to setActiveTab.
+          window.dispatchEvent(new CustomEvent("ra-switch-tab", { detail: tabs[idx] }));
+        }
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [view, theme, globalSearch, showShortcuts, setTheme]);
 
   const handleAnalyze = async () => {
     if (!repoUrl.trim()) {
@@ -388,6 +445,7 @@ function AppContent() {
               <div className="relative hidden sm:block">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
+                  ref={searchInputRef}
                   value={globalSearch}
                   onChange={(e) => setGlobalSearch(e.target.value)}
                   placeholder={t("common.search")}
@@ -410,6 +468,9 @@ function AppContent() {
                 </Select>
                 <Button variant="ghost" size="icon" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
                   {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                </Button>
+                <Button variant="ghost" size="icon" onClick={() => setShowShortcuts(true)} title={t("shortcuts.title")}>
+                  <Info className="h-4 w-4" />
                 </Button>
                 <Button variant="ghost" size="icon" onClick={() => setView("settings")}>
                   <SettingsIcon className="h-4 w-4" />
@@ -464,6 +525,9 @@ function AppContent() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Keyboard shortcuts help dialog */}
+      <ShortcutsHelpDialog open={showShortcuts} onOpenChange={setShowShortcuts} />
     </div>
   );
 }
@@ -593,6 +657,16 @@ function ResultsDashboard({ data, onReset }: { data: any; onReset: () => void })
   const { t } = useI18n();
   const [activeTab, setActiveTab] = React.useState("overview");
 
+  // Listen for keyboard-driven tab switches (1-7) dispatched by AppContent.
+  React.useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<string>).detail;
+      if (typeof detail === "string") setActiveTab(detail);
+    };
+    window.addEventListener("ra-switch-tab", handler);
+    return () => window.removeEventListener("ra-switch-tab", handler);
+  }, []);
+
   return (
     <div className="container mx-auto max-w-7xl px-4 py-6">
       <div className="mb-6 flex items-center justify-between">
@@ -608,19 +682,23 @@ function ResultsDashboard({ data, onReset }: { data: any; onReset: () => void })
           <HealthScoreCard data={data} />
           <LLMStatusCard data={data} />
         </div>
-        <TrustPanel data={data} />
+        {/* Sticky sidebar: Trust Panel stays visible while scrolling long dashboards */}
+        <div className="lg:sticky lg:top-20 lg:self-start lg:w-72 space-y-4">
+          <TrustPanel data={data} />
+          <AnalysisMetaCard data={data} />
+        </div>
       </div>
 
       {/* Main tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-6">
         <TabsList className="flex w-full flex-wrap gap-1">
-          <TabsTrigger value="overview" className="gap-1.5"><Activity className="h-4 w-4" /> {t("dashboard.overview")}</TabsTrigger>
-          <TabsTrigger value="rootcauses" className="gap-1.5"><Bug className="h-4 w-4" /> {t("dashboard.rootCauses")}</TabsTrigger>
-          <TabsTrigger value="roadmap" className="gap-1.5"><Map className="h-4 w-4" /> {t("dashboard.roadmap")}</TabsTrigger>
-          <TabsTrigger value="evidence" className="gap-1.5"><Beaker className="h-4 w-4" /> {t("dashboard.evidence")}</TabsTrigger>
-          <TabsTrigger value="graph" className="gap-1.5"><Network className="h-4 w-4" /> {t("dashboard.graph")}</TabsTrigger>
-          <TabsTrigger value="files" className="gap-1.5"><FileCode2 className="h-4 w-4" /> {t("dashboard.files")}</TabsTrigger>
-          <TabsTrigger value="ai" className="gap-1.5"><Sparkles className="h-4 w-4" /> {t("dashboard.aiReview")}</TabsTrigger>
+          <TabsTrigger value="overview" data-tab="overview" className="gap-1.5"><Activity className="h-4 w-4" /> {t("dashboard.overview")}</TabsTrigger>
+          <TabsTrigger value="rootcauses" data-tab="rootcauses" className="gap-1.5"><Bug className="h-4 w-4" /> {t("dashboard.rootCauses")}</TabsTrigger>
+          <TabsTrigger value="roadmap" data-tab="roadmap" className="gap-1.5"><Map className="h-4 w-4" /> {t("dashboard.roadmap")}</TabsTrigger>
+          <TabsTrigger value="evidence" data-tab="evidence" className="gap-1.5"><Beaker className="h-4 w-4" /> {t("dashboard.evidence")}</TabsTrigger>
+          <TabsTrigger value="graph" data-tab="graph" className="gap-1.5"><Network className="h-4 w-4" /> {t("dashboard.graph")}</TabsTrigger>
+          <TabsTrigger value="files" data-tab="files" className="gap-1.5"><FileCode2 className="h-4 w-4" /> {t("dashboard.files")}</TabsTrigger>
+          <TabsTrigger value="ai" data-tab="ai" className="gap-1.5"><Sparkles className="h-4 w-4" /> {t("dashboard.aiReview")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-4"><OverviewSection data={data} /></TabsContent>
@@ -644,15 +722,33 @@ function HealthScoreCard({ data }: { data: any }) {
   const hs = data?.ai_review?.health_score;
   const grade = hs?.grade || "N/A";
   const overall = hs?.overall || 0;
-  const gradeColor = overall >= 80 ? "text-green-500" : overall >= 60 ? "text-yellow-500" : "text-red-500";
+  const gradeColor = overall >= 80 ? "text-emerald-500" : overall >= 60 ? "text-amber-500" : "text-rose-500";
+  const ringStroke = overall >= 80 ? "#10b981" : overall >= 60 ? "#f59e0b" : "#f43f5e";
   const meta = data?.repository_metadata;
+
+  // Circular ring geometry
+  const R = 34;
+  const C = 2 * Math.PI * R;
+  const dash = (overall / 100) * C;
 
   return (
     <Card>
       <CardContent className="pt-6">
         <div className="flex flex-wrap items-center justify-between gap-6">
           <div className="flex items-center gap-4">
-            <div className={`text-5xl font-bold ${gradeColor}`}>{grade}</div>
+            {/* Circular gradient progress ring around the grade letter */}
+            <div className="relative flex h-20 w-20 items-center justify-center">
+              <svg className="absolute inset-0 -rotate-90" viewBox="0 0 80 80">
+                <circle cx="40" cy="40" r={R} fill="none" stroke="currentColor" strokeWidth="5" className="text-muted/40" />
+                <circle
+                  cx="40" cy="40" r={R} fill="none" stroke={ringStroke} strokeWidth="5"
+                  strokeLinecap="round"
+                  strokeDasharray={`${dash} ${C}`}
+                  style={{ transition: "stroke-dasharray 0.8s ease" }}
+                />
+              </svg>
+              <div className={`text-3xl font-bold ${gradeColor}`}>{grade}</div>
+            </div>
             <div>
               <p className="text-sm text-muted-foreground">{t("dashboard.health")}</p>
               <p className="text-2xl font-semibold">{overall.toFixed(1)} / 100</p>
@@ -781,7 +877,7 @@ function TrustPanel({ data }: { data: any }) {
   );
 
   return (
-    <Card className="lg:w-72">
+    <Card>
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-sm">
           <Shield className="h-4 w-4" /> {t("trust.title")}
@@ -790,8 +886,8 @@ function TrustPanel({ data }: { data: any }) {
       <CardContent className="space-y-3">
         <TrustRow label={t("trust.trustScore")} value={
           <div className="flex items-center gap-2">
-            <div className="text-lg font-bold">{trustScore}</div>
-            <div className="h-2 w-16 rounded-full bg-muted overflow-hidden">
+            <div className="text-lg font-bold tabular-nums">{trustScore}</div>
+            <div className="h-2 w-24 rounded-full bg-muted overflow-hidden">
               <div className={`h-full ${trustScore >= 70 ? "bg-green-500" : trustScore >= 50 ? "bg-yellow-500" : "bg-red-500"}`} style={{ width: `${trustScore}%` }} />
             </div>
           </div>
@@ -806,6 +902,45 @@ function TrustPanel({ data }: { data: any }) {
           </Badge>
         } />
         <TrustRow label={t("trust.llmStatus")} value={<LLMStatusBadge status={status} t={t} size="xs" />} />
+      </CardContent>
+    </Card>
+  );
+}
+
+// Small card that fills the gap under the Trust Panel on tall dashboards,
+// showing persistent analysis metadata (repo, job ID, timestamp, phase count).
+function AnalysisMetaCard({ data }: { data: any }) {
+  const { t } = useI18n();
+  const repo = data?.repository;
+  const repoLabel = repo ? `${repo.owner || ""}/${repo.name || ""}` : "—";
+  const jobId = data?.id || "—";
+  const analyzedAt = data?.analyzed_at || data?.created_at || new Date().toISOString();
+  const phaseCount = [
+    data?.evidence, data?.knowledge_graph, data?.root_causes,
+    data?.engineering_plan, data?.engineering_review,
+  ].filter(Boolean).length;
+  const fileCount = data?.file_inventory?.total_files ?? data?.file_inventory?.files?.length ?? 0;
+
+  const fmtDate = (iso: string) => {
+    try {
+      const d = new Date(iso);
+      return d.toLocaleDateString() + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    } catch { return iso; }
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <Database className="h-4 w-4" /> {t("meta.title")}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <TrustRow label={t("meta.repository")} value={<span className="font-mono text-xs truncate max-w-[140px] block">{repoLabel}</span>} />
+        <TrustRow label={t("meta.jobId")} value={<span className="font-mono text-xs">{jobId}</span>} />
+        <TrustRow label={t("meta.analyzedAt")} value={<span className="text-xs">{fmtDate(analyzedAt)}</span>} />
+        <TrustRow label={t("meta.phases")} value={`${phaseCount}/5`} />
+        {fileCount > 0 && <TrustRow label={t("meta.files")} value={fileCount} />}
       </CardContent>
     </Card>
   );
@@ -836,46 +971,127 @@ function OverviewSection({ data }: { data: any }) {
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-      <StatCard icon={<Bug className="h-5 w-5" />} title={t("stats.rootCauses")} value={rootCauses.length} subtitle={t("stats.architecturalIssues")} />
-      <StatCard icon={<Beaker className="h-5 w-5" />} title={t("stats.evidenceItems")} value={evCount} subtitle={t("stats.totalFindings")} />
-      <StatCard icon={<Zap className="h-5 w-5" />} title={t("stats.quickWins")} value={plan?.quick_wins?.length || 0} subtitle={t("stats.lowEffortFixes")} />
-      <StatCard icon={<Map className="h-5 w-5" />} title={t("stats.planSteps")} value={plan?.steps?.length || 0} subtitle={t("stats.refactoringSteps")} />
-      <StatCard icon={<TrendingUp className="h-5 w-5" />} title={t("stats.avgRoi")} value={plan?.statistics?.average_roi?.toFixed(2) || "0"} subtitle={t("stats.returnOnInvestment")} />
+      <StatCard icon={<Bug className="h-5 w-5" />} title={t("stats.rootCauses")} value={rootCauses.length} subtitle={t("stats.architecturalIssues")} accent="rose" />
+      <StatCard icon={<Beaker className="h-5 w-5" />} title={t("stats.evidenceItems")} value={evCount} subtitle={t("stats.totalFindings")} accent="sky" />
+      <StatCard icon={<Zap className="h-5 w-5" />} title={t("stats.quickWins")} value={plan?.quick_wins?.length || 0} subtitle={t("stats.lowEffortFixes")} accent="amber" />
+      <StatCard icon={<Map className="h-5 w-5" />} title={t("stats.planSteps")} value={plan?.steps?.length || 0} subtitle={t("stats.refactoringSteps")} accent="violet" />
+      <StatCard icon={<TrendingUp className="h-5 w-5" />} title={t("stats.avgRoi")} value={plan?.statistics?.average_roi?.toFixed(2) || "0"} subtitle={t("stats.returnOnInvestment")} accent="emerald" />
       <StatCard
         icon={<Sparkles className="h-5 w-5" />}
         title={t("stats.aiReview")}
         value={statusLabel}
         subtitle={review?.statistics?.total_sections ? `${review.statistics.total_sections} ${t("dashboard.overview").toLowerCase()}` : t("stats.noReview")}
+        accent="pink"
       />
 
       {rootCauses.length > 0 && (
-        <Card className="md:col-span-2 lg:col-span-3">
-          <CardHeader>
-            <CardTitle className="text-lg">{t("dashboard.rootCauses")}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {rootCauses.slice(0, 5).map((rc: any, i: number) => (
-                <RootCauseRow key={rc.id || i} rc={rc} />
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        <>
+          {/* Distribution charts: severity donut + confidence bar */}
+          <DistributionCharts rootCauses={rootCauses} />
+
+          <Card className="md:col-span-2 lg:col-span-3">
+            <CardHeader>
+              <CardTitle className="text-lg">{t("dashboard.rootCauses")}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {rootCauses.slice(0, 5).map((rc: any, i: number) => (
+                  <RootCauseRow key={rc.id || i} rc={rc} />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </>
       )}
     </div>
   );
 }
 
-function StatCard({ icon, title, value, subtitle }: { icon: React.ReactNode; title: string; value: any; subtitle: string }) {
+// Severity donut + per-root-cause confidence bar, rendered with recharts.
+function DistributionCharts({ rootCauses }: { rootCauses: any[] }) {
+  const { t } = useI18n();
+
+  // Aggregate severity counts from root causes
+  const sevCounts = React.useMemo(() => {
+    const order = ["critical", "high", "medium", "low", "info"];
+    const counts: Record<string, number> = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
+    rootCauses.forEach((rc) => { const s = (rc.severity || "info").toLowerCase(); if (counts[s] !== undefined) counts[s]++; });
+    return order.filter((s) => counts[s] > 0).map((s) => ({ name: s, value: counts[s] }));
+  }, [rootCauses]);
+
+  const SEV_COLORS: Record<string, string> = {
+    critical: "#e11d48", high: "#f97316", medium: "#f59e0b", low: "#0ea5e9", info: "#94a3b8",
+  };
+
+  // Confidence bar data
+  const confData = React.useMemo(() =>
+    rootCauses.slice(0, 8).map((rc, i) => ({
+      name: rc.title?.length > 22 ? rc.title.slice(0, 20) + "…" : (rc.title || `RC-${i + 1}`),
+      confidence: Math.round((rc.confidence || 0) * 100),
+    })),
+  [rootCauses]);
+
+  if (rootCauses.length === 0) return null;
+
   return (
-    <Card>
+    <>
+      <Card className="md:col-span-1">
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Gauge className="h-4 w-4 text-rose-500" /> {t("charts.severityDistribution")}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={200}>
+            <PieChart>
+              <Pie data={sevCounts} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={45} outerRadius={75} paddingAngle={2}>
+                {sevCounts.map((entry) => (<Cell key={entry.name} fill={SEV_COLORS[entry.name] || "#94a3b8"} />))}
+              </Pie>
+              <RTooltip formatter={(v: any, n: any) => [`${v} ${t("charts.count")}`, n]} />
+              <Legend iconType="circle" wrapperStyle={{ fontSize: 12, textTransform: "capitalize" }} />
+            </PieChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+      <Card className="md:col-span-1 lg:col-span-2">
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Target className="h-4 w-4 text-sky-500" /> {t("charts.confidenceByRootCause")}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={confData} layout="vertical" margin={{ left: 10, right: 20, top: 5, bottom: 5 }}>
+              <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11 }} />
+              <YAxis type="category" dataKey="name" width={130} tick={{ fontSize: 11 }} />
+              <RTooltip formatter={(v: any) => [`${v}%`, t("rootCause.confidence")]} />
+              <Bar dataKey="confidence" radius={[0, 4, 4, 0]}>
+                {confData.map((entry, i) => (
+                  <Cell key={i} fill={entry.confidence >= 80 ? "#10b981" : entry.confidence >= 60 ? "#f59e0b" : "#f43f5e"} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+    </>
+  );
+}
+
+function StatCard({ icon, title, value, subtitle, accent = "primary" }: { icon: React.ReactNode; title: string; value: any; subtitle: string; accent?: StatAccent }) {
+  const colors = STAT_ACCENTS[accent];
+  return (
+    <Card className={`group relative overflow-hidden transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 ${colors.hoverRing}`}>
+      {/* Subtle top accent bar */}
+      <div className={`absolute inset-x-0 top-0 h-0.5 ${colors.bar}`} />
       <CardContent className="pt-5">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">{icon}</div>
-          <div>
-            <div className="text-2xl font-bold">{value}</div>
+          <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${colors.bg} ${colors.fg} transition-transform duration-200 group-hover:scale-110`}>{icon}</div>
+          <div className="min-w-0">
+            <div className="text-2xl font-bold leading-tight truncate">{value}</div>
             <div className="text-xs text-muted-foreground">{title}</div>
-            <div className="text-xs text-muted-foreground/60">{subtitle}</div>
+            <div className="text-xs text-muted-foreground/80">{subtitle}</div>
           </div>
         </div>
       </CardContent>
@@ -883,47 +1099,177 @@ function StatCard({ icon, title, value, subtitle }: { icon: React.ReactNode; tit
   );
 }
 
+type StatAccent = "primary" | "rose" | "sky" | "amber" | "violet" | "emerald" | "pink";
+const STAT_ACCENTS: Record<StatAccent, { bg: string; fg: string; bar: string; hoverRing: string }> = {
+  primary: { bg: "bg-primary/10", fg: "text-primary", bar: "bg-primary", hoverRing: "hover:ring-1 hover:ring-primary/20" },
+  rose:    { bg: "bg-rose-500/10", fg: "text-rose-500", bar: "bg-rose-500", hoverRing: "hover:ring-1 hover:ring-rose-500/20" },
+  sky:     { bg: "bg-sky-500/10", fg: "text-sky-500", bar: "bg-sky-500", hoverRing: "hover:ring-1 hover:ring-sky-500/20" },
+  amber:   { bg: "bg-amber-500/10", fg: "text-amber-500", bar: "bg-amber-500", hoverRing: "hover:ring-1 hover:ring-amber-500/20" },
+  violet:  { bg: "bg-violet-500/10", fg: "text-violet-500", bar: "bg-violet-500", hoverRing: "hover:ring-1 hover:ring-violet-500/20" },
+  emerald: { bg: "bg-emerald-500/10", fg: "text-emerald-500", bar: "bg-emerald-500", hoverRing: "hover:ring-1 hover:ring-emerald-500/20" },
+  pink:    { bg: "bg-pink-500/10", fg: "text-pink-500", bar: "bg-pink-500", hoverRing: "hover:ring-1 hover:ring-pink-500/20" },
+};
+
 // ---------------------------------------------------------------------------
 // Root Causes Section
 // ---------------------------------------------------------------------------
+
+// Severity → colored left accent border + icon background
+function severityAccent(severity: string): { border: string; bg: string; fg: string; dot: string } {
+  const s = (severity || "").toLowerCase();
+  if (s === "critical") return { border: "border-l-rose-600", bg: "bg-rose-500/10", fg: "text-rose-500", dot: "bg-rose-600" };
+  if (s === "high")     return { border: "border-l-orange-500", bg: "bg-orange-500/10", fg: "text-orange-500", dot: "bg-orange-500" };
+  if (s === "medium")   return { border: "border-l-amber-400", bg: "bg-amber-500/10", fg: "text-amber-500", dot: "bg-amber-400" };
+  if (s === "low")      return { border: "border-l-sky-400", bg: "bg-sky-500/10", fg: "text-sky-500", dot: "bg-sky-400" };
+  return { border: "border-l-muted-foreground", bg: "bg-muted/10", fg: "text-muted-foreground", dot: "bg-muted-foreground" };
+}
+
+// Severity rank for sorting (higher = more severe)
+const SEVERITY_RANK: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1, info: 0 };
 
 function RootCausesSection({ data }: { data: any }) {
   const { t } = useI18n();
   const rootCauses = data?.root_causes?.root_causes || [];
   const [expanded, setExpanded] = React.useState<string | null>(null);
+  const [search, setSearch] = React.useState("");
+  const [sevFilter, setSevFilter] = React.useState("all");
+  const [catFilter, setCatFilter] = React.useState("all");
+  const [sortBy, setSortBy] = React.useState<"confidence" | "severity" | "evidence">("confidence");
+
+  // Derive category options from data
+  const categories = React.useMemo(() => {
+    const set = new Set<string>();
+    rootCauses.forEach((rc: any) => { if (rc.category) set.add(rc.category); });
+    return Array.from(set).sort();
+  }, [rootCauses]);
 
   if (rootCauses.length === 0) {
     return <EmptyState icon={<Bug className="h-12 w-12" />} title={t("rootCause.noRootCauses")} description={t("rootCause.structurallySound")} />;
   }
 
+  // Apply filters + sort
+  const filtered = rootCauses
+    .filter((rc: any) => {
+      if (sevFilter !== "all" && (rc.severity || "").toLowerCase() !== sevFilter) return false;
+      if (catFilter !== "all" && rc.category !== catFilter) return false;
+      if (search.trim()) {
+        const q = search.toLowerCase();
+        const hay = `${rc.title || ""} ${rc.description || ""} ${rc.category || ""} ${(rc.affected_files || []).join(" ")}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    })
+    .sort((a: any, b: any) => {
+      if (sortBy === "confidence") return (b.confidence || 0) - (a.confidence || 0);
+      if (sortBy === "severity") return (SEVERITY_RANK[(b.severity || "").toLowerCase()] || 0) - (SEVERITY_RANK[(a.severity || "").toLowerCase()] || 0);
+      if (sortBy === "evidence") return (b.evidence_count || b.evidence_links?.length || 0) - (a.evidence_count || a.evidence_links?.length || 0);
+      return 0;
+    });
+
+  const hasFilters = search.trim() || sevFilter !== "all" || catFilter !== "all";
+
   return (
-    <div className="space-y-3">
-      {rootCauses.map((rc: any, i: number) => (
-        <RootCauseCard key={rc.id || i} rc={rc} expanded={expanded === (rc.id || String(i))} onToggle={() => setExpanded(expanded === (rc.id || String(i)) ? null : rc.id || String(i))} />
-      ))}
+    <div className="space-y-4">
+      {/* Filter bar */}
+      <Card>
+        <CardContent className="pt-5 pb-5">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex-1 min-w-[200px]">
+              <Label className="mb-1.5 block text-xs text-muted-foreground">{t("filter.searchPlaceholder")}</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("filter.searchPlaceholder")} className="pl-9" />
+              </div>
+            </div>
+            <div>
+              <Label className="mb-1.5 block text-xs text-muted-foreground">{t("evidence.severity")}</Label>
+              <Select value={sevFilter} onValueChange={setSevFilter}>
+                <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("filter.allSeverities")}</SelectItem>
+                  <SelectItem value="critical">Critical</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="low">Low</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="mb-1.5 block text-xs text-muted-foreground">{t("evidence.category")}</Label>
+              <Select value={catFilter} onValueChange={setCatFilter}>
+                <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("filter.allCategories")}</SelectItem>
+                  {categories.map((c) => (<SelectItem key={c} value={c}>{c}</SelectItem>))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="mb-1.5 block text-xs text-muted-foreground">{t("filter.sortBy")}</Label>
+              <Select value={sortBy} onValueChange={(v) => setSortBy(v as any)}>
+                <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="confidence">{t("filter.sort.confidence")}</SelectItem>
+                  <SelectItem value="severity">{t("filter.sort.severity")}</SelectItem>
+                  <SelectItem value="evidence">{t("filter.sort.evidence")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="ml-auto flex items-center gap-3 pb-1">
+              <span className="text-xs text-muted-foreground">
+                {t("filter.results").replace("{count}", String(filtered.length)).replace("{total}", String(rootCauses.length))}
+              </span>
+              {hasFilters && (
+                <Button variant="ghost" size="sm" onClick={() => { setSearch(""); setSevFilter("all"); setCatFilter("all"); }}>
+                  <XCircle className="mr-1 h-3.5 w-3.5" /> {t("filter.clear")}
+                </Button>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {filtered.length === 0 ? (
+        <EmptyState icon={<Search className="h-12 w-12" />} title={t("filter.noMatch")} />
+      ) : (
+        <div className="space-y-3">
+          {filtered.map((rc: any, i: number) => (
+            <RootCauseCard key={rc.id || i} rc={rc} expanded={expanded === (rc.id || String(i))} onToggle={() => setExpanded(expanded === (rc.id || String(i)) ? null : rc.id || String(i))} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
 function RootCauseCard({ rc, expanded, onToggle }: { rc: any; expanded: boolean; onToggle: () => void }) {
   const { t } = useI18n();
+  const accent = severityAccent(rc.severity);
+
+  const handleCopyMarkdown = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const md = buildRootCauseMarkdown(rc);
+    navigator.clipboard.writeText(md);
+    toast.success(t("common.copied"));
+  };
+
   return (
-    <Card>
+    <Card className={`border-l-4 ${accent.border} transition-all duration-200 hover:shadow-md hover:-translate-y-0.5`}>
       <CardHeader className="cursor-pointer" onClick={onToggle}>
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-destructive/10">
-              <Bug className="h-5 w-5 text-destructive" />
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${accent.bg}`}>
+              <Bug className={`h-5 w-5 ${accent.fg}`} />
             </div>
-            <div>
-              <CardTitle className="text-base">{rc.title}</CardTitle>
+            <div className="min-w-0">
+              <CardTitle className="text-base truncate">{rc.title}</CardTitle>
               <div className="mt-1 flex flex-wrap gap-2">
                 <Badge variant={severityVariant(rc.severity)}>{rc.severity}</Badge>
                 <Badge variant="outline">{rc.category}</Badge>
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-4 text-right">
+          <div className="flex items-center gap-4 text-right shrink-0">
             <div>
               <div className="text-sm font-semibold">{rc.evidence_count || (rc.evidence_links?.length || 0)} {t("rootCause.evidence")}</div>
               <div className="text-xs text-muted-foreground">{rc.affected_files?.length || 0} {t("rootCause.files")}</div>
@@ -962,6 +1308,11 @@ function RootCauseCard({ rc, expanded, onToggle }: { rc: any; expanded: boolean;
                   </div>
                 )}
                 <ExplainabilityChain rootCause={rc} />
+                <div className="flex justify-end pt-2 border-t">
+                  <Button variant="outline" size="sm" onClick={handleCopyMarkdown}>
+                    <Copy className="mr-1.5 h-3.5 w-3.5" /> {t("common.copyMarkdown")}
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </motion.div>
@@ -1845,9 +2196,76 @@ function ConfidenceBadge({ confidence }: { confidence: number }) {
   );
 }
 
+// Build a Markdown representation of a root cause for the "Copy as Markdown" button.
+function buildRootCauseMarkdown(rc: any): string {
+  const lines: string[] = [];
+  lines.push(`## ${rc.title || "Root Cause"}`);
+  lines.push("");
+  lines.push(`| Field | Value |`);
+  lines.push(`|---|---|`);
+  lines.push(`| ID | \`${rc.id || "—"}\` |`);
+  lines.push(`| Category | \`${rc.category || "—"}\` |`);
+  lines.push(`| Severity | **${rc.severity || "—"}** |`);
+  lines.push(`| Confidence | ${((rc.confidence || 0) * 100).toFixed(0)}% |`);
+  lines.push(`| Evidence Count | ${rc.evidence_count || rc.evidence_links?.length || 0} |`);
+  lines.push(`| Affected Files | ${rc.affected_files?.length || 0} |`);
+  lines.push("");
+  if (rc.description) { lines.push(`### Description`); lines.push(""); lines.push(rc.description); lines.push(""); }
+  if (rc.technical_rationale) { lines.push(`### Technical Rationale`); lines.push(""); lines.push(rc.technical_rationale); lines.push(""); }
+  if (rc.root_cause_origin) { lines.push(`### Likely Origin`); lines.push(""); lines.push(rc.root_cause_origin); lines.push(""); }
+  if (rc.affected_files?.length) {
+    lines.push(`### Affected Files`);
+    lines.push("");
+    rc.affected_files.forEach((f: string) => lines.push(`- \`${f}\``));
+    lines.push("");
+  }
+  return lines.join("\n");
+}
+
 function ConfidenceTag({ confidence }: { confidence: string }) {
   const color = confidence === "high" ? "text-green-500" : confidence === "medium" ? "text-yellow-500" : "text-red-500";
   return <span className={`text-xs font-medium uppercase ${color}`}>{confidence}</span>;
+}
+
+// Keyboard <kbd> key cap visual
+function Kbd({ children }: { children: React.ReactNode }) {
+  return (
+    <kbd className="inline-flex h-6 min-w-6 items-center justify-center rounded border border-border bg-muted px-1.5 font-mono text-xs font-semibold text-foreground shadow-[0_1px_0_0_rgb(0_0_0_/_0.1)]">
+      {children}
+    </kbd>
+  );
+}
+
+// Help dialog listing all keyboard shortcuts
+function ShortcutsHelpDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+  const { t } = useI18n();
+  const rows: { keys: React.ReactNode; label: string }[] = [
+    { keys: <Kbd>?</Kbd>, label: t("shortcuts.openHelp") },
+    { keys: <><Kbd>1</Kbd><span className="text-muted-foreground">…</span><Kbd>7</Kbd></>, label: t("shortcuts.switchTab") },
+    { keys: <Kbd>/</Kbd>, label: t("shortcuts.focusSearch") },
+    { keys: <Kbd>T</Kbd>, label: t("shortcuts.toggleTheme") },
+    { keys: <Kbd>Esc</Kbd>, label: t("shortcuts.closeDialog") },
+  ];
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Info className="h-5 w-5 text-primary" /> {t("shortcuts.title")}
+          </DialogTitle>
+          <DialogDescription className="sr-only">{t("shortcuts.title")}</DialogDescription>
+        </DialogHeader>
+        <div className="divide-y">
+          {rows.map((r, i) => (
+            <div key={i} className="flex items-center justify-between py-2.5">
+              <span className="text-sm">{r.label}</span>
+              <span className="flex items-center gap-1">{r.keys}</span>
+            </div>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 function EmptyState({ icon, title, description }: { icon: React.ReactNode; title: string; description?: string }) {
