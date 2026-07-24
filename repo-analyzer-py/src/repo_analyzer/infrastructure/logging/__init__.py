@@ -12,9 +12,10 @@ Provides:
 from __future__ import annotations
 
 import logging
+import re
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from rich.logging import RichHandler
 
@@ -90,21 +91,55 @@ def redact_sensitive(record_dict: dict[str, Any]) -> dict[str, Any]:
 
 
 class _RedactingFilter(logging.Filter):
-    """Logging filter that redacts sensitive keys from ``record.__dict__``."""
+    """Logging filter that redacts sensitive data from all log record parts.
+
+    Redacts:
+        - Extra fields whose names match sensitive keys.
+        - Dict args (``logger.info("msg", {token: ...})``).
+        - Tuple/list args (``logger.info("URL=%s", url)``).
+        - The message string itself if it contains known secret patterns.
+    """
+
+    # Patterns for common secrets that might appear in log messages.
+    _SECRET_PATTERNS: ClassVar[list[re.Pattern[str]]] = [
+        re.compile(r"gh[pousr]_[A-Za-z0-9]{36,}"),  # GitHub token
+        re.compile(r"AKIA[0-9A-Z]{16}"),  # AWS key
+        re.compile(r"sk-[A-Za-z0-9]{20,}"),  # OpenAI key
+        re.compile(r"sk_live_[A-Za-z0-9]{20,}"),  # Stripe key
+        re.compile(r"x-access-token:[^@]+@"),  # Token in URL
+    ]
 
     def filter(self, record: logging.LogRecord) -> bool:
-        # Redact the message args if present.
-        if isinstance(record.msg, str) and record.args:
+        # Redact the message args if present (dict, tuple, list).
+        if record.args:
             try:
                 if isinstance(record.args, dict):
                     record.args = redact_sensitive(dict(record.args))
+                elif isinstance(record.args, tuple | list):
+                    record.args = tuple(
+                        redact_sensitive(a) if isinstance(a, dict) else self._scrub_value(a)
+                        for a in record.args
+                    )
             except Exception:  # pragma: no cover - defensive
                 pass
         # Redact extra fields.
         for key in list(record.__dict__.keys()):
-            if key.lower() in REDUCTED_KEYS:
+            lowered = key.lower()
+            if lowered in REDUCTED_KEYS or any(s in lowered for s in REDUCTED_KEYS):
                 record.__dict__[key] = _REDACTED
+        # Scrub the message string itself.
+        if isinstance(record.msg, str):
+            record.msg = self._scrub_value(record.msg)
         return True
+
+    @classmethod
+    def _scrub_value(cls, value: Any) -> Any:
+        """Redact secret patterns from a string value."""
+        if not isinstance(value, str):
+            return value
+        for pattern in cls._SECRET_PATTERNS:
+            value = pattern.sub("***REDACTED***", value)
+        return value
 
 
 class RichConsoleHandler(RichHandler):

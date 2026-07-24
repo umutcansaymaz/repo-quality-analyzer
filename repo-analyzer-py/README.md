@@ -232,7 +232,14 @@ curl -X POST http://localhost:8000/report \
 
 ## Plugins
 
-`repo-analyzer` supports a plugin system for custom analyzers. Plugins implement the `AnalyzerPort` interface and are discovered via Python entry points or directory scanning.
+`repo-analyzer` has a fully functional plugin system. All 12 built-in analyzers are registered through the same `PluginManager` that third-party plugins use — there is no separate "built-in" code path.
+
+### How it works
+
+1. On startup, the `Orchestrator` creates a `PluginManager`.
+2. Built-in analyzers (filesystem, AST, metrics, etc.) are registered via `_register_builtin_analyzers()`.
+3. Third-party plugins are discovered via Python entry points (`repo_analyzer.plugins` group) or directory scanning.
+4. All analyzers run through the same phase-based pipeline.
 
 ### Creating a plugin
 
@@ -285,14 +292,19 @@ The AI comment engine supports 6 LLM providers via a pluggable abstraction:
 | OpenRouter | `openrouter` | `openai` |
 | Ollama (local) | `ollama` | — (HTTP) |
 
-By default, the `mock` provider is used (offline, deterministic). To use a real provider:
+**Current behavior:** The CLI and API use the `mock` provider by default (offline, deterministic). This produces a canned engineering review so the full pipeline can run without network access.
+
+To use a real provider programmatically:
 
 ```python
 from repo_analyzer.adapters.llm import LLMProviderFactory
+from repo_analyzer.core.orchestrator import Orchestrator
 
 llm = LLMProviderFactory.create("openai", "gpt-4", api_key="sk-...")
 orchestrator = Orchestrator(cache, llm=llm)
 ```
+
+> **Note:** CLI flag `--llm-provider` for switching providers from the command line is planned but not yet implemented.
 
 ## Configuration
 
@@ -385,11 +397,33 @@ A: 17 languages for detection (Python, JavaScript, TypeScript, Go, Rust, Java, K
 
 ## Roadmap
 
-- [x] v0.1 — Core analysis engines + security + AI review
-- [x] v0.5 — Report generation (MD/JSON/HTML/PDF) + REST API
-- [ ] v1.0 — Web dashboard, plugin marketplace, incremental analysis
-- [ ] v1.5 — SARIF output, GitHub Code Scanning integration
-- [ ] v2.0 — Monorepo support, diff analysis, trend tracking
+### Implemented
+
+- [x] Core analysis engines (filesystem, AST, metrics, complexity, imports, dependencies, git, documentation, tests, graphs)
+- [x] Security review (Bandit, detect-secrets, 17 custom rules, OWASP Top 10)
+- [x] Code quality review (20+ smells)
+- [x] Architecture review (SOLID, DRY, KISS, YAGNI, coupling/cohesion)
+- [x] Health score (10 sub-scores, A+ to F grade)
+- [x] Risk engine + technical debt analysis + refactor plan
+- [x] AI comment engine (6 LLM providers, mock by default)
+- [x] Report generation (Markdown, JSON, HTML, PDF)
+- [x] REST API (FastAPI, with auth, rate limit, SSRF protection)
+- [x] Plugin system (built-in analyzers registered via PluginManager)
+- [x] Secure token handling (GIT_ASKPASS, no credential in .git/config)
+- [x] CLI with signal handling, correct exit codes, report generation
+
+### Planned
+
+- [ ] CLI `--llm-provider` flag for switching LLM from the command line
+- [ ] Incremental analysis (only re-analyze changed files)
+- [ ] SARIF output (GitHub Code Scanning integration)
+- [ ] Web dashboard
+- [ ] Plugin marketplace
+- [ ] Monorepo support (package-based analysis)
+- [ ] Diff analysis (compare two commits)
+- [ ] Trend tracking (multi-commit history)
+- [ ] Config migration system
+- [ ] cProfile / flamegraph support
 
 See the [full SDD roadmap](docs/SDD-github-repo-analyzer.md#18-geliştirme-yol-haritası).
 

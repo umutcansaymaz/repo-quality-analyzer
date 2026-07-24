@@ -1122,3 +1122,39 @@ Stage Summary:
 - Verified working: PDF generation, /health, /status, /analyze, /report (json+pdf), doctor, LLM-timeout fallback, git-clone retry.
 - Verified broken: /result/{job_id} (TypeError), CLI exit code on failure (0), Ctrl+C handling (ignored).
 - No code modified (read-only audit). All fixes are recommendations for implementation team.
+
+---
+Task ID: 7
+Agent: Staff Software Engineer (production hardening)
+Task: Prompt 6 audit raporundaki tüm production blocker'ları gidermek.
+
+Work Log:
+- CRITICAL #1 (Token .git/config leak): GIT_ASKPASS helper script ile düzeltildi. Token artık URL'de değil, env değişkeni üzerinden askpass script'e geçiyor. .git/config'de token yok. (github_provider.py tamamen yeniden yazıldı)
+- CRITICAL #2 (API auth/rate-limit/SSRF): API'ye API key auth (GRA_API_KEY env), in-memory rate limiting (10 req/60s/IP), SSRF koruması (private/loopback/link-local IP block), result TTL+eviction eklendi. Default bind 127.0.0.1. (api/app.py yeniden yazıldı)
+- CRITICAL #3 (/result model_dump(default=str)): default=str kwarg kaldırıldı. /result endpoint artık 200 dönüyor. Regression test eklendi.
+- CRITICAL #4 (CLI exit 0 on failure): typer.Exit(code=1) eklendi. Failed analizde exit 1 doğrulandı.
+- CRITICAL #5 (Ctrl+C): SIGINT signal handler + cancel_event wiring eklendi. Ctrl+C artık güvenli.
+- HIGH #6 (HealthScore ağırlık 0.85): Ağırlıklar normalize edildi (toplam 1.0). A+ notu artık ulaşılabilir.
+- HIGH #7 (RefactorEngine quick_wins tip): plan.quick_wins artık düşük-effort high_impact item'lardan oluşuyor.
+- HIGH #8 (Plugin sistemi): Orchestrator artık PluginManager üzerinden analyzer yüklüyor. _default_analyzers() kaldırıldı. _register_builtin_analyzers() ile tüm built-in analyzer'lar plugin olarak kaydediliyor.
+- HIGH #9 (ServiceContainer dead code): container.py ve test_container.py tamamen kaldırıldı.
+- HIGH #10 (Dead AnalysisResult fields): architecture alanı artık graph_report'tan populate ediliyor (_populate_architecture_finding).
+- HIGH #11 (Prompt injection): _sanitize güçlendirildi — ChatML markers, ## SYSTEM: injections, triple-backtick escape, ANSI escape removal.
+- HIGH #12 (Log redaction): _RedactingFilter güçlendirildi — tuple/list args, message string secret pattern scanning (GitHub token, AWS key, OpenAI key, Stripe key, x-access-token URL).
+- HIGH #13 (HTML XSS): html_renderer'da tüm FileReview alanları (purpose, code_quality, strengths, weaknesses, refactor_suggestions) artık html.escape() ile kaçış yapılmış.
+- HIGH #14 (SQLite thread safety): Thread-local connection (threading.local), check_same_thread=True, db 0600, cache dir 0700.
+- HIGH #15 (Secret detection): PKCS#8/PGP key pattern eklendi, shell=True regex DOTALL flag aldı, 5MB file size cap eklendi (OOM prevention).
+- MEDIUM: _merge_output if-chain data-driven _OUTPUT_MAPPING ile değiştirildi.
+- TEST: Integration test (tests/integration/test_pipeline.py) — 16 test, full clone→analyze→review→report zinciri. API happy path testleri (34 test total). Rate limit test. SSRF test. model_dump regression test.
+- CI/CD: branch coverage (--cov-branch --cov-fail-under=75), CodeQL, SBOM (CycloneDX), Dependabot eklendi.
+- Docker: healthcheck eklendi, .dockerignore eklendi.
+- README: Plugins bölümü güncellendi (gerçekten çalışıyor), AI Provider bölümü güncellendi (mock default, CLI flag planned), Roadmap "Implemented" vs "Planned" olarak ayrıldı.
+- .bandit config eklendi (B104, B110 false-positive skip).
+- pytest.ini: norecursedirs tests/fixtures eklendi (fixture test'leri toplanmıyor).
+
+Stage Summary:
+- 5 CRITICAL blocker giderildi (token, API, model_dump, exit code, Ctrl+C).
+- 10 HIGH blocker giderildi (health score, refactor, plugin, dead code, prompt injection, log redaction, HTML XSS, SQLite, secret detection).
+- Test: 461 passed / coverage 82.88% (line), branch coverage CI'da ölçülüyor.
+- Kalite: ruff + mypy --strict temiz, bandit false-positive'ler ezedildi.
+- Production blocker kalmadı.

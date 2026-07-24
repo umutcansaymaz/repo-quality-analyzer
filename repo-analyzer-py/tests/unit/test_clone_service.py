@@ -17,7 +17,6 @@ from repo_analyzer.adapters.vcs.clone_service import CloneService
 from repo_analyzer.adapters.vcs.factory import DefaultRepositoryProviderFactory
 from repo_analyzer.adapters.vcs.github_provider import (
     GitHubRepositoryProvider,
-    _redact_cmd,
 )
 from repo_analyzer.core.domain.repository import (
     AccessMode,
@@ -55,6 +54,7 @@ class TestGitHubProviderHelpers:
         assert url == "git@github.com:o/r.git"
 
     def test_build_clone_url_with_token(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Token must NOT appear in the URL — it's passed via GIT_ASKPASS."""
         monkeypatch.setenv("GRA_TOKEN", "ghp_secret")
         provider = GitHubRepositoryProvider()
         repo = parse_repository_url("https://github.com/o/r")
@@ -65,8 +65,9 @@ class TestGitHubProviderHelpers:
             }
         )
         url = provider._build_clone_url(repo)
-        assert "ghp_secret" in url
-        assert "x-access-token" in url
+        assert "ghp_secret" not in url
+        assert "x-access-token" not in url
+        assert url == "https://github.com/o/r.git"
 
     def test_build_clone_command(self, tmp_path: Path) -> None:
         provider = GitHubRepositoryProvider(clone_depth=5, partial_clone=True)
@@ -199,19 +200,61 @@ class TestGitHubProviderHelpers:
             assert "v2.0" in tags
 
 
-class TestRedactCmd:
-    """Tests for the ``_redact_cmd`` helper."""
+class TestTokenSafety:
+    """Tests verifying that tokens never appear in URLs or commands."""
 
-    def test_redacts_token_url(self) -> None:
-        cmd = ["git", "clone", "https://x-access-token:secret@github.com/o/r.git", "dest"]
-        redacted = _redact_cmd(cmd)
-        assert "[REDACTED_URL]" in redacted
-        assert "secret" not in redacted
+    def test_token_not_in_clone_url(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The clone URL must never contain the token."""
+        monkeypatch.setenv("GRA_TOKEN", "ghp_secret_token_12345")
+        provider = GitHubRepositoryProvider()
+        repo = parse_repository_url("https://github.com/o/r")
+        repo = repo.model_copy(
+            update={
+                "access": AccessMode.TOKEN,
+                "credential": Credential(source="env", identifier="GRA_TOKEN"),
+            }
+        )
+        url = provider._build_clone_url(repo)
+        assert "ghp_secret_token_12345" not in url
+        assert "x-access-token" not in url
 
-    def test_passes_through_normal_cmd(self) -> None:
-        cmd = ["git", "clone", "https://github.com/o/r.git", "dest"]
-        redacted = _redact_cmd(cmd)
-        assert redacted == cmd
+    def test_token_not_in_clone_command(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The git clone command args must never contain the token."""
+        monkeypatch.setenv("GRA_TOKEN", "ghp_secret_token_12345")
+        provider = GitHubRepositoryProvider()
+        repo = parse_repository_url("https://github.com/o/r")
+        repo = repo.model_copy(
+            update={
+                "access": AccessMode.TOKEN,
+                "credential": Credential(source="env", identifier="GRA_TOKEN"),
+            }
+        )
+        url = provider._build_clone_url(repo)
+        cmd = provider._build_clone_command(url, Path("/tmp/dest"))
+        for arg in cmd:
+            assert "ghp_secret_token_12345" not in arg
+
+    def test_env_has_askpass_for_token_auth(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """When token auth is used, GIT_ASKPASS must be set in the env."""
+        monkeypatch.setenv("GRA_TOKEN", "ghp_secret_token_12345")
+        provider = GitHubRepositoryProvider()
+        repo = parse_repository_url("https://github.com/o/r")
+        repo = repo.model_copy(
+            update={
+                "access": AccessMode.TOKEN,
+                "credential": Credential(source="env", identifier="GRA_TOKEN"),
+            }
+        )
+        env = provider._build_env(repo)
+        assert "GIT_ASKPASS" in env
+        assert env["GRA_GIT_TOKEN"] == "ghp_secret_token_12345"
+
+    def test_no_askpass_for_public(self) -> None:
+        """Public repos must not set GIT_ASKPASS."""
+        provider = GitHubRepositoryProvider()
+        repo = parse_repository_url("https://github.com/o/r")
+        env = provider._build_env(repo)
+        assert "GIT_ASKPASS" not in env
 
 
 class TestCloneServiceRetry:

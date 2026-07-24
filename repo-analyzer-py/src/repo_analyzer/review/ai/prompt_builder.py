@@ -81,13 +81,35 @@ class PromptBuilder:
 
     @staticmethod
     def _sanitize(text: str) -> str:
-        """Strip control sequences that could be used for prompt injection."""
-        # Remove common prompt-injection markers.
+        """Strip control sequences that could be used for prompt injection.
+
+        Removes:
+            - XML-style role tags (``<system>``, ``<user>``, ...).
+            - ChatML token markers (``<|im_start|>``, ``<|im_end|>``).
+            - Markdown heading injections (``## SYSTEM:``, ``# INSTRUCTIONS:``).
+            - Triple-backtick fence escapes (```` ``` ````).
+            - Null bytes.
+            - ANSI escape sequences.
+        """
+        # Remove XML-style role tags.
         cleaned = re.sub(
             r"</?(?:system|user|assistant|im_start|im_end)>", "", text, flags=re.IGNORECASE
         )
+        # Remove ChatML markers.
+        cleaned = re.sub(r"<\|im_start\|>|<\|im_end\|>", "", cleaned, flags=re.IGNORECASE)
+        # Remove "## SYSTEM:" / "# INSTRUCTIONS:" style injections.
+        cleaned = re.sub(
+            r"^(#{1,3})\s*(SYSTEM|INSTRUCTIONS|ASSISTANT|USER)\s*:",
+            r"\1",
+            cleaned,
+            flags=re.IGNORECASE | re.MULTILINE,
+        )
+        # Escape triple backticks so they can't close the fenced code block.
+        cleaned = cleaned.replace("```", "\\`\\`\\`")
         # Remove null bytes.
         cleaned = cleaned.replace("\x00", "")
+        # Remove ANSI escape sequences.
+        cleaned = re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", cleaned)
         return cleaned
 
 

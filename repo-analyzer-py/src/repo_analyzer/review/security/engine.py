@@ -122,7 +122,7 @@ _CUSTOM_RULES: list[dict[str, Any]] = [
         "title": "Private SSH Key",
         "category": "private_ssh_key",
         "severity": RiskLevel.CRITICAL,
-        "pattern": r"""-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----""",
+        "pattern": r"""-----BEGIN (?:RSA |EC |OPENSSH |DSA |ENCRYPTED |PGP )?PRIVATE KEY-----""",
         "why": "Private SSH keys grant passwordless access to every server the key is authorized on.",
         "risk": "Lateral movement, server compromise, supply-chain attacks via git push.",
         "solution": "Never commit private keys; rotate the keypair and remove from history via filter-branch.",
@@ -196,6 +196,7 @@ _CUSTOM_RULES: list[dict[str, Any]] = [
         "category": "shell_true",
         "severity": RiskLevel.HIGH,
         "pattern": r"""subprocess\.\w+\([^)]*shell\s*=\s*True""",
+        "flags": re.DOTALL,
         "why": "shell=True passes the command through a shell, enabling injection via shell metacharacters.",
         "risk": "Command injection — attacker-controlled arguments become shell commands.",
         "solution": "Pass args as a list with shell=False; sanitize and validate inputs.",
@@ -283,8 +284,12 @@ class SecurityReviewEngine:
     ) -> list[SecurityFindingDetail]:
         """Run all custom regex rules across source files."""
         findings: list[SecurityFindingDetail] = []
+        max_file_size = 5 * 1024 * 1024  # 5 MB cap to prevent OOM
         for path in self._iter_source_files(workspace):
             try:
+                if path.stat().st_size > max_file_size:
+                    _logger.debug("Skipping large file %s (%d bytes)", path, path.stat().st_size)
+                    continue
                 content = path.read_text(encoding="utf-8", errors="ignore")
             except OSError:
                 continue
@@ -303,8 +308,9 @@ class SecurityReviewEngine:
         """Apply a single regex rule to a file's content."""
         results: list[SecurityFindingDetail] = []
         pattern = rule["pattern"]
+        flags = rule.get("flags", 0)
         try:
-            compiled = re.compile(pattern)
+            compiled = re.compile(pattern, flags)
         except re.error:
             return results
         for match in compiled.finditer(content):

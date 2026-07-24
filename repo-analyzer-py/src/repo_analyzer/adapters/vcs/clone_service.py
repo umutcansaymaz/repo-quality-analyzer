@@ -107,6 +107,12 @@ class CloneService:
         if dest.exists():
             shutil.rmtree(dest, ignore_errors=True)
         dest.parent.mkdir(parents=True, exist_ok=True)
+        # Enforce 0700 on the cache directory to prevent other users from
+        # reading cached .git directories or analysis artifacts.
+        try:
+            os.chmod(dest.parent, 0o700)
+        except OSError:
+            pass
 
         self._clone_with_retry(
             provider,

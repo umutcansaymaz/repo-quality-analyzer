@@ -1,0 +1,11 @@
+# Bandit configuration for repo-analyzer.
+# Suppresses false positives that are safe by design.
+
+[bandit]
+# Skip specific tests that produce false positives in this codebase:
+# - B104: hardcoded bind address (0.0.0.0 is intentional in Docker)
+# - B110: try_except_pass (defensive cleanup in finally blocks)
+skips: B104, B110
+
+# Target only the src directory.
+targets: src

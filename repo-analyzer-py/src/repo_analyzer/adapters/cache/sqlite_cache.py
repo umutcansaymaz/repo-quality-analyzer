@@ -12,6 +12,7 @@ but no repository is actually cloned at this stage.
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import threading
 from collections.abc import Sequence
@@ -77,16 +78,44 @@ class SQLiteCacheAdapter(CachePort):
         """
         self._db_path = expand_user_path(database_path)
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
+        # Enforce 0700 on the cache directory to protect cached artifacts.
+        try:
+            self._db_path.parent.chmod(0o700)
+        except OSError:
+            pass
         self._lock = threading.RLock()
-        self._conn = self._connect()
-        self._init_schema()
+        self._local = threading.local()
+        # Create the schema using a one-shot connection.
+        conn = self._connect()
+        try:
+            self._init_schema(conn)
+        finally:
+            conn.close()
+        # Restrict the database file to owner-only access.
+        try:
+            os.chmod(self._db_path, 0o600)
+        except OSError:
+            pass
 
     # ----- connection management -------------------------------------------------
+    def _get_conn(self) -> sqlite3.Connection:
+        """Return a thread-local connection.
+
+        Each thread gets its own connection so that SQLite's threading
+        constraints are respected without serializing all access through a
+        single connection.
+        """
+        conn = getattr(self._local, "conn", None)
+        if conn is None:
+            conn = self._connect()
+            self._local.conn = conn
+        return conn
+
     def _connect(self) -> sqlite3.Connection:
         try:
             conn = sqlite3.connect(
                 str(self._db_path),
-                check_same_thread=False,
+                check_same_thread=True,
                 isolation_level=None,  # autocommit
                 timeout=30.0,
             )
@@ -101,15 +130,14 @@ class SQLiteCacheAdapter(CachePort):
                 context={"path": str(self._db_path)},
             ) from exc
 
-    def _init_schema(self) -> None:
-        with self._lock:
-            try:
-                self._conn.executescript(_SCHEMA)
-            except sqlite3.Error as exc:
-                raise CacheException(
-                    f"Failed to initialize cache schema: {exc}",
-                    context={"path": str(self._db_path)},
-                ) from exc
+    def _init_schema(self, conn: sqlite3.Connection) -> None:
+        try:
+            conn.executescript(_SCHEMA)
+        except sqlite3.Error as exc:
+            raise CacheException(
+                f"Failed to initialize cache schema: {exc}",
+                context={"path": str(self._db_path)},
+            ) from exc
 
     # ----- row mapping -----------------------------------------------------------
     def _row_to_entry(self, row: sqlite3.Row) -> CacheEntry:
@@ -145,7 +173,7 @@ class SQLiteCacheAdapter(CachePort):
         key_hash = key.to_hash()
         with self._lock:
             try:
-                cursor = self._conn.execute(
+                cursor = self._get_conn().execute(
                     "SELECT * FROM cache_entries WHERE key = ?", (key_hash,)
                 )
                 row = cursor.fetchone()
@@ -163,7 +191,7 @@ class SQLiteCacheAdapter(CachePort):
             # Update access metadata.
             now = _iso(datetime.now(tz=UTC))
             try:
-                self._conn.execute(
+                self._get_conn().execute(
                     "UPDATE cache_entries SET last_accessed_at = ?, "
                     "access_count = access_count + 1 WHERE key = ?",
                     (now, key_hash),
@@ -178,7 +206,7 @@ class SQLiteCacheAdapter(CachePort):
         """Insert or replace an entry."""
         with self._lock:
             try:
-                self._conn.execute(
+                self._get_conn().execute(
                     """
                     INSERT OR REPLACE INTO cache_entries
                     (key, repository_url, commit_sha, entry_type, workspace_path,
@@ -215,7 +243,9 @@ class SQLiteCacheAdapter(CachePort):
     def _delete_by_key(self, key_hash: str) -> bool:
         with self._lock:
             try:
-                cursor = self._conn.execute("DELETE FROM cache_entries WHERE key = ?", (key_hash,))
+                cursor = self._get_conn().execute(
+                    "DELETE FROM cache_entries WHERE key = ?", (key_hash,)
+                )
             except sqlite3.Error as exc:
                 raise CacheException(
                     f"Cache delete failed: {exc}",
@@ -227,11 +257,11 @@ class SQLiteCacheAdapter(CachePort):
         """List entries, optionally filtered by type."""
         with self._lock:
             if entry_type is None:
-                cursor = self._conn.execute(
+                cursor = self._get_conn().execute(
                     "SELECT * FROM cache_entries ORDER BY last_accessed_at DESC"
                 )
             else:
-                cursor = self._conn.execute(
+                cursor = self._get_conn().execute(
                     "SELECT * FROM cache_entries WHERE entry_type = ? "
                     "ORDER BY last_accessed_at DESC",
                     (entry_type.value,),
@@ -243,9 +273,9 @@ class SQLiteCacheAdapter(CachePort):
         """Remove all entries and return the count deleted."""
         with self._lock:
             try:
-                cursor = self._conn.execute("SELECT COUNT(*) FROM cache_entries")
+                cursor = self._get_conn().execute("SELECT COUNT(*) FROM cache_entries")
                 count = int(cursor.fetchone()[0])
-                self._conn.execute("DELETE FROM cache_entries")
+                self._get_conn().execute("DELETE FROM cache_entries")
             except sqlite3.Error as exc:
                 raise CacheException(f"Cache clear failed: {exc}") from exc
             return count
@@ -255,7 +285,7 @@ class SQLiteCacheAdapter(CachePort):
         now = _iso(datetime.now(tz=UTC))
         with self._lock:
             try:
-                cursor = self._conn.execute(
+                cursor = self._get_conn().execute(
                     "DELETE FROM cache_entries WHERE expires_at < ?", (now,)
                 )
             except sqlite3.Error as exc:
@@ -263,12 +293,15 @@ class SQLiteCacheAdapter(CachePort):
             return cursor.rowcount
 
     def close(self) -> None:
-        """Close the database connection."""
+        """Close the thread-local database connection (if open)."""
         with self._lock:
-            try:
-                self._conn.close()
-            except sqlite3.Error:  # pragma: no cover - defensive
-                pass
+            conn = getattr(self._local, "conn", None)
+            if conn is not None:
+                try:
+                    conn.close()
+                except sqlite3.Error:  # pragma: no cover - defensive
+                    pass
+                self._local.conn = None
 
     # ----- context manager support ----------------------------------------------
     def __enter__(self) -> SQLiteCacheAdapter:

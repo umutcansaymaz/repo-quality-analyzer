@@ -59,5 +59,9 @@ RUN pip install --no-deps -e .
 USER analyzer
 WORKDIR /home/analyzer
 
+# Healthcheck: verify the CLI is operational.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD repo-analyzer doctor || exit 1
+
 ENTRYPOINT ["repo-analyzer"]
 CMD ["--help"]

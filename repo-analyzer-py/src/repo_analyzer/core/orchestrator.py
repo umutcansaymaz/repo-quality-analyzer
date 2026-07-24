@@ -8,10 +8,14 @@ Coordinates the full analysis pipeline:
 4. Phase 2: MetricEngine, ComplexityAnalyzer.
 5. Phase 3: GitAnalyzer, GraphEngine.
 6. Phase 4: DocumentationAnalyzer, TestAnalyzer.
+7. Phase 5: Review engines + optional LLM.
 
-Analyzers within the same phase run in parallel via a
-:class:`ThreadPoolExecutor`. Results are merged into a single
-:class:`AnalysisResult`.
+Analyzers are loaded through the :class:`PluginManager` — both built-in
+and third-party analyzers are registered via the same mechanism. The
+orchestrator depends on the :class:`AnalyzerPort` interface, not on
+concrete analyzer classes.
+
+Review engines + optional LLM are injected via constructor (ports).
 """
 
 from __future__ import annotations
@@ -22,21 +26,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
-from repo_analyzer.adapters.vcs import CloneService, DefaultRepositoryProviderFactory
-from repo_analyzer.analyzers import (
-    ASTAnalyzer,
-    ComplexityAnalyzer,
-    DependencyAnalyzer,
-    DocumentationAnalyzer,
-    FilesystemAnalyzer,
-    GitAnalyzer,
-    GraphEngine,
-    ImportAnalyzer,
-    LanguageDetector,
-    MetricEngine,
-    RepositoryDetector,
-    TestAnalyzer,
-)
+from repo_analyzer.adapters.vcs.clone_service import CloneService
+from repo_analyzer.adapters.vcs.factory import DefaultRepositoryProviderFactory
 from repo_analyzer.core.domain.analysis_result import AnalysisResult
 from repo_analyzer.core.domain.repository import Repository
 from repo_analyzer.core.ports.analyzer_port import AnalyzerPort
@@ -44,13 +35,69 @@ from repo_analyzer.core.ports.cache_port import CachePort
 from repo_analyzer.core.ports.llm_port import LLMPort
 from repo_analyzer.infrastructure.logging import get_logger
 from repo_analyzer.infrastructure.progress import ProgressUI
+from repo_analyzer.plugins import PluginManager
 from repo_analyzer.review import AICommentEngine
 
 _logger = get_logger(__name__)
 
 
+def _register_builtin_analyzers(manager: PluginManager) -> None:
+    """Register the built-in analyzers with the plugin manager.
+
+    This function imports the concrete analyzer classes and registers them.
+    It is the **only** place in the core layer that imports concrete
+    analyzers — the orchestrator itself depends only on
+    :class:`AnalyzerPort`.
+    """
+    from repo_analyzer.analyzers import (
+        ASTAnalyzer,
+        ComplexityAnalyzer,
+        DependencyAnalyzer,
+        DocumentationAnalyzer,
+        FilesystemAnalyzer,
+        GitAnalyzer,
+        GraphEngine,
+        ImportAnalyzer,
+        LanguageDetector,
+        MetricEngine,
+        RepositoryDetector,
+        TestAnalyzer,
+    )
+
+    for analyzer_cls in [
+        RepositoryDetector,
+        FilesystemAnalyzer,
+        LanguageDetector,
+        ASTAnalyzer,
+        ImportAnalyzer,
+        DependencyAnalyzer,
+        MetricEngine,
+        ComplexityAnalyzer,
+        GitAnalyzer,
+        GraphEngine,
+        DocumentationAnalyzer,
+        TestAnalyzer,
+    ]:
+        instance = analyzer_cls()
+        try:
+            manager.registry.register(instance, metadata={"source": "builtin"})
+        except Exception as exc:
+            _logger.warning("Failed to register %s: %s", analyzer_cls.__name__, exc)
+
+
 class Orchestrator:
-    """Run the analysis pipeline and produce an :class:`AnalysisResult`."""
+    """Run the analysis pipeline and produce an :class:`AnalysisResult`.
+
+    Args:
+        cache: The cache port (injected).
+        max_workers: Thread-pool size for parallel analyzer execution.
+        clone_depth: Shallow-clone depth.
+        timeout: Clone / fetch timeout in seconds.
+        llm: Optional LLM port for the AI review phase.
+        plugin_manager: Optional pre-configured plugin manager. If
+            ``None``, a fresh one is created and built-in analyzers are
+            registered.
+    """
 
     def __init__(
         self,
@@ -60,6 +107,7 @@ class Orchestrator:
         clone_depth: int = 1,
         timeout: int = 120,
         llm: LLMPort | None = None,
+        plugin_manager: PluginManager | None = None,
     ) -> None:
         self._cache = cache
         self._max_workers = max(1, max_workers)
@@ -70,27 +118,20 @@ class Orchestrator:
                 timeout=timeout,
             ),
         )
-        self._analyzers: list[AnalyzerPort] = self._default_analyzers()
+        # Use the plugin manager for analyzer discovery.
+        self._plugin_manager = plugin_manager or PluginManager()
+        if not self._plugin_manager.initialized:
+            _register_builtin_analyzers(self._plugin_manager)
+            self._plugin_manager.initialize_all({})
         self._llm = llm
         self._review_engine: AICommentEngine | None = None
         if llm is not None:
             self._review_engine = AICommentEngine(llm)
 
-    def _default_analyzers(self) -> list[AnalyzerPort]:
-        return [
-            RepositoryDetector(),
-            FilesystemAnalyzer(),
-            LanguageDetector(),
-            ASTAnalyzer(),
-            ImportAnalyzer(),
-            DependencyAnalyzer(),
-            MetricEngine(),
-            ComplexityAnalyzer(),
-            GitAnalyzer(),
-            GraphEngine(),
-            DocumentationAnalyzer(),
-            TestAnalyzer(),
-        ]
+    @property
+    def analyzers(self) -> Sequence[AnalyzerPort]:
+        """All registered analyzers (from the plugin manager)."""
+        return self._plugin_manager.all()
 
     def analyze(
         self,
@@ -124,13 +165,19 @@ class Orchestrator:
             result.repository = resolved
             result.commit_sha = resolved.commit_sha
 
-            # Group analyzers by phase.
-            phases = self._group_by_phase(self._analyzers)
+            # Group analyzers by phase (from the plugin manager).
+            analyzers = list(self._plugin_manager.all())
+            phases = self._group_by_phase(analyzers)
             for phase in sorted(phases.keys()):
                 if cancel_event and cancel_event.is_set():
                     result.add_error({"phase": phase, "error": "cancelled"})
                     break
                 self._run_phase(phases[phase], resolved, workspace, result, progress)
+
+            # Derive ArchitectureFinding from the graph report so review
+            # engines that check ``result.architecture`` have data to work
+            # with.
+            self._populate_architecture_finding(result)
 
             # Phase 5: review (deterministic engines + optional LLM).
             if self._review_engine is not None:
@@ -146,6 +193,8 @@ class Orchestrator:
                     if progress:
                         progress.warning(f"Review phase failed: {exc}")
 
+            if cancel_event and cancel_event.is_set():
+                result.add_error({"phase": "post", "error": "cancelled"})
             result.mark_completed()
         except Exception as exc:
             _logger.error("Analysis failed: %s", exc)
@@ -153,6 +202,52 @@ class Orchestrator:
         return result
 
     # ----- internal -------------------------------------------------------------
+
+    @staticmethod
+    def _populate_architecture_finding(result: AnalysisResult) -> None:
+        """Derive an :class:`ArchitectureFinding` from the graph report.
+
+        Review engines (quality, architecture, health, refactor) check
+        ``result.architecture`` for coupling/cohesion/cycles. This method
+        populates that field from the graph engine's output so the review
+        engines have real data to work with.
+        """
+        if result.architecture is not None:
+            return  # Already populated.
+        if not result.graph_report:
+            return
+        from repo_analyzer.core.domain.architecture_finding import (
+            ArchitectureFinding,
+            ArchitectureSmell,
+            ArchitectureSmellType,
+            Cycle,
+        )
+        from repo_analyzer.core.domain.report import Severity
+
+        cycles = [Cycle(nodes=cycle) for cycle in result.graph_report.cycles]
+        smells: list[ArchitectureSmell] = []
+        for cycle in cycles:
+            smells.append(
+                ArchitectureSmell(
+                    type=ArchitectureSmellType.CYCLIC_DEPENDENCY,
+                    severity=Severity.HIGH,
+                    message=f"Circular dependency: {cycle}",
+                    affected_modules=cycle.nodes,
+                )
+            )
+        # Compute simple coupling proxy: number of edges / number of nodes.
+        graph = result.graph_report.import_graph
+        nodes = graph.get("nodes", 0)
+        edges = graph.get("edges", 0)
+        coupling = min(1.0, edges / max(nodes, 1)) if nodes > 0 else 0.0
+        # Cohesion proxy: inverse of coupling (more edges = lower cohesion).
+        cohesion = max(0.0, 1.0 - coupling)
+        result.architecture = ArchitectureFinding(
+            cycles=cycles,
+            smells=smells,
+            coupling=round(coupling, 2),
+            cohesion=round(cohesion, 2),
+        )
 
     def _group_by_phase(self, analyzers: Sequence[AnalyzerPort]) -> dict[int, list[AnalyzerPort]]:
         """Group analyzers by their phase."""
@@ -209,63 +304,75 @@ class Orchestrator:
 
     @staticmethod
     def _merge_output(result: AnalysisResult, output: dict[str, Any], analyzer_name: str) -> None:
-        """Merge an analyzer's output into the :class:`AnalysisResult`."""
-        if "repository_metadata" in output:
-            from repo_analyzer.core.domain.analysis_outputs import RepositoryMetadata
+        """Merge an analyzer's output into the :class:`AnalysisResult`.
 
-            result.repository_metadata = RepositoryMetadata.model_validate(
-                output["repository_metadata"]
-            )
-        if "file_inventory" in output:
-            from repo_analyzer.core.domain.analysis_outputs import FileInventory
+        This is a data-driven merge: the mapping from output key to
+        AnalysisResult field is defined in :data:`_OUTPUT_MAPPING`.
+        """
+        for key, field_name in _OUTPUT_MAPPING.items():
+            if key in output:
+                model_cls = _OUTPUT_MODELS.get(key)
+                if model_cls is not None:
+                    setattr(result, field_name, model_cls.model_validate(output[key]))
 
-            result.file_inventory = FileInventory.model_validate(output["file_inventory"])
-        if "language_distribution" in output:
-            from repo_analyzer.core.domain.analysis_outputs import LanguageDistribution
 
-            result.language_distribution = LanguageDistribution.model_validate(
-                output["language_distribution"]
-            )
-        if "symbols" in output:
-            from repo_analyzer.core.domain.analysis_outputs import SymbolCollection
+#: Mapping from analyzer output key → AnalysisResult field name.
+_OUTPUT_MAPPING: dict[str, str] = {
+    "repository_metadata": "repository_metadata",
+    "file_inventory": "file_inventory",
+    "language_distribution": "language_distribution",
+    "symbols": "symbols",
+    "import_analysis": "import_analysis",
+    "dependency_analysis": "dependency_analysis",
+    "metrics_report": "metrics_report",
+    "complexity_report": "complexity_report",
+    "git_analysis": "git_analysis",
+    "documentation_report": "documentation_report",
+    "test_analysis": "test_analysis",
+    "graph_report": "graph_report",
+}
 
-            result.symbols = SymbolCollection.model_validate(output["symbols"])
-        if "import_analysis" in output:
-            from repo_analyzer.core.domain.analysis_outputs import ImportAnalysis
+#: Mapping from output key → Pydantic model class (lazy-loaded).
+_OUTPUT_MODELS: dict[str, Any] = {}
 
-            result.import_analysis = ImportAnalysis.model_validate(output["import_analysis"])
-        if "dependency_analysis" in output:
-            from repo_analyzer.core.domain.analysis_outputs import DependencyAnalysis
 
-            result.dependency_analysis = DependencyAnalysis.model_validate(
-                output["dependency_analysis"]
-            )
-        if "metrics_report" in output:
-            from repo_analyzer.core.domain.analysis_outputs import MetricsReport
+def _init_output_models() -> None:
+    """Populate :data:`_OUTPUT_MODELS` lazily to avoid circular imports."""
+    from repo_analyzer.core.domain.analysis_outputs import (
+        ComplexityReport,
+        DependencyAnalysis,
+        DocumentationReport,
+        FileInventory,
+        GitAnalysis,
+        GraphReport,
+        ImportAnalysis,
+        LanguageDistribution,
+        MetricsReport,
+        RepositoryMetadata,
+        SymbolCollection,
+        TestAnalysis,
+    )
 
-            result.metrics_report = MetricsReport.model_validate(output["metrics_report"])
-        if "complexity_report" in output:
-            from repo_analyzer.core.domain.analysis_outputs import ComplexityReport
+    _OUTPUT_MODELS.update(
+        {
+            "repository_metadata": RepositoryMetadata,
+            "file_inventory": FileInventory,
+            "language_distribution": LanguageDistribution,
+            "symbols": SymbolCollection,
+            "import_analysis": ImportAnalysis,
+            "dependency_analysis": DependencyAnalysis,
+            "metrics_report": MetricsReport,
+            "complexity_report": ComplexityReport,
+            "git_analysis": GitAnalysis,
+            "documentation_report": DocumentationReport,
+            "test_analysis": TestAnalysis,
+            "graph_report": GraphReport,
+        }
+    )
 
-            result.complexity_report = ComplexityReport.model_validate(output["complexity_report"])
-        if "git_analysis" in output:
-            from repo_analyzer.core.domain.analysis_outputs import GitAnalysis
 
-            result.git_analysis = GitAnalysis.model_validate(output["git_analysis"])
-        if "documentation_report" in output:
-            from repo_analyzer.core.domain.analysis_outputs import DocumentationReport
-
-            result.documentation_report = DocumentationReport.model_validate(
-                output["documentation_report"]
-            )
-        if "test_analysis" in output:
-            from repo_analyzer.core.domain.analysis_outputs import TestAnalysis
-
-            result.test_analysis = TestAnalysis.model_validate(output["test_analysis"])
-        if "graph_report" in output:
-            from repo_analyzer.core.domain.analysis_outputs import GraphReport
-
-            result.graph_report = GraphReport.model_validate(output["graph_report"])
+# Initialize the model mapping at import time (safe — no circular deps).
+_init_output_models()
 
 
 __all__ = ["Orchestrator"]

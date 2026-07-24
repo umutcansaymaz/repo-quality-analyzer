@@ -1,7 +1,8 @@
-"""REST API package for repo-analyzer (FastAPI)."""
+"""REST API package for repo-analyzer (FastAPI).
+
+Import ``app`` and ``run_api`` from ``repo_analyzer.api.app`` directly.
+"""
 
 from __future__ import annotations
-
-from repo_analyzer.api.app import app, run_api
 
 __all__ = ["app", "run_api"]

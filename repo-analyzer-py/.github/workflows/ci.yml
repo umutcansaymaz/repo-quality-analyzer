@@ -76,8 +76,8 @@ jobs:
           pip install -r requirements.txt
           pip install -e .
 
-      - name: Run tests with coverage
-        run: pytest
+      - name: Run tests with branch coverage
+        run: pytest --cov-branch --cov-fail-under=75
 
       - name: Upload coverage artifact
         if: always()
@@ -113,6 +113,47 @@ jobs:
         with:
           name: bandit-report
           path: bandit-report.json
+
+  codeql:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: python
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+
+  sbom:
+    name: Generate SBOM
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install CycloneDX
+        run: pip install cyclonedx-bom
+
+      - name: Generate SBOM
+        run: cyclonedx-py environment -o sbom.json -ri
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.json
 
   build:
     name: Build package

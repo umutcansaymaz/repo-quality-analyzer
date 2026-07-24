@@ -89,7 +89,8 @@ class TestOrchestrator:
 
         orchestrator._clone_service.clone = fake_clone  # type: ignore[method-assign]
 
-        # Make one analyzer fail.
+        # Replace the plugin manager's analyzer list with a single failing
+        # analyzer so the error is isolated.
         bad_analyzer = MagicMock()
         bad_analyzer.name = "bad"
         bad_analyzer.version = "0.0.0"
@@ -99,7 +100,9 @@ class TestOrchestrator:
         bad_analyzer.can_run.return_value = True
         bad_analyzer.run.side_effect = RuntimeError("boom")
         bad_analyzer.dispose.return_value = None
-        orchestrator._analyzers = [bad_analyzer]  # type: ignore[attr-defined]
+        # Clear the registry and register only the bad analyzer.
+        orchestrator._plugin_manager.registry.clear()
+        orchestrator._plugin_manager.registry.register(bad_analyzer)
 
         result = orchestrator.analyze(repo)
         # The run should still complete (the error is non-fatal).

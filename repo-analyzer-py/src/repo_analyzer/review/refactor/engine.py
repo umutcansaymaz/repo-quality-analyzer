@@ -123,8 +123,12 @@ class RefactorEngine:
                 )
             )
 
+        # Convert the top high-impact items into QuickWin objects (low effort).
+        plan_quick_wins: list[RefactorItem] = [
+            item for item in high_impact if item.effort == "low"
+        ][:5]
         plan = RefactorPlan(
-            quick_wins=high_impact[:3],  # high-impact items double as quick wins here
+            quick_wins=plan_quick_wins,
             high_impact=high_impact,
             long_term=long_term,
             breaking_changes=breaking,

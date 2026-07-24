@@ -145,8 +145,17 @@ class HealthScoreReviewEngine:
 
     @staticmethod
     def _overall(*scores: float) -> float:
+        """Compute the weighted overall score.
+
+        Weights sum to exactly 1.0 so the maximum overall is 100.0.
+        The 9 sub-scores are weighted: security & architecture (most
+        important) get the highest weights; documentation & DX get the
+        lowest.
+        """
         weights = [0.20, 0.20, 0.15, 0.10, 0.10, 0.10, 0.05, 0.05, 0.05]
-        return round(sum(s * w for s, w in zip(scores, weights, strict=False)), 2)
+        # Normalize weights to guarantee sum == 1.0 (guards against drift).
+        total_w = sum(weights)
+        return round(sum(s * (w / total_w) for s, w in zip(scores, weights, strict=False)), 2)
 
 
 __all__ = ["HealthScoreReviewEngine"]

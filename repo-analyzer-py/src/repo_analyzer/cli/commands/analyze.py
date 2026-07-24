@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
+import typer
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -84,9 +86,22 @@ def run_analyze(
     console.print(f"[title]Access[/title]     [value]{repository.access.value}[/value]")
     ui.print("")
 
+    # Set up cancellation via SIGINT (Ctrl+C).
+    import threading
+
+    cancel_event = threading.Event()
+
+    def _signal_handler(signum: int, frame: Any) -> None:
+        console.print("\n[yellow]⚠ Cancellation requested — finishing current step…[/yellow]")
+        cancel_event.set()
+
+    import signal
+
+    old_handler = signal.signal(signal.SIGINT, _signal_handler)
     try:
-        result = orchestrator.analyze(repository, progress=ui)
+        result = orchestrator.analyze(repository, progress=ui, cancel_event=cancel_event)
     finally:
+        signal.signal(signal.SIGINT, old_handler)
         cache_adapter.close()
 
     _render_summary(console, result)
@@ -100,6 +115,18 @@ def run_analyze(
     # Generate reports if requested.
     if report_formats:
         _generate_reports(console, result, report_formats, reports_dir)
+
+    # Exit with a non-zero code if the analysis did not complete successfully.
+    if result.status.value != "completed":
+        console.print(
+            Panel(
+                f"[bold red]✗ Analysis {result.status.value}[/bold red]",
+                border_style="error",
+                expand=False,
+            ),
+            justify="center",
+        )
+        raise typer.Exit(code=1)
 
     console.print(
         Panel(
