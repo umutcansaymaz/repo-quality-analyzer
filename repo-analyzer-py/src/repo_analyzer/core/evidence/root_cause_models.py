@@ -143,10 +143,12 @@ class RootCause(BaseModel):
 
     # Explanation.
     description: str = Field(default="", description="What this root cause means.")
-    technical_rationale: str = Field(default="", description="Why the evidence supports this conclusion.")
+    technical_rationale: str = Field(
+        default="", description="Why the evidence supports this conclusion."
+    )
     root_cause_origin: str = Field(
         default="",
-        description="Likely reason this problem exists (e.g. 'organic growth without refactoring')."
+        description="Likely reason this problem exists (e.g. 'organic growth without refactoring').",
     )
 
     # Affected scope.

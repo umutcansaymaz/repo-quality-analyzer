@@ -1,4 +1,4 @@
-"""Evidence Engine + Engineering Knowledge Graph + Root Cause Detection.
+"""Evidence Engine + Engineering Knowledge Graph + Root Cause Detection + Planning.
 
 Provides:
     - **Evidence models** (:mod:`.models`): unified finding representation.
@@ -7,6 +7,8 @@ Provides:
     - **Graph builder** (:mod:`.graph_builder`): EvidenceCollection → EngineeringGraph.
     - **Root cause models** (:mod:`.root_cause_models`): architectural root causes.
     - **Root cause engine** (:mod:`.root_cause_engine`): graph → root causes.
+    - **Planning models** (:mod:`.planning_models`): engineering plan, roadmap, steps.
+    - **Planning engine** (:mod:`.planning_engine`): root causes → engineering plan.
 """
 
 from __future__ import annotations
@@ -29,6 +31,28 @@ from repo_analyzer.core.evidence.models import (
     EvidenceType,
     ReferenceKind,
     RelationshipType,
+)
+from repo_analyzer.core.evidence.planning_engine import (
+    ImpactAnalyzer,
+    PlanningEngine,
+    PriorityEngine,
+    ROICalculator,
+)
+from repo_analyzer.core.evidence.planning_models import (
+    BlockerItem,
+    EngineeringBenefit,
+    EngineeringEstimate,
+    EngineeringPlan,
+    EngineeringPriority,
+    EngineeringRisk,
+    EstimationUnit,
+    ImpactDimension,
+    ImpactScore,
+    PlanningStep,
+    QuickWinItem,
+    Roadmap,
+    SprintRecommendation,
+    TradeOffAlternative,
 )
 from repo_analyzer.core.evidence.root_cause_engine import RootCauseDetectionEngine
 from repo_analyzer.core.evidence.root_cause_models import (
@@ -68,4 +92,23 @@ __all__ = [
     "RootCauseRelationship",
     "RootCauseRelationshipType",
     "RootCauseSeverity",
+    # Planning models
+    "BlockerItem",
+    "EngineeringBenefit",
+    "EngineeringEstimate",
+    "EngineeringPlan",
+    "EngineeringPriority",
+    "EngineeringRisk",
+    "EstimationUnit",
+    "ImpactAnalyzer",
+    "ImpactDimension",
+    "ImpactScore",
+    "PlanningEngine",
+    "PlanningStep",
+    "PriorityEngine",
+    "QuickWinItem",
+    "ROICalculator",
+    "Roadmap",
+    "SprintRecommendation",
+    "TradeOffAlternative",
 ]

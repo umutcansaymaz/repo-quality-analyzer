@@ -67,6 +67,8 @@ ignore = [
 "src/repo_analyzer/adapters/llm/**" = ["E501"]
 "src/repo_analyzer/core/evidence/root_cause_engine.py" = ["SLF001", "E501", "SIM110"]
 "src/repo_analyzer/core/evidence/root_cause_models.py" = ["E501"]
+"src/repo_analyzer/core/evidence/planning_engine.py" = ["E501", "SIM113", "RUF003", "RUF034", "F841"]
+"src/repo_analyzer/core/evidence/planning_models.py" = ["RUF012"]
 
 [lint.isort]
 known-first-party = ["repo_analyzer"]

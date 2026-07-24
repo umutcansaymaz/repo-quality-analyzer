@@ -1321,3 +1321,63 @@ Stage Summary:
 - Backward compatibility: root_causes alanı None default, engine hatası non-fatal, hiçbir analyzer/graph builder/evidence builder/review engine değiştirilmedi.
 - Performans: sadece in-memory EngineeringGraph + EvidenceCollection üzerinde çalışıyor, repository re-scan yok, yeni I/O yok, graph re-build yok.
 - Gelecekteki Planning Engine bu katmanı kullanarak: root cause'ları öncelik sırasına koyabilir, her root cause için refactor planı üretebilir, root cause'lar arası ilişkileri takip ederek cascade fix planlayabilir.
+
+---
+Task ID: 11
+Agent: Principal Software Architect (Engineering Planning Engine)
+Task: Root Cause Collection üzerinde Engineering Planning Engine inşa etmek.
+
+Work Log:
+- Mevcut kod tabanı tamamen analiz edildi: RootCause modelleri (RootCauseCategory 22 tür, RootCauseSeverity, RootCauseRelationship), RootCauseCollection, RootCauseDetectionEngine, orchestrator fazları (0-9), Evidence modelleri incelendi.
+- Yeni dosyalar:
+  * src/repo_analyzer/core/evidence/planning_models.py — 14 model (EngineeringPlan, PlanningStep, ActionItem, EngineeringPriority, EngineeringEstimate, EngineeringRisk, EngineeringBenefit, ImpactScore, TradeOffAlternative, QuickWinItem, BlockerItem, SprintRecommendation, Roadmap, ImpactDimension) + 4 enum
+  * src/repo_analyzer/core/evidence/planning_engine.py — PlanningEngine + ImpactAnalyzer + ROICalculator + PriorityEngine (4 servis, ~960 satır)
+  * tests/unit/test_planning_engine.py — 47 unit test
+- Değiştirilen dosyalar:
+  * src/repo_analyzer/core/evidence/__init__.py — Planning modelleri export edildi
+  * src/repo_analyzer/core/domain/analysis_result.py — engineering_plan: Any | None = None alanı eklendi (backward compatible)
+  * src/repo_analyzer/core/orchestrator.py — Faz 9 (engineering planning) eklendi (non-breaking try/except)
+  * ruff.toml — planning_engine.py ve planning_models.py için ignore eklendi
+- Planning Modeli:
+  * EngineeringPriority: CRITICAL (★★★★★), HIGH (★★★★☆), MEDIUM (★★★☆☆), LOW (★★☆☆☆), INFORMATIONAL (★☆☆☆☆)
+  * EngineeringRisk: CRITICAL, HIGH, MEDIUM, LOW, MINIMAL
+  * EngineeringEstimate: hours, confidence, developers + display property (min/hours/days/weeks)
+  * EngineeringBenefit: security/maintainability/testability/performance/developer_experience (0-100) + weighted total
+  * ImpactScore: overall + 9 alt skor (severity, evidence, scope, dependency_centrality, security/performance/maintainability/testability impact, confidence_factor)
+  * PlanningStep: step_number, title, technical_description, root_cause_id, priority, impact_score, benefit, roi, estimate, risk, risk_reason, prerequisites, blocked_by, expected_outcomes, alternatives, affected_files/modules
+  * TradeOffAlternative: name, description, advantages, disadvantages, risk, maintenance_cost, performance_impact, migration_difficulty
+  * QuickWinItem: title, description, effort_minutes, benefit, planning_step_id, root_cause_id
+  * BlockerItem: blocker_root_cause_id, blocked_root_cause_ids, reason, planning_step_id
+  * SprintRecommendation: sprint_number, title, step_ids, total_estimated_hours, goals, steps
+  * Roadmap: sprints, total_estimated_hours, total_steps, summary
+  * EngineeringPlan: steps, roadmap, quick_wins, blockers, impact_scores, statistics
+- ImpactAnalyzer: her RootCause için ImpactScore hesaplar. 9 faktörlü weighted combination: severity (0.25), evidence (0.15), scope (0.15), dependency_centrality (0.10), security (0.10), maintainability (0.15), testability (0.10) × confidence_factor.
+- ROICalculator: ROI = (benefit.total / estimate.hours) × risk_adjustment. Risk adjustment: minimal/low=1.0, medium=0.8, high=0.6, critical=0.4.
+- PriorityEngine: deterministik sıralama. Sort key: -overall, -severity_order, -evidence_count, -confidence, str(id) (stable tiebreaker). Priority mapping: overall≥80 or critical→CRITICAL, ≥60 or high→HIGH, ≥40 or medium→MEDIUM, ≥20 or low→LOW, else INFORMATIONAL.
+- PlanningEngine: 9 adımlı plan üretimi:
+  1. ImpactAnalyzer.analyze → ImpactScore per root cause
+  2. ROICalculator.calculate → ROI + benefit + estimate per root cause
+  3. PriorityEngine.rank → deterministik priority ordering
+  4. _build_steps → PlanningStep per root cause (title, technical_description, alternatives, outcomes, risk_reason, affected_scope)
+  5. _build_blockers → CAUSES/LEADS_TO ilişkilerinden blocker'lar tespit edilir
+  6. _apply_blockers → blocked step'lere prerequisite olarak blocker step ID'leri eklenir
+  7. _build_quick_wins → ≤30dk effort + yüksek benefit veya küçük kategoriler (magic_constants, primitive_obsession, data_clumps)
+  8. _build_roadmap → sprint'lere bölme (80h/sprint), prerequisite尊重, deferred steps
+  9. _build_statistics → priority_counts, risk_counts, average_roi, total_hours
+- Trade-off Analysis: her PlanningStep için ≥2 alternatif. God Class için "Extract Class" vs "Facade + Delegate". Circular Dependency için "Extract Shared Module" vs "Inversion of Control". Diğer kategoriler için "Full Refactor" vs "Incremental Fix".
+- Blocker Detection: RootCauseRelationship'lerden CAUSES ve LEADS_TO tipleri blocker olarak işaretlenir. Blocked step'lere prerequisites eklenir.
+- Quick Win Extraction: effort ≤ 0.5h AND benefit ≥ 30, veya kategori magic_constants/primitive_obsession/data_clumps.
+- Sprint Batching: 80 engineer-hours/sprint (2 developer × 1 week). Prerequisites respected. Deferred steps son sprinte.
+- Orchestrator: Faz 9 (engineering planning) eklendi — non-breaking, hata olursa engineering_plan None kalır.
+- Lint: ruff check → All checks passed.
+- Type check: mypy --strict → 190 files, 0 errors.
+- Test: 609 passed / coverage 84.86%.
+  * test_planning_engine.py: 47 test (empty, single, priority ordering, ROI, quick wins, blockers, roadmap, trade-off alternatives, impact analysis, model properties)
+
+Stage Summary:
+- Engineering Planning Engine mevcut mimariye entegre edildi, hiçbir mevcut özellik bozulmadı.
+- 3 yeni dosya: planning_models.py (14 model + 4 enum), planning_engine.py (4 servis), test_planning_engine.py (47 test)
+- 4 değiştirilen dosya: analysis_result.py (engineering_plan alanı), orchestrator.py (faz 9), evidence/__init__.py (exports), ruff.toml (ignores)
+- Backward compatibility: engineering_plan alanı None default, engine hatası non-fatal, hiçbir root cause engine/graph builder/evidence builder/analyzer değiştirilmedi.
+- Performans: sadece in-memory RootCauseCollection üzerinde çalışıyor, repository re-scan yok, graph re-build yok, evidence re-build yok.
+- Gelecekte LLM bu çıktıları kullanarak: planning step'leri doğal dile çevirip geliştiriciye sunabilir, trade-off alternatiflerini detaylandırabilir, sprint planını takım toplantısında sunabilir, ROI skorlarını zamanla takip ederek iyileşmeyi ölçebilir.

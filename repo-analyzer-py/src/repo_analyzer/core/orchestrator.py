@@ -234,6 +234,19 @@ class Orchestrator:
                 _logger.warning("Root cause detection failed: %s", exc)
                 result.add_error({"phase": "root_cause", "error": str(exc)})
 
+            # Phase 9: engineering planning.
+            # Non-breaking: if it fails, engineering_plan stays None.
+            try:
+                from repo_analyzer.core.evidence import PlanningEngine
+
+                if result.root_causes is not None:
+                    result.engineering_plan = PlanningEngine.plan(result.root_causes)
+                    if progress:
+                        progress.success("Engineering plan built")
+            except Exception as exc:
+                _logger.warning("Engineering planning failed: %s", exc)
+                result.add_error({"phase": "planning", "error": str(exc)})
+
             if cancel_event and cancel_event.is_set():
                 result.add_error({"phase": "post", "error": "cancelled"})
             result.mark_completed()

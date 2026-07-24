@@ -108,6 +108,11 @@ class AnalysisResult(BaseModel):
     # Backward compatible: defaults to None, existing consumers are unaffected.
     root_causes: Any | None = None
 
+    # Engineering plan (prioritized refactoring roadmap derived from root causes).
+    # Populated by PlanningEngine after the root cause phase completes.
+    # Backward compatible: defaults to None, existing consumers are unaffected.
+    engineering_plan: Any | None = None
+
     @property
     def total_findings(self) -> int:
         """Total number of findings across all categories."""
