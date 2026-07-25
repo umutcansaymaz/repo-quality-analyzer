@@ -247,6 +247,14 @@ export function generateDemoData(repoUrl: string, options?: GenerateOptions): De
       ],
       relationships: [{ source_root_cause_id: "rc-1", target_root_cause_id: "rc-3", relationship_type: "causes", detail: "Tanrı Sınıf, sıkı bağlılığa neden oluyor" }],
       statistics: { total_root_causes: 4, average_confidence: 0.80, by_category_counts: { god_class: 1, circular_dependency: 1, tight_coupling: 1, shotgun_surgery: 1 }, by_severity_counts: { high: 2, medium: 1, low: 1 } },
+      // Root Cause Validation: each RC has analyzer_consensus (how many independent
+      // analyzers support it) and conflicting_evidence (if any analyzer disagrees).
+      validation: {
+        "rc-1": { analyzer_consensus: 3, supporting_analyzers: ["karmaşılık-analizörü", "kod-kalitesi-motoru", "metrik-motoru"], conflicting_evidence: [], validation_status: "verified", min_analyzers_required: 2 },
+        "rc-2": { analyzer_consensus: 2, supporting_analyzers: ["import-analizörü", "mimari-inceleme-motoru"], conflicting_evidence: [], validation_status: "verified", min_analyzers_required: 2 },
+        "rc-3": { analyzer_consensus: 2, supporting_analyzers: ["mimari-inceleme-motoru", "karmaşılık-analizörü"], conflicting_evidence: [], validation_status: "verified", min_analyzers_required: 2 },
+        "rc-4": { analyzer_consensus: 1, supporting_analyzers: ["import-analizörü"], conflicting_evidence: [], validation_status: "partial", min_analyzers_required: 2 },
+      },
     },
     engineering_plan: {
       steps: [
@@ -269,6 +277,8 @@ export function generateDemoData(repoUrl: string, options?: GenerateOptions): De
             { id: "alt-2", name: "Facade + Yetkilendir", description: "Facade olarak kal, içten yetkilendir.", advantages: ["Geriye dönük uyumlu", "Kademeli geçiş"], disadvantages: ["Facade hala var"], risk: "low", maintenance_cost: "medium", performance_impact: "neutral", migration_difficulty: "low" },
           ],
           affected_files: ["src/services/user_service.py"],
+          verified_status: "verified",
+          evidence_chain: ["ev-1", "ev-2", "ev-3"],
         },
         {
           id: "step-2",
@@ -286,6 +296,8 @@ export function generateDemoData(repoUrl: string, options?: GenerateOptions): De
           prerequisites: ["step-1"],
           alternatives: [],
           affected_files: ["src/auth/service.py", "src/user/service.py"],
+          verified_status: "verified",
+          evidence_chain: ["ev-4", "ev-5"],
         },
         {
           id: "step-3",
@@ -303,6 +315,8 @@ export function generateDemoData(repoUrl: string, options?: GenerateOptions): De
           prerequisites: ["step-1"],
           alternatives: [],
           affected_files: ["src/services/user_service.py", "src/services/order_service.py"],
+          verified_status: "evidence_backed",
+          evidence_chain: ["ev-5", "ev-1"],
         },
         {
           id: "step-4",
@@ -320,6 +334,8 @@ export function generateDemoData(repoUrl: string, options?: GenerateOptions): De
           prerequisites: [],
           alternatives: [],
           affected_files: ["src/api/users.py", "src/api/orders.py"],
+          verified_status: "partially_verified",
+          evidence_chain: ["ev-6"],
         },
       ],
       roadmap: {
@@ -341,17 +357,17 @@ export function generateDemoData(repoUrl: string, options?: GenerateOptions): De
     },
     evidence: {
       evidence: [
-        { id: "ev-1", analyzer: "karmaşılık-analizörü", finding_type: "complexity", severity: "high", confidence: 1.0, category: "cyclomatic_complexity", file_path: "src/services/user_service.py", line: 45, class_name: "UserService", function_name: "process_user", message: "Yüksek karmaşıklık: process_user (Döngüsel Karmaşıklık=41)", tags: ["complexity", "E"], metrics: { complexity: 41, rank: "E" } },
-        { id: "ev-2", analyzer: "kod-kalitesi-motoru", finding_type: "code_quality", severity: "medium", confidence: 0.8, category: "long_method", file_path: "src/services/user_service.py", line: 45, class_name: "UserService", function_name: "process_user", message: "Uzun metod: process_user", tags: ["long_method", "high"] },
-        { id: "ev-3", analyzer: "metrik-motoru", finding_type: "metric", severity: "medium", confidence: 1.0, category: "large_file", file_path: "src/services/user_service.py", message: "Büyük dosya (650 SLOC)", tags: ["large_file"], metrics: { sloc: 650 } },
-        { id: "ev-4", analyzer: "import-analizörü", finding_type: "import", severity: "high", confidence: 1.0, category: "circular_import", message: "Döngüsel import: auth → user → auth", tags: ["circular_import"] },
-        { id: "ev-5", analyzer: "mimari-inceleme-motoru", finding_type: "architecture", severity: "medium", confidence: 0.7, category: "high_coupling", file_path: "src/services/user_service.py", message: "Yüksek bağlılık (0.85)", tags: ["high_coupling"] },
-        { id: "ev-6", analyzer: "import-analizörü", finding_type: "import", severity: "low", confidence: 0.9, category: "unused_import", file_path: "src/api/users.py", message: "Kullanılmayan import: os", tags: ["unused_import", "dead_code"] },
-        { id: "ev-7", analyzer: "güvenlik-motoru", finding_type: "security", severity: "critical", confidence: 0.9, category: "hardcoded_password", file_path: "src/config.py", line: 10, message: "Sabit kodlanmış şifre", tags: ["hardcoded_password"] },
-        { id: "ev-8", analyzer: "test-kapsamı-analizörü", finding_type: "test", severity: "medium", confidence: 0.9, category: "low_coverage", message: "Düşük test kapsamı: %35", tags: ["testing", "low_coverage"], metrics: { estimated_coverage: 35 } },
+        { id: "ev-1", analyzer: "karmaşılık-analizörü", finding_type: "complexity", severity: "high", confidence: 1.0, category: "cyclomatic_complexity", file_path: "src/services/user_service.py", line: 45, class_name: "UserService", function_name: "process_user", message: "Yüksek karmaşıklık: process_user (Döngüsel Karmaşıklık=41)", tags: ["complexity", "E"], metrics: { complexity: 41, rank: "E" }, validation_status: "pass", validated_by: ["karmaşılık-analizörü", "metrik-motoru"] },
+        { id: "ev-2", analyzer: "kod-kalitesi-motoru", finding_type: "code_quality", severity: "medium", confidence: 0.8, category: "long_method", file_path: "src/services/user_service.py", line: 45, class_name: "UserService", function_name: "process_user", message: "Uzun metod: process_user", tags: ["long_method", "high"], validation_status: "pass", validated_by: ["kod-kalitesi-motoru", "karmaşılık-analizörü"] },
+        { id: "ev-3", analyzer: "metrik-motoru", finding_type: "metric", severity: "medium", confidence: 1.0, category: "large_file", file_path: "src/services/user_service.py", message: "Büyük dosya (650 SLOC)", tags: ["large_file"], metrics: { sloc: 650 }, validation_status: "pass", validated_by: ["metrik-motoru"] },
+        { id: "ev-4", analyzer: "import-analizörü", finding_type: "import", severity: "high", confidence: 1.0, category: "circular_import", message: "Döngüsel import: auth → user → auth", tags: ["circular_import"], validation_status: "pass", validated_by: ["import-analizörü", "mimari-inceleme-motoru"] },
+        { id: "ev-5", analyzer: "mimari-inceleme-motoru", finding_type: "architecture", severity: "medium", confidence: 0.7, category: "high_coupling", file_path: "src/services/user_service.py", message: "Yüksek bağlılık (0.85)", tags: ["high_coupling"], validation_status: "warning", validated_by: ["mimari-inceleme-motoru"] },
+        { id: "ev-6", analyzer: "import-analizörü", finding_type: "import", severity: "low", confidence: 0.9, category: "unused_import", file_path: "src/api/users.py", message: "Kullanılmayan import: os", tags: ["unused_import", "dead_code"], validation_status: "pass", validated_by: ["import-analizörü"] },
+        { id: "ev-7", analyzer: "güvenlik-motoru", finding_type: "security", severity: "critical", confidence: 0.9, category: "hardcoded_password", file_path: "src/config.py", line: 10, message: "Sabit kodlanmış şifre", tags: ["hardcoded_password"], validation_status: "pass", validated_by: ["güvenlik-motoru", "kod-kalitesi-motoru"] },
+        { id: "ev-8", analyzer: "test-kapsamı-analizörü", finding_type: "test", severity: "medium", confidence: 0.9, category: "low_coverage", message: "Düşük test kapsamı: %35", tags: ["testing", "low_coverage"], metrics: { estimated_coverage: 35 }, validation_status: "warning", validated_by: ["test-kapsamı-analizörü"] },
       ],
       relationships: [],
-      statistics: { total_evidence: 8, by_type_counts: { complexity: 1, code_quality: 1, metric: 1, import: 2, architecture: 1, security: 1, test: 1 }, by_severity_counts: { critical: 1, high: 2, medium: 3, low: 2 }, by_analyzer_counts: { "karmaşılık-analizörü": 1, "kod-kalitesi-motoru": 1, "metrik-motoru": 1, "import-analizörü": 2, "mimari-inceleme-motoru": 1, "güvenlik-motoru": 1, "test-kapsamı-analizörü": 1 } },
+      statistics: { total_evidence: 8, passed: 6, warning: 2, failed: 0, by_type_counts: { complexity: 1, code_quality: 1, metric: 1, import: 2, architecture: 1, security: 1, test: 1 }, by_severity_counts: { critical: 1, high: 2, medium: 3, low: 2 }, by_analyzer_counts: { "karmaşılık-analizörü": 1, "kod-kalitesi-motoru": 1, "metrik-motoru": 1, "import-analizörü": 2, "mimari-inceleme-motoru": 1, "güvenlik-motoru": 1, "test-kapsamı-analizörü": 1 } },
     },
     knowledge_graph: {
       nodes: [
@@ -399,6 +415,39 @@ export function generateDemoData(repoUrl: string, options?: GenerateOptions): De
       prompt_tokens: useLLM ? 2847 : 0,
       completion_tokens: useLLM ? 1923 : 0,
       statistics: { total_sections: reviewSections.length, total_challenges: useLLM ? 2 : 0, offline: !useLLM },
+      // Claim Verification Engine: each LLM sentence is verified against evidence.
+      // Claims without evidence are marked "opinion", claims with evidence are "verified".
+      claim_verification: useLLM ? {
+        total_claims: 24,
+        verified: 18,
+        opinion: 5,
+        rejected: 1,
+        verification_rate: 0.75,
+        claims: [
+          { id: "claim-1", text: "UserService sınıfı her şeyi yapıyor", evidence_ids: ["ev-1", "ev-2", "ev-3"], status: "verified", reason: "3 kanıt bulgusu doğruladı" },
+          { id: "claim-2", text: "Döngüsel bağımlılık test yazmayı zorlaştırıyor", evidence_ids: ["ev-4"], status: "verified", reason: "Import analizörü doğruladı" },
+          { id: "claim-3", text: "Bağımlılık enjeksiyonu tamamen eksik", evidence_ids: [], status: "opinion", reason: "Kanıt bulunamadı — mimari yorum" },
+          { id: "claim-4", text: "Loglama 8 dosyada dağınık", evidence_ids: ["ev-6"], status: "verified", reason: "Import analizörü doğruladı" },
+          { id: "claim-5", text: "Test kapsamı %35", evidence_ids: ["ev-8"], status: "verified", reason: "Test kapsamı analizörü doğruladı" },
+          { id: "claim-6", text: "Sabit kodlanmış şifre tespit edildi", evidence_ids: ["ev-7"], status: "verified", reason: "Güvenlik motoru doğruladı" },
+          { id: "claim-7", text: "6 ayda bakması keyifli kod tabanı olabilir", evidence_ids: [], status: "opinion", reason: "Gelecek tahmini — kanıtlanamaz" },
+          { id: "claim-8", text: "Facade deseni en güvenli geçiş yolu", evidence_ids: [], status: "opinion", reason: "Mimari öneri — kanıtla doğrulanamaz" },
+        ],
+      } : null,
+      // Confidence Model: multi-component confidence calculation.
+      // NOT a single number — broken down by component so users can see WHY.
+      confidence_model: {
+        deterministic_confidence: Math.round(((6 / 8) * 100 + (3 / 4) * 100) / 2), // evidence pass rate + RC consensus
+        evidence_coverage: Math.round((7 / 8) * 100), // 7 of 8 evidence items have file_path
+        claim_verification_rate: useLLM ? 75 : 100, // % of LLM claims verified (100% when offline — no claims)
+        analyzer_consensus: Math.round((3 / 4) * 100), // % of root causes with ≥2 analyzers
+        hallucination_risk: useLLM ? 21 : 0, // 5 opinion + 1 rejected out of 24 claims
+        verified_findings: 3, // 3 of 4 recommendations are verified/evidence_backed
+        ai_opinions: useLLM ? 5 : 0,
+        rejected_claims: useLLM ? 1 : 0,
+        conflict_penalty: 0, // no conflicting evidence
+        missing_evidence_penalty: useLLM ? 6 : 0, // 1 step has only 1 evidence
+      },
     },
     analyzed_at: new Date().toISOString(),
   };

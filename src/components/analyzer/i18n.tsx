@@ -474,6 +474,37 @@ const translations: Record<Language, TranslationDict> = {
     "platform.lastChecked": "Last checked",
     "platform.refresh": "Refresh",
     "platform.refreshing": "Checking…",
+
+    // Verified AI — Trust Panel 4 metrics
+    "trust.deterministicConfidence": "Deterministic Confidence",
+    "trust.evidenceCoverage": "Evidence Coverage",
+    "trust.claimVerificationRate": "Claim Verification Rate",
+    "trust.analyzerConsensus": "Analyzer Consensus",
+    "trust.verifiedFindings": "Verified Findings",
+    "trust.aiOpinions": "AI Opinions",
+    "trust.rejectedClaims": "Rejected Claims",
+    "trust.confidenceModel": "Confidence Model",
+    "trust.conflictPenalty": "Conflict Penalty",
+    "trust.missingEvidence": "Missing Evidence Penalty",
+
+    // Verified Status badges
+    "verified.verified": "Verified",
+    "verified.evidence_backed": "Evidence-backed",
+    "verified.partially_verified": "Partially Verified",
+    "verified.ai_opinion": "AI Opinion",
+    "verified.rejected": "Rejected",
+
+    // Claim Verification
+    "claim.title": "Claim Verification",
+    "claim.total": "Total Claims",
+    "claim.verified": "Verified",
+    "claim.opinion": "AI Opinion",
+    "claim.rejected": "Rejected",
+    "claim.rate": "Verification Rate",
+    "claim.log": "Claim Verification Log",
+    "claim.evidenceIds": "Evidence IDs",
+    "claim.result": "Result",
+    "claim.reason": "Reason",
   },
 
   tr: {
@@ -933,6 +964,37 @@ const translations: Record<Language, TranslationDict> = {
     "platform.lastChecked": "Son kontrol",
     "platform.refresh": "Yenile",
     "platform.refreshing": "Kontrol ediliyor…",
+
+    // Doğrulanmış AI — Güven Paneli 4 metrik
+    "trust.deterministicConfidence": "Deterministik Güven",
+    "trust.evidenceCoverage": "Kanıt Kapsamı",
+    "trust.claimVerificationRate": "İddia Doğrulama Oranı",
+    "trust.analyzerConsensus": "Analizör Uyumu",
+    "trust.verifiedFindings": "Doğrulanmış Bulgular",
+    "trust.aiOpinions": "AI Görüşleri",
+    "trust.rejectedClaims": "Reddedilen İddialar",
+    "trust.confidenceModel": "Güven Modeli",
+    "trust.conflictPenalty": "Çakışma Cezası",
+    "trust.missingEvidence": "Eksik Kanıt Cezası",
+
+    // Doğrulama Durumu rozetleri
+    "verified.verified": "Doğrulanmış",
+    "verified.evidence_backed": "Kanıt Destekli",
+    "verified.partially_verified": "Kısmen Doğrulanmış",
+    "verified.ai_opinion": "AI Görüşü",
+    "verified.rejected": "Reddedildi",
+
+    // İddia Doğrulama
+    "claim.title": "İddia Doğrulama",
+    "claim.total": "Toplam İddia",
+    "claim.verified": "Doğrulanmış",
+    "claim.opinion": "AI Görüşü",
+    "claim.rejected": "Reddedilen",
+    "claim.rate": "Doğrulama Oranı",
+    "claim.log": "İddia Doğrulama Günlüğü",
+    "claim.evidenceIds": "Kanıt ID'leri",
+    "claim.result": "Sonuç",
+    "claim.reason": "Gerekçe",
   },
 };
 

@@ -1285,33 +1285,19 @@ function TrustPanel({ data }: { data: any }) {
   const evidence = data?.evidence;
   const evCount = evidence?.statistics?.total_evidence || evidence?.evidence?.length || 0;
   const analyzerCount = Object.keys(evidence?.statistics?.by_analyzer_counts || {}).length;
-  const rootCauses = data?.root_causes?.root_causes || [];
-  const avgConfidence = data?.root_causes?.statistics?.average_confidence || 0;
   const review = data?.engineering_review;
   const status = useLLMStatus(review);
 
-  // Hallucination risk by status:
-  // - active: LLM produced output, so a small hallucination risk exists
-  // - ready:  key saved but not used yet, so no hallucination risk for current data
-  // - offline: deterministic fallback, zero hallucination risk
-  const hallucinationRisk = status === "active" ? 15 : status === "ready" ? 5 : 0;
-
-  // Reasoning depth: count of pipeline phases that produced data
-  let depth = 0;
-  if (data?.evidence) depth++;
-  if (data?.knowledge_graph) depth++;
-  if (data?.root_causes) depth++;
-  if (data?.engineering_plan) depth++;
-  if (data?.engineering_review) depth++;
-
-  // Trust score: weighted combination
-  const trustScore = Math.round(
-    (avgConfidence * 100 * 0.3) +
-    (Math.min(evCount / 10, 1) * 100 * 0.2) +
-    (Math.min(analyzerCount / 3, 1) * 100 * 0.15) +
-    (depth / 5 * 100 * 0.2) +
-    ((100 - hallucinationRisk) * 0.15)
-  );
+  // Multi-component confidence model — replaces single "Trust Score".
+  const cm = review?.confidence_model || {};
+  const detConfidence = cm.deterministic_confidence ?? 0;
+  const evCoverage = cm.evidence_coverage ?? 0;
+  const claimRate = cm.claim_verification_rate ?? 100;
+  const hallucinationRisk = cm.hallucination_risk ?? 0;
+  const consensus = cm.analyzer_consensus ?? 0;
+  const verifiedFindings = cm.verified_findings ?? 0;
+  const aiOpinions = cm.ai_opinions ?? 0;
+  const rejectedClaims = cm.rejected_claims ?? 0;
 
   return (
     <Card>
@@ -1320,27 +1306,56 @@ function TrustPanel({ data }: { data: any }) {
           <Shield className="h-4 w-4" /> {t("trust.title")}
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
-        <TrustRow label={t("trust.trustScore")} value={
-          <div className="flex items-center gap-2">
-            <div className="text-lg font-bold tabular-nums">{trustScore}</div>
-            <div className="h-2 w-24 rounded-full bg-muted overflow-hidden">
-              <div className={`h-full ${trustScore >= 70 ? "bg-green-500" : trustScore >= 50 ? "bg-yellow-500" : "bg-red-500"}`} style={{ width: `${trustScore}%` }} />
-            </div>
-          </div>
+      <CardContent className="space-y-2.5">
+        {/* 4 primary metrics — replaces single Trust Score */}
+        <TrustRow label={t("trust.deterministicConfidence")} value={
+          <TrustMetricBar value={detConfidence} color={detConfidence >= 70 ? "bg-emerald-500" : detConfidence >= 50 ? "bg-amber-500" : "bg-rose-500"} />
         } />
-        <TrustRow label={t("trust.confidence")} value={`${(avgConfidence * 100).toFixed(0)}%`} />
-        <TrustRow label={t("trust.evidenceCount")} value={evCount} />
-        <TrustRow label={t("trust.analyzerCount")} value={analyzerCount} />
-        <TrustRow label={t("trust.reasoningDepth")} value={`${depth}/5`} />
+        <TrustRow label={t("trust.evidenceCoverage")} value={
+          <TrustMetricBar value={evCoverage} color={evCoverage >= 70 ? "bg-emerald-500" : evCoverage >= 50 ? "bg-amber-500" : "bg-rose-500"} />
+        } />
+        <TrustRow label={t("trust.claimVerificationRate")} value={
+          <TrustMetricBar value={claimRate} color={claimRate >= 70 ? "bg-emerald-500" : claimRate >= 50 ? "bg-amber-500" : "bg-rose-500"} />
+        } />
         <TrustRow label={t("trust.hallucinationRisk")} value={
-          <Badge variant={hallucinationRisk < 10 ? "default" : "secondary"} className="text-xs">
-            {hallucinationRisk < 10 ? t("trust.low") : t("trust.medium")}
+          <Badge variant={hallucinationRisk < 10 ? "default" : "secondary"} className="text-xs gap-1">
+            <span className={`h-1.5 w-1.5 rounded-full ${hallucinationRisk < 10 ? "bg-emerald-500" : hallucinationRisk < 25 ? "bg-amber-500" : "bg-rose-500"}`} />
+            {hallucinationRisk < 10 ? t("trust.low") : hallucinationRisk < 25 ? t("trust.medium") : t("trust.high")} ({hallucinationRisk}%)
           </Badge>
         } />
+
+        {/* Secondary metrics — verified findings breakdown */}
+        <div className="pt-2 border-t">
+          <TrustRow label={t("trust.verifiedFindings")} value={
+            <span className="flex items-center gap-1.5 text-sm">
+              <span className="font-bold text-emerald-500">{verifiedFindings}</span>
+              {aiOpinions > 0 && <span className="text-muted-foreground">· {aiOpinions} {t("trust.aiOpinions")}</span>}
+              {rejectedClaims > 0 && <span className="text-muted-foreground">· {rejectedClaims} {t("trust.rejectedClaims")}</span>}
+            </span>
+          } />
+          <TrustRow label={t("trust.analyzerConsensus")} value={
+            <TrustMetricBar value={consensus} color={consensus >= 75 ? "bg-emerald-500" : "bg-amber-500"} />
+          } />
+          <TrustRow label={t("trust.evidenceCount")} value={evCount} />
+          <TrustRow label={t("trust.analyzerCount")} value={analyzerCount} />
+        </div>
+
         <TrustRow label={t("trust.llmStatus")} value={<LLMStatusBadge status={status} t={t} size="xs" />} />
       </CardContent>
     </Card>
+  );
+}
+
+// Compact progress bar for Trust Panel metrics (defined outside to satisfy
+// ESLint react-hooks/static-components).
+function TrustMetricBar({ value, color }: { value: number; color: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <div className="text-sm font-bold tabular-nums">{value}%</div>
+      <div className="h-2 w-16 rounded-full bg-muted overflow-hidden">
+        <div className={`h-full ${color}`} style={{ width: `${value}%` }} />
+      </div>
+    </div>
   );
 }
 
@@ -2078,6 +2093,16 @@ function RoadmapStepCard({ step, data }: { step: any; data?: any }) {
   const { t } = useI18n();
   const [showWhy, setShowWhy] = React.useState(false);
 
+  // Verified Status badge config: green/blue/orange/grey/red
+  const verifiedConfig: Record<string, { cls: string; icon: React.ReactNode }> = {
+    verified: { cls: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30", icon: <CheckCircle className="h-3 w-3" /> },
+    evidence_backed: { cls: "bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/30", icon: <CheckCircle className="h-3 w-3" /> },
+    partially_verified: { cls: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30", icon: <AlertCircle className="h-3 w-3" /> },
+    ai_opinion: { cls: "bg-muted text-muted-foreground border-border", icon: <Sparkles className="h-3 w-3" /> },
+    rejected: { cls: "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30", icon: <XCircle className="h-3 w-3" /> },
+  };
+  const vcfg = step.verified_status ? verifiedConfig[step.verified_status] : null;
+
   return (
     <Card>
       <CardContent className="pt-4">
@@ -2086,6 +2111,12 @@ function RoadmapStepCard({ step, data }: { step: any; data?: any }) {
             <div className="flex items-center gap-2">
               {step.isQuickWin && <Badge variant="secondary" className="gap-1"><Zap className="h-3 w-3" /> {t("roadmap.quickWins")}</Badge>}
               <span className="text-sm font-medium">{step.title}</span>
+              {vcfg && (
+                <Badge variant="outline" className={`gap-1 text-xs ${vcfg.cls}`}>
+                  {vcfg.icon}
+                  {t(`verified.${step.verified_status}`)}
+                </Badge>
+              )}
             </div>
             {step.technical_description && <p className="mt-1 text-xs text-muted-foreground">{step.technical_description}</p>}
             {step.expected_outcomes?.length > 0 && (
@@ -3087,6 +3118,71 @@ function AIReviewSection({ data }: { data: any }) {
           </CardContent>
         </Card>
       )}
+
+      {/* Claim Verification Log — shows each LLM claim and its verification status */}
+      {review.claim_verification && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Shield className="h-5 w-5 text-primary" /> {t("claim.title")}
+              <Badge variant="secondary" className="text-xs">
+                {review.claim_verification.total_claims} {t("claim.total")}
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {/* Summary stats */}
+            <div className="mb-4 grid grid-cols-4 gap-2">
+              <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-2 text-center">
+                <div className="text-lg font-bold text-emerald-500">{review.claim_verification.verified}</div>
+                <div className="text-xs text-muted-foreground">{t("claim.verified")}</div>
+              </div>
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-2 text-center">
+                <div className="text-lg font-bold text-amber-500">{review.claim_verification.opinion}</div>
+                <div className="text-xs text-muted-foreground">{t("claim.opinion")}</div>
+              </div>
+              <div className="rounded-lg border border-rose-500/30 bg-rose-500/5 p-2 text-center">
+                <div className="text-lg font-bold text-rose-500">{review.claim_verification.rejected}</div>
+                <div className="text-xs text-muted-foreground">{t("claim.rejected")}</div>
+              </div>
+              <div className="rounded-lg border p-2 text-center">
+                <div className="text-lg font-bold">{(review.claim_verification.verification_rate * 100).toFixed(0)}%</div>
+                <div className="text-xs text-muted-foreground">{t("claim.rate")}</div>
+              </div>
+            </div>
+            {/* Claim log — each claim as a row */}
+            <ScrollArea className="max-h-[300px]">
+              <div className="space-y-1.5">
+                {review.claim_verification.claims.map((claim: any, i: number) => {
+                  const statusConfig: Record<string, { color: string; icon: React.ReactNode }> = {
+                    verified: { color: "text-emerald-500", icon: <CheckCircle className="h-3.5 w-3.5" /> },
+                    opinion: { color: "text-amber-500", icon: <AlertCircle className="h-3.5 w-3.5" /> },
+                    rejected: { color: "text-rose-500", icon: <XCircle className="h-3.5 w-3.5" /> },
+                  };
+                  const cfg = statusConfig[claim.status] || statusConfig.opinion;
+                  return (
+                    <div key={i} className="flex items-start gap-2 rounded border p-2">
+                      <span className={`mt-0.5 shrink-0 ${cfg.color}`}>{cfg.icon}</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-medium">{claim.text}</p>
+                        <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
+                          <span>{claim.reason}</span>
+                          {claim.evidence_ids?.length > 0 && (
+                            <span className="font-mono">{claim.evidence_ids.join(", ")}</span>
+                          )}
+                        </div>
+                      </div>
+                      <Badge variant="outline" className={`shrink-0 text-xs ${cfg.color} border-current/20`}>
+                        {t(`verified.${claim.status === "verified" ? "verified" : claim.status === "rejected" ? "rejected" : "ai_opinion"}`)}
+                      </Badge>
+                    </div>
+                  );
+                })}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
@@ -3253,6 +3349,80 @@ function ExplainabilityChain({ rootCause, step, data }: { rootCause?: any; step?
           Bu kök neden, bilgi grafiğinde ilgili dosyalar, sınıflar ve fonksiyonlarla ilişkilendirilmiş.
           Grafi sekmesinden bu ilişkileri görsel olarak inceleyebilirsiniz.
         </p>
+      ),
+    });
+  }
+
+  // Layer: Evidence Validation
+  if (rootCause && data?.evidence?.statistics) {
+    const stats = data.evidence.statistics;
+    const passed = stats.passed || 0;
+    const warning = stats.warning || 0;
+    const failed = stats.failed || 0;
+    layers.push({
+      label: "Kanıt Doğrulama",
+      value: `${passed} geçti · ${warning} uyarı · ${failed} başarısız`,
+      icon: <Shield className="h-4 w-4" />,
+      color: "border-emerald-500/30 bg-emerald-500/5",
+      detail: (
+        <div className="space-y-1 text-xs text-muted-foreground">
+          <p>Her kanıt bulgusu, bağımsız analizörler tarafından ikinci kez doğrulandı.</p>
+          <div className="flex gap-3 pt-1">
+            <span className="text-emerald-500">{passed} PASS</span>
+            {warning > 0 && <span className="text-amber-500">{warning} WARNING</span>}
+            {failed > 0 && <span className="text-rose-500">{failed} FAILED</span>}
+          </div>
+        </div>
+      ),
+    });
+  }
+
+  // Layer: Root Cause Validation (analyzer consensus)
+  if (rootCause && data?.root_causes?.validation) {
+    const rcValidation = data.root_causes.validation[rootCause.id];
+    if (rcValidation) {
+      layers.push({
+        label: "Kök Neden Doğrulama",
+        value: `${rcValidation.analyzer_consensus} analizör doğruladı · ${rcValidation.validation_status === "verified" ? "Doğrulandı" : "Kısmen doğrulandı"}`,
+        icon: <CheckCircle className="h-4 w-4" />,
+        color: rcValidation.validation_status === "verified" ? "border-emerald-500/30 bg-emerald-500/5" : "border-amber-500/30 bg-amber-500/5",
+        detail: (
+          <div className="space-y-1.5">
+            <p className="text-xs text-muted-foreground">Bu kök neden {rcValidation.analyzer_consensus} bağımsız analizör tarafından destekleniyor (minimum {rcValidation.min_analyzers_required} gerekli).</p>
+            <div className="flex flex-wrap gap-1.5">
+              {rcValidation.supporting_analyzers.map((a: string, i: number) => (
+                <Badge key={i} variant="secondary" className="text-xs gap-1">
+                  <CheckCircle className="h-2.5 w-2.5 text-emerald-500" /> {humanize(a)}
+                </Badge>
+              ))}
+            </div>
+            {rcValidation.conflicting_evidence?.length > 0 && (
+              <p className="text-xs text-rose-500">{rcValidation.conflicting_evidence.length} çakışan kanıt var</p>
+            )}
+          </div>
+        ),
+      });
+    }
+  }
+
+  // Layer: Verified Claim (from Claim Verification Engine)
+  if (data?.engineering_review?.claim_verification) {
+    const cv = data.engineering_review.claim_verification;
+    layers.push({
+      label: "İddia Doğrulama",
+      value: `${cv.verified} doğrulandı · ${cv.opinion} AI görüşü · ${cv.rejected} reddedildi`,
+      icon: <Shield className="h-4 w-4" />,
+      color: "border-primary/30 bg-primary/5",
+      detail: (
+        <div className="space-y-1.5">
+          <p className="text-xs text-muted-foreground">LLM'in her cümlesi ayrı bir iddia olarak değerlendirildi ve kanıtlarla karşılaştırıldı.</p>
+          <div className="flex gap-3 text-xs">
+            <span className="text-emerald-500">✓ {cv.verified} doğrulandı</span>
+            <span className="text-amber-500">⚠ {cv.opinion} AI görüşü</span>
+            {cv.rejected > 0 && <span className="text-rose-500">✗ {cv.rejected} reddedildi</span>}
+          </div>
+          <p className="text-xs text-muted-foreground/60">Doğrulama oranı: %{(cv.verification_rate * 100).toFixed(0)}</p>
+        </div>
       ),
     });
   }
