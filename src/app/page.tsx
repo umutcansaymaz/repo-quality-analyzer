@@ -1137,6 +1137,7 @@ function ResultsDashboard({ data, onReset }: { data: any; onReset: () => void })
           <TabsTrigger value="files" data-tab="files" className="gap-1.5"><FileCode2 className="h-4 w-4" /> {t("dashboard.files")}</TabsTrigger>
           <TabsTrigger value="ai" data-tab="ai" className="gap-1.5"><Sparkles className="h-4 w-4" /> {t("commentary.title")}</TabsTrigger>
           <TabsTrigger value="benchmark" data-tab="benchmark" className="gap-1.5"><Gauge className="h-4 w-4" /> {t("benchmark.title")}</TabsTrigger>
+          <TabsTrigger value="validation" data-tab="validation" className="gap-1.5"><Shield className="h-4 w-4" /> {t("validation.title")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-4"><OverviewSection data={data} /></TabsContent>
@@ -1147,6 +1148,7 @@ function ResultsDashboard({ data, onReset }: { data: any; onReset: () => void })
         <TabsContent value="files" className="mt-4"><FileExplorerSection data={data} /></TabsContent>
         <TabsContent value="ai" className="mt-4"><AIReviewSection data={data} /></TabsContent>
         <TabsContent value="benchmark" className="mt-4"><BenchmarkSection /></TabsContent>
+        <TabsContent value="validation" className="mt-4"><ValidationSection /></TabsContent>
       </Tabs>
     </div>
   );
@@ -3443,6 +3445,300 @@ function AIReviewSection({ data }: { data: any }) {
 // ---------------------------------------------------------------------------
 // Sprint 13: Benchmark & Validation Framework
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Sprint 14: Real World Validation Dashboard
+// ---------------------------------------------------------------------------
+
+function ValidationSection() {
+  const { t } = useI18n();
+  const [report, setReport] = React.useState<any>(null);
+  const [running, setRunning] = React.useState(false);
+
+  const handleRun = async () => {
+    setRunning(true);
+    try {
+      const res = await fetch("/api/validate", { method: "POST" });
+      const data = await res.json();
+      setReport(data);
+    } catch {
+      toast.error("Validation failed");
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Self-Protection Protocol v2 banner */}
+      <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 text-sm">
+        <Shield className="h-4 w-4 shrink-0 text-emerald-500" />
+        <span className="text-muted-foreground">{t("validation.selfProtectV2")} — validation_workspace/ & benchmarks/ ↦ üretim koduna erişim yok</span>
+      </div>
+
+      {/* Run button */}
+      <div className="flex items-center gap-3">
+        <Button onClick={handleRun} disabled={running}>
+          {running ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Shield className="mr-2 h-4 w-4" />}
+          {running ? t("validation.running") : t("validation.run")}
+        </Button>
+      </div>
+
+      {report && (
+        <>
+          {/* Summary grid — 9 metrics */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            <div className="rounded-lg border p-3 text-center">
+              <div className="text-2xl font-bold">{report.repositories_tested}</div>
+              <div className="text-xs text-muted-foreground">{t("validation.reposTested")}</div>
+            </div>
+            <div className={`rounded-lg border p-3 text-center ${report.benchmarks_passed ? "border-emerald-500/30 bg-emerald-500/5" : "border-rose-500/30 bg-rose-500/5"}`}>
+              <div className={`text-2xl font-bold ${report.benchmarks_passed ? "text-emerald-500" : "text-rose-500"}`}>
+                {report.benchmarks_passed ? "✓" : "✗"}
+              </div>
+              <div className="text-xs text-muted-foreground">{t("validation.benchmarksPassed")}</div>
+            </div>
+            <div className="rounded-lg border p-3 text-center">
+              <div className="text-2xl font-bold tabular-nums">{(report.average_precision * 100).toFixed(0)}%</div>
+              <div className="text-xs text-muted-foreground">{t("validation.avgPrecision")}</div>
+            </div>
+            <div className="rounded-lg border p-3 text-center">
+              <div className="text-2xl font-bold tabular-nums">{(report.average_recall * 100).toFixed(0)}%</div>
+              <div className="text-xs text-muted-foreground">{t("validation.avgRecall")}</div>
+            </div>
+            <div className="rounded-lg border p-3 text-center">
+              <div className="text-2xl font-bold tabular-nums">{report.average_coverage}%</div>
+              <div className="text-xs text-muted-foreground">{t("validation.avgCoverage")}</div>
+            </div>
+            <div className="rounded-lg border p-3 text-center">
+              <div className="text-2xl font-bold tabular-nums">{(report.average_confidence * 100).toFixed(0)}%</div>
+              <div className="text-xs text-muted-foreground">{t("validation.avgConfidence")}</div>
+            </div>
+            <div className="rounded-lg border p-3 text-center">
+              <div className="text-2xl font-bold tabular-nums">{report.average_execution_time_ms}<span className="text-sm">ms</span></div>
+              <div className="text-xs text-muted-foreground">{t("validation.avgExecTime")}</div>
+            </div>
+            <div className="rounded-lg border p-3 text-center">
+              <div className="text-2xl font-bold tabular-nums">{report.average_memory_mb}<span className="text-sm">MB</span></div>
+              <div className="text-xs text-muted-foreground">{t("validation.avgMemory")}</div>
+            </div>
+          </div>
+
+          {/* Rule Health + Performance Health */}
+          <div className="grid grid-cols-2 gap-3">
+            <Card>
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">{t("validation.ruleHealth")}</span>
+                  <div className="flex items-center gap-2">
+                    <div className="text-2xl font-bold tabular-nums">{report.rule_health}%</div>
+                    <div className="h-2 w-16 rounded-full bg-muted overflow-hidden">
+                      <div className={`h-full ${report.rule_health >= 75 ? "bg-emerald-500" : report.rule_health >= 50 ? "bg-amber-500" : "bg-rose-500"}`} style={{ width: `${report.rule_health}%` }} />
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">{t("validation.perfHealth")}</span>
+                  <div className="flex items-center gap-2">
+                    <div className="text-2xl font-bold tabular-nums">{report.performance_health}%</div>
+                    <div className="h-2 w-16 rounded-full bg-muted overflow-hidden">
+                      <div className={`h-full ${report.performance_health >= 75 ? "bg-emerald-500" : report.performance_health >= 50 ? "bg-amber-500" : "bg-rose-500"}`} style={{ width: `${report.performance_health}%` }} />
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* FP/FN Candidates */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-center">
+              <div className="text-2xl font-bold text-amber-500">{report.false_positive_candidates_count}</div>
+              <div className="text-xs text-muted-foreground">{t("validation.fpCandidates")}</div>
+            </div>
+            <div className="rounded-lg border border-sky-500/30 bg-sky-500/5 p-3 text-center">
+              <div className="text-2xl font-bold text-sky-500">{report.false_negative_candidates_count}</div>
+              <div className="text-xs text-muted-foreground">{t("validation.fnCandidates")}</div>
+            </div>
+          </div>
+
+          {/* Cross-Repository Analytics */}
+          <Card>
+            <CardHeader><CardTitle className="text-lg">{t("validation.crossAnalysis")}</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              {/* Most common smells */}
+              <div>
+                <h4 className="mb-2 text-sm font-semibold">En Sık Mimari Kokular</h4>
+                <div className="space-y-1">
+                  {report.cross_repository_analysis.most_common_smells.map((s: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">{s.smell}</span>
+                      <span className="font-medium tabular-nums">{s.count} ({s.percentage}%)</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {/* Most common root causes */}
+              <div>
+                <h4 className="mb-2 text-sm font-semibold">En Sık Kök Nedenler</h4>
+                <div className="space-y-1">
+                  {report.cross_repository_analysis.most_common_root_causes.map((rc: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">{humanize(rc.cause)}</span>
+                      <span className="font-medium tabular-nums">{rc.count} ({rc.percentage}%)</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {/* By language */}
+              <div>
+                <h4 className="mb-2 text-sm font-semibold">Dil Bazlı Dağılım</h4>
+                <div className="flex flex-wrap gap-2">
+                  {report.cross_repository_analysis.by_language.map((l: any, i: number) => (
+                    <Badge key={i} variant="secondary" className="text-xs gap-1.5">
+                      {l.language} <span className="text-muted-foreground">×{l.count}</span>
+                      <span className="text-emerald-500">{l.avg_coverage}%</span>
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Rule Quality Report */}
+          <Card>
+            <CardHeader><CardTitle className="text-lg">{t("validation.ruleQuality")}</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <div>
+                <h4 className="mb-1 text-sm font-semibold text-emerald-500">En Güçlü Kurallar</h4>
+                {report.rule_quality_report.strongest_rules.map((r: any, i: number) => (
+                  <div key={i} className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">{humanize(r.rule)}</span>
+                    <span className="text-emerald-500 font-medium">%{(r.avg_confidence * 100).toFixed(0)} · {r.success_rate ? (r.success_rate * 100).toFixed(0) : 0}% başarı</span>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <h4 className="mb-1 text-sm font-semibold text-rose-500">En Zayıf Kurallar</h4>
+                {report.rule_quality_report.weakest_rules.map((r: any, i: number) => (
+                  <div key={i} className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">{humanize(r.rule)}</span>
+                    <span className="text-rose-500 font-medium">%{(r.avg_confidence * 100).toFixed(0)} · {r.failure_rate ? (r.failure_rate * 100).toFixed(0) : 0}% başarısız</span>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <h4 className="mb-1 text-sm font-semibold text-amber-500">Sık Başarısız Hipotezler</h4>
+                {report.rule_quality_report.frequently_failing_hypotheses.map((h: any, i: number) => (
+                  <div key={i} className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">{h.hypothesis}</span>
+                    <span className="text-amber-500 font-medium">{h.fail_count} kez başarısız</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Confidence Calibration */}
+          <Card>
+            <CardHeader><CardTitle className="text-lg">{t("validation.confidenceCalib")}</CardTitle></CardHeader>
+            <CardContent>
+              <div className="space-y-1.5">
+                {report.confidence_calibration.map((c: any, i: number) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="w-16 text-xs font-mono text-muted-foreground">{c.range}</span>
+                    <div className="flex-1 h-5 rounded bg-muted overflow-hidden">
+                      <div className={`h-full ${c.percentage > 30 ? "bg-emerald-500" : c.percentage > 10 ? "bg-amber-500" : "bg-rose-500"}`} style={{ width: `${c.percentage}%` }} />
+                    </div>
+                    <span className="w-12 text-right text-xs font-medium tabular-nums">{c.count}</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Performance + Scalability */}
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Card>
+              <CardHeader><CardTitle className="text-lg">Performance</CardTitle></CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">En Hızlı</span>
+                  <span className="font-medium">{report.performance_report.fastest_repository?.name} ({report.performance_report.fastest_repository?.time_ms}ms)</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">En Yavaş</span>
+                  <span className="font-medium">{report.performance_report.slowest_repository?.name} ({report.performance_report.slowest_repository?.time_ms}ms)</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Peak Memory</span>
+                  <span className="font-medium">{report.performance_report.peak_memory_mb} MB</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">LOC ↔ Time Korelasyon</span>
+                  <span className="font-medium tabular-nums">{report.scalability_report.correlation_coefficient.loc_time.toFixed(2)}</span>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader><CardTitle className="text-lg">{t("validation.scalability")}</CardTitle></CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">LOC ↔ Memory</span>
+                  <span className="font-medium tabular-nums">{report.scalability_report.correlation_coefficient.loc_memory.toFixed(2)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">LOC ↔ Evidence</span>
+                  <span className="font-medium tabular-nums">{report.scalability_report.correlation_coefficient.loc_evidence.toFixed(2)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">LOC ↔ Graph</span>
+                  <span className="font-medium tabular-nums">{report.scalability_report.correlation_coefficient.loc_graph.toFixed(2)}</span>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Download buttons */}
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={() => downloadJSON(report, "validation_report.json")}>
+              <Download className="mr-1.5 h-3.5 w-3.5" /> validation_report.json
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => downloadJSON(report.cross_repository_analysis, "cross_repository_analysis.json")}>
+              <Download className="mr-1.5 h-3.5 w-3.5" /> cross_repository_analysis.json
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => downloadJSON(report.rule_quality_report, "rule_quality_report.json")}>
+              <Download className="mr-1.5 h-3.5 w-3.5" /> rule_quality_report.json
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => downloadJSON(report.performance_report, "performance_report.json")}>
+              <Download className="mr-1.5 h-3.5 w-3.5" /> performance_report.json
+            </Button>
+          </div>
+        </>
+      )}
+
+      {!report && !running && (
+        <EmptyState icon={<Shield className="h-12 w-12" />} title={t("validation.title")} description="70 repository kataloğu hazır. Validasyon çalıştırmak için butona tıklayın." />
+      )}
+    </div>
+  );
+}
+
+// Helper: download JSON as file
+function downloadJSON(data: any, filename: string) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast.success(`${filename} indirildi`);
+}
 
 function BenchmarkSection() {
   const { t } = useI18n();
