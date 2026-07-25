@@ -1,0 +1,10 @@
+{
+  "benchmark_name": "mvc-good",
+  "description": "Clean MVC pattern — model, view, controller separation",
+  "expected_root_causes": [],
+  "expected_smells": [],
+  "expected_patterns": ["MVC"],
+  "expected_recommendations": [],
+  "expected_confidence_min": 0.80,
+  "expected_coverage_min": 80
+}

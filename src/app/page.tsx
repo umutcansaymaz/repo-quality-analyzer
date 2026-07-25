@@ -1136,6 +1136,7 @@ function ResultsDashboard({ data, onReset }: { data: any; onReset: () => void })
           <TabsTrigger value="graph" data-tab="graph" className="gap-1.5"><Network className="h-4 w-4" /> {t("dashboard.graph")}</TabsTrigger>
           <TabsTrigger value="files" data-tab="files" className="gap-1.5"><FileCode2 className="h-4 w-4" /> {t("dashboard.files")}</TabsTrigger>
           <TabsTrigger value="ai" data-tab="ai" className="gap-1.5"><Sparkles className="h-4 w-4" /> {t("commentary.title")}</TabsTrigger>
+          <TabsTrigger value="benchmark" data-tab="benchmark" className="gap-1.5"><Gauge className="h-4 w-4" /> {t("benchmark.title")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-4"><OverviewSection data={data} /></TabsContent>
@@ -1145,6 +1146,7 @@ function ResultsDashboard({ data, onReset }: { data: any; onReset: () => void })
         <TabsContent value="graph" className="mt-4"><GraphSection data={data} /></TabsContent>
         <TabsContent value="files" className="mt-4"><FileExplorerSection data={data} /></TabsContent>
         <TabsContent value="ai" className="mt-4"><AIReviewSection data={data} /></TabsContent>
+        <TabsContent value="benchmark" className="mt-4"><BenchmarkSection /></TabsContent>
       </Tabs>
     </div>
   );
@@ -3434,6 +3436,165 @@ function AIReviewSection({ data }: { data: any }) {
       <AlternativeSolutionsCard data={data} />
       <ImpactSimulatorCard data={data} />
       <ConfidenceExplanationCard data={data} />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 13: Benchmark & Validation Framework
+// ---------------------------------------------------------------------------
+
+function BenchmarkSection() {
+  const { t } = useI18n();
+  const [report, setReport] = React.useState<any>(null);
+  const [running, setRunning] = React.useState(false);
+  const [benchmarks, setBenchmarks] = React.useState<string[]>([]);
+
+  React.useEffect(() => {
+    fetch("/api/benchmark")
+      .then((r) => r.json())
+      .then((d) => setBenchmarks(d.benchmarks || []))
+      .catch(() => {});
+  }, []);
+
+  const handleRun = async () => {
+    setRunning(true);
+    try {
+      const res = await fetch("/api/benchmark", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ previous_report: report }),
+      });
+      const data = await res.json();
+      setReport(data);
+    } catch {
+      toast.error("Benchmark failed");
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const regressionConfig: Record<string, { color: string; icon: React.ReactNode }> = {
+    stable: { color: "text-emerald-500", icon: <CheckCircle className="h-4 w-4" /> },
+    improved: { color: "text-emerald-500", icon: <TrendingUp className="h-4 w-4" /> },
+    degraded: { color: "text-rose-500", icon: <AlertCircle className="h-4 w-4" /> },
+    first_run: { color: "text-sky-500", icon: <Info className="h-4 w-4" /> },
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 text-sm">
+        <Shield className="h-4 w-4 shrink-0 text-emerald-500" />
+        <span className="text-muted-foreground">{t("benchmark.selfProtect")} — benchmarks/ ↦ üretim koduna erişim yok</span>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <Button onClick={handleRun} disabled={running}>
+          {running ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Gauge className="mr-2 h-4 w-4" />}
+          {running ? t("benchmark.running") : t("benchmark.run")}
+        </Button>
+        <span className="text-xs text-muted-foreground">{benchmarks.length} benchmarks discovered</span>
+      </div>
+
+      {report && (
+        <>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-lg border p-3 text-center">
+              <div className="text-2xl font-bold">{report.total_benchmarks}</div>
+              <div className="text-xs text-muted-foreground">{t("benchmark.total")}</div>
+            </div>
+            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 text-center">
+              <div className="text-2xl font-bold text-emerald-500">{report.passed}</div>
+              <div className="text-xs text-muted-foreground">{t("benchmark.passed")}</div>
+            </div>
+            <div className="rounded-lg border border-rose-500/30 bg-rose-500/5 p-3 text-center">
+              <div className="text-2xl font-bold text-rose-500">{report.failed}</div>
+              <div className="text-xs text-muted-foreground">{t("benchmark.failed")}</div>
+            </div>
+            <div className="rounded-lg border p-3 text-center">
+              <div className="text-2xl font-bold tabular-nums">{(report.overall_accuracy * 100).toFixed(0)}%</div>
+              <div className="text-xs text-muted-foreground">{t("benchmark.accuracy")}</div>
+            </div>
+          </div>
+
+          <Card>
+            <CardContent className="pt-4 space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">{t("benchmark.regression")}</span>
+                <span className={`flex items-center gap-1.5 font-medium ${(regressionConfig[report.regression_status] || regressionConfig.first_run).color}`}>
+                  {(regressionConfig[report.regression_status] || regressionConfig.first_run).icon}
+                  {t(`benchmark.${report.regression_status}`)}
+                  {report.previous_accuracy !== null && (
+                    <span className="text-xs text-muted-foreground/60">
+                      ({(report.previous_accuracy * 100).toFixed(0)}% → {(report.current_accuracy * 100).toFixed(0)}%)
+                    </span>
+                  )}
+                </span>
+              </div>
+              {report.best_benchmark && (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">{t("benchmark.best")}</span>
+                  <span className="font-medium text-emerald-500">{report.best_benchmark}</span>
+                </div>
+              )}
+              {report.worst_benchmark && (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">{t("benchmark.worst")}</span>
+                  <span className="font-medium text-amber-500">{report.worst_benchmark}</span>
+                </div>
+              )}
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">{t("benchmark.lastRun")}</span>
+                <span className="text-xs">{new Date(report.timestamp).toLocaleString()}</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle className="text-lg">Benchmark Results</CardTitle></CardHeader>
+            <CardContent>
+              <ScrollArea className="max-h-[500px]">
+                <div className="space-y-2">
+                  {report.results.map((r: any, i: number) => (
+                    <div key={i} className={`rounded-lg border p-3 ${r.pass ? "border-emerald-500/30" : "border-rose-500/30"}`}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="font-mono text-xs">{r.benchmark_name}</Badge>
+                          {r.pass ? (
+                            <Badge className="gap-1 text-xs bg-emerald-500/15 text-emerald-600"><CheckCircle className="h-3 w-3" /> {t("benchmark.pass")}</Badge>
+                          ) : (
+                            <Badge className="gap-1 text-xs bg-rose-500/15 text-rose-600"><XCircle className="h-3 w-3" /> {t("benchmark.fail")}</Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 text-xs">
+                          <span><span className="text-muted-foreground">{t("benchmark.precision")}:</span> <span className="font-medium tabular-nums">{(r.metrics.root_cause_precision * 100).toFixed(0)}%</span></span>
+                          <span><span className="text-muted-foreground">{t("benchmark.recall")}:</span> <span className="font-medium tabular-nums">{(r.metrics.root_cause_recall * 100).toFixed(0)}%</span></span>
+                          <span><span className="text-muted-foreground">{t("benchmark.score")}:</span> <span className="font-bold tabular-nums">{(r.metrics.overall_score * 100).toFixed(0)}%</span></span>
+                        </div>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">{r.description}</p>
+                      {(r.comparison.root_cause.missing.length > 0 || r.comparison.root_cause.extra.length > 0) && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {r.comparison.root_cause.missing.map((m: string, j: number) => (
+                            <Badge key={j} variant="outline" className="text-xs text-rose-600 border-rose-500/30">- {m}</Badge>
+                          ))}
+                          {r.comparison.root_cause.extra.map((e: string, j: number) => (
+                            <Badge key={j} variant="outline" className="text-xs text-amber-600 border-amber-500/30">+ {e}</Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      {!report && !running && (
+        <EmptyState icon={<Gauge className="h-12 w-12" />} title={t("benchmark.title")} description={`${benchmarks.length} benchmark hazır. Çalıştırmak için butona tıklayın.`} />
+      )}
     </div>
   );
 }

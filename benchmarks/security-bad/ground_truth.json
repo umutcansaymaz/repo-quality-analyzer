@@ -1,0 +1,10 @@
+{
+  "benchmark_name": "security-bad",
+  "description": "Security vulnerabilities — hardcoded secrets, SQL injection, weak hashing, code injection",
+  "expected_root_causes": ["hardcoded_secrets", "sql_injection"],
+  "expected_smells": [],
+  "expected_patterns": [],
+  "expected_recommendations": ["fix_security"],
+  "expected_confidence_min": 0.85,
+  "expected_coverage_min": 80
+}

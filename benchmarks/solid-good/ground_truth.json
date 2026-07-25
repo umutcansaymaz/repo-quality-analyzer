@@ -1,0 +1,10 @@
+{
+  "benchmark_name": "solid-good",
+  "description": "SOLID-compliant code — no violations expected",
+  "expected_root_causes": [],
+  "expected_smells": [],
+  "expected_patterns": [],
+  "expected_recommendations": [],
+  "expected_confidence_min": 0.85,
+  "expected_coverage_min": 85
+}

@@ -1,0 +1,10 @@
+{
+  "benchmark_name": "solid-bad",
+  "description": "SOLID violations — SRP, OCP, DIP all broken",
+  "expected_root_causes": ["god_class", "tight_coupling"],
+  "expected_smells": ["God Component", "Architecture Sink"],
+  "expected_patterns": [],
+  "expected_recommendations": ["split", "extract_interface"],
+  "expected_confidence_min": 0.70,
+  "expected_coverage_min": 60
+}

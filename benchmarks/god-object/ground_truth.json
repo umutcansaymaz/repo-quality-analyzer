@@ -1,0 +1,10 @@
+{
+  "benchmark_name": "god-object",
+  "description": "Single class with 5+ responsibilities — should detect God Object / God Class smell",
+  "expected_root_causes": ["god_class"],
+  "expected_smells": ["God Component", "God Class"],
+  "expected_patterns": [],
+  "expected_recommendations": ["split", "facade", "extract"],
+  "expected_confidence_min": 0.75,
+  "expected_coverage_min": 70
+}
