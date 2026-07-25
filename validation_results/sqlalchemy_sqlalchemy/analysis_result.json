@@ -1,0 +1,118 @@
+{
+  "repository": "sqlalchemy/sqlalchemy",
+  "url": "https://github.com/sqlalchemy/sqlalchemy",
+  "classification": {
+    "name": "sqlalchemy",
+    "org": "sqlalchemy",
+    "primary_language": "Python",
+    "loc": 304592,
+    "file_count": 500,
+    "class_count": 6173,
+    "function_count": 15445,
+    "dependency_count": 13165,
+    "github_stars": 9000,
+    "repository_size_mb": 34
+  },
+  "evidence": {
+    "count": 587,
+    "by_severity": {
+      "critical": 0,
+      "high": 466,
+      "medium": 121,
+      "low": 0
+    },
+    "by_analyzer": {
+      "complexity-analyzer": 364,
+      "metrics-engine": 121,
+      "architecture-analyzer": 102
+    }
+  },
+  "root_causes": {
+    "count": 2,
+    "categories": [
+      "god_class",
+      "large_file"
+    ],
+    "avg_confidence": 0.8
+  },
+  "recommendations": {
+    "count": 2,
+    "by_priority": {
+      "high": 1,
+      "medium": 1,
+      "low": 0
+    },
+    "by_verified_status": {
+      "verified": 1,
+      "evidence_backed": 1,
+      "partially_verified": 0,
+      "ai_opinion": 0,
+      "rejected": 0
+    }
+  },
+  "patterns": [],
+  "smells": [
+    {
+      "smell": "God Component",
+      "severity": "high",
+      "confidence": 0.85
+    },
+    {
+      "smell": "Architecture Sink",
+      "severity": "medium",
+      "confidence": 0.75
+    }
+  ],
+  "knowledge_graph": {
+    "nodes": 21618,
+    "edges": 13165
+  },
+  "coverage": 100,
+  "confidence_distribution": [
+    {
+      "range": "0-20",
+      "count": 0
+    },
+    {
+      "range": "20-40",
+      "count": 0
+    },
+    {
+      "range": "40-60",
+      "count": 0
+    },
+    {
+      "range": "60-80",
+      "count": 1
+    },
+    {
+      "range": "80-90",
+      "count": 1
+    },
+    {
+      "range": "90-100",
+      "count": 0
+    }
+  ],
+  "decision_statistics": {
+    "total": 2,
+    "verified": 1,
+    "partially_verified": 1,
+    "ai_opinion": 0,
+    "rejected": 0
+  },
+  "performance": {
+    "clone_time_ms": 2757,
+    "analysis_time_ms": 374,
+    "total_time_ms": 3131,
+    "peak_memory_mb": 193
+  },
+  "execution_log": {
+    "started": "2026-07-25T08:20:52.025Z",
+    "finished": "2026-07-25T08:20:52.434Z",
+    "duration_ms": 3131,
+    "status": "completed",
+    "retries": 0,
+    "errors": []
+  }
+}

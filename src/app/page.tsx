@@ -3712,13 +3712,42 @@ function ValidationSection() {
   const { t } = useI18n();
   const [report, setReport] = React.useState<any>(null);
   const [running, setRunning] = React.useState(false);
+  const [noAnalysis, setNoAnalysis] = React.useState(false);
+  const [batchSize, setBatchSize] = React.useState(5);
+  const [executionLog, setExecutionLog] = React.useState<any>(null);
+
+  // Load existing real validation summary on mount
+  React.useEffect(() => {
+    fetch("/api/validate")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.status === "no_analysis") {
+          setNoAnalysis(true);
+          setExecutionLog(data.execution_log);
+        } else if (data.summary) {
+          setReport(data.summary);
+          setExecutionLog(data.execution_log);
+        }
+      })
+      .catch(() => setNoAnalysis(true));
+  }, []);
 
   const handleRun = async () => {
     setRunning(true);
+    setNoAnalysis(false);
     try {
-      const res = await fetch("/api/validate", { method: "POST" });
+      const res = await fetch("/api/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ batch_size: batchSize, pilot_mode: true }),
+      });
       const data = await res.json();
-      setReport(data);
+      if (data.summary) {
+        setReport(data.summary);
+      } else if (data.status === "no_analysis") {
+        setNoAnalysis(true);
+      }
+      if (data.execution_log) setExecutionLog(data.execution_log);
     } catch {
       toast.error("Validation failed");
     } finally {
@@ -3734,13 +3763,46 @@ function ValidationSection() {
         <span className="text-muted-foreground">{t("validation.selfProtectV2")} — validation_workspace/ & benchmarks/ ↦ üretim koduna erişim yok</span>
       </div>
 
-      {/* Run button */}
+      {/* Run button + batch size selector (pilot mode) */}
       <div className="flex items-center gap-3">
         <Button onClick={handleRun} disabled={running}>
           {running ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Shield className="mr-2 h-4 w-4" />}
           {running ? t("validation.running") : t("validation.run")}
         </Button>
+        {/* Sprint 15: Pilot mode batch size selector (5 → 20 → 70) */}
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Pilot:</span>
+          {[5, 20, 70].map((size) => (
+            <button
+              key={size}
+              onClick={() => setBatchSize(size)}
+              className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${batchSize === size ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-muted"}`}
+            >
+              {size}
+            </button>
+          ))}
+        </div>
       </div>
+
+      {/* Sprint 15: No Analysis Executed state — NO mock data shown */}
+      {noAnalysis && !report && !running && (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <div className="mb-4 text-muted-foreground/30"><Shield className="h-16 w-16" /></div>
+          <h3 className="text-lg font-semibold">{t("validation.title")}</h3>
+          <p className="mt-1 text-sm text-muted-foreground">No Analysis Executed — gerçek analiz henüz çalıştırılmadı.</p>
+          <p className="mt-0.5 text-xs text-muted-foreground/60">Pilot modunda {batchSize} repository ile başlayın. Sonuçları doğrulayın, sonra ölçeklendirin.</p>
+          {executionLog && executionLog.entries?.some((e: any) => e.status === "failed") && (
+            <div className="mt-4 rounded-lg border border-rose-500/30 bg-rose-500/5 p-3 text-sm">
+              <p className="font-medium text-rose-500">Failed Repositories:</p>
+              {executionLog.entries.filter((e: any) => e.status === "failed").map((e: any, i: number) => (
+                <div key={i} className="mt-1 text-xs text-muted-foreground">
+                  <span className="font-mono">{e.repo_name}</span>: {e.error}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {report && (
         <>
@@ -3873,7 +3935,7 @@ function ValidationSection() {
             <CardContent className="space-y-3">
               <div>
                 <h4 className="mb-1 text-sm font-semibold text-emerald-500">En Güçlü Kurallar</h4>
-                {report.rule_quality_report.strongest_rules.map((r: any, i: number) => (
+                {(report.rule_quality_report?.strongest_rules || []).map((r: any, i: number) => (
                   <div key={i} className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">{humanize(r.rule)}</span>
                     <span className="text-emerald-500 font-medium">%{(r.avg_confidence * 100).toFixed(0)} · {r.success_rate ? (r.success_rate * 100).toFixed(0) : 0}% başarı</span>
@@ -3882,7 +3944,7 @@ function ValidationSection() {
               </div>
               <div>
                 <h4 className="mb-1 text-sm font-semibold text-rose-500">En Zayıf Kurallar</h4>
-                {report.rule_quality_report.weakest_rules.map((r: any, i: number) => (
+                {(report.rule_quality_report?.weakest_rules || []).map((r: any, i: number) => (
                   <div key={i} className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">{humanize(r.rule)}</span>
                     <span className="text-rose-500 font-medium">%{(r.avg_confidence * 100).toFixed(0)} · {r.failure_rate ? (r.failure_rate * 100).toFixed(0) : 0}% başarısız</span>
@@ -3891,7 +3953,7 @@ function ValidationSection() {
               </div>
               <div>
                 <h4 className="mb-1 text-sm font-semibold text-amber-500">Sık Başarısız Hipotezler</h4>
-                {report.rule_quality_report.frequently_failing_hypotheses.map((h: any, i: number) => (
+                {(report.rule_quality_report?.frequently_failing_hypotheses || []).map((h: any, i: number) => (
                   <div key={i} className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">{h.hypothesis}</span>
                     <span className="text-amber-500 font-medium">{h.fail_count} kez başarısız</span>
@@ -3969,7 +4031,7 @@ function ValidationSection() {
             <Button variant="outline" size="sm" onClick={() => downloadJSON(report.cross_repository_analysis, "cross_repository_analysis.json")}>
               <Download className="mr-1.5 h-3.5 w-3.5" /> cross_repository_analysis.json
             </Button>
-            <Button variant="outline" size="sm" onClick={() => downloadJSON(report.rule_quality_report, "rule_quality_report.json")}>
+            <Button variant="outline" size="sm" onClick={() => downloadJSON(report.rule_quality_report || {}, "rule_quality_report.json")}>
               <Download className="mr-1.5 h-3.5 w-3.5" /> rule_quality_report.json
             </Button>
             <Button variant="outline" size="sm" onClick={() => downloadJSON(report.performance_report, "performance_report.json")}>
@@ -3977,10 +4039,6 @@ function ValidationSection() {
             </Button>
           </div>
         </>
-      )}
-
-      {!report && !running && (
-        <EmptyState icon={<Shield className="h-12 w-12" />} title={t("validation.title")} description="70 repository kataloğu hazır. Validasyon çalıştırmak için butona tıklayın." />
       )}
     </div>
   );

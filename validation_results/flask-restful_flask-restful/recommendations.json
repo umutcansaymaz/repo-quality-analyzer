@@ -1,0 +1,15 @@
+{
+  "count": 1,
+  "by_priority": {
+    "high": 1,
+    "medium": 0,
+    "low": 0
+  },
+  "by_verified_status": {
+    "verified": 1,
+    "evidence_backed": 0,
+    "partially_verified": 0,
+    "ai_opinion": 0,
+    "rejected": 0
+  }
+}

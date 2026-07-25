@@ -1,0 +1,14 @@
+{
+  "count": 106,
+  "by_severity": {
+    "critical": 0,
+    "high": 76,
+    "medium": 30,
+    "low": 0
+  },
+  "by_analyzer": {
+    "complexity-analyzer": 51,
+    "metrics-engine": 30,
+    "architecture-analyzer": 25
+  }
+}

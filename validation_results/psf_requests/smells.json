@@ -1,0 +1,12 @@
+[
+  {
+    "smell": "God Component",
+    "severity": "high",
+    "confidence": 0.85
+  },
+  {
+    "smell": "Architecture Sink",
+    "severity": "medium",
+    "confidence": 0.75
+  }
+]

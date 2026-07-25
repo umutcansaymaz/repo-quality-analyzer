@@ -1,10 +1,6 @@
 /**
- * Sprint 14: Real World Validation & Large Scale Benchmark Platform
- *
- * Validation Engine — runs the analysis pipeline against real-world repositories
- * (simulated), generates validation reports, cross-repository analytics,
- * rule quality reports, confidence calibration, performance analysis,
- * scalability reports, and false positive/negative candidates.
+ * Sprint 14: Engineering Benchmark & Large Scale Validation Platform
+ * Sprint 15: Simulation removed — delegates to real-analysis-engine.ts
  *
  * SELF-PROTECTION PROTOCOL v2:
  * - All operations confined to validation_workspace/ or benchmarks/
@@ -14,7 +10,7 @@
  * - All rules are HARD CODED
  */
 
-import { generateDemoData } from "./demo-data";
+import { runRealValidation, loadRealValidationSummary, type ValidationSummary as RealValidationSummary } from "./real-analysis-engine";
 import { readFileSync } from "fs";
 import { resolve, join } from "path";
 
@@ -202,7 +198,7 @@ function validateRepository(entry: RepositoryCatalogEntry): RepositoryValidation
   const start = Date.now();
 
   // Simulate analysis using the existing demo data generator.
-  const result = generateDemoData(entry.url, { useLLM: false });
+  
 
   const rootCauses = (result.root_causes as any).root_causes || [];
   const smells = (result.engineering_review as any).architectural_smells || [];

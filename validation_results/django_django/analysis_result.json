@@ -1,0 +1,118 @@
+{
+  "repository": "django/django",
+  "url": "https://github.com/django/django",
+  "classification": {
+    "name": "django",
+    "org": "django",
+    "primary_language": "Python",
+    "loc": 16635,
+    "file_count": 500,
+    "class_count": 483,
+    "function_count": 1069,
+    "dependency_count": 834,
+    "github_stars": 78000,
+    "repository_size_mb": 87
+  },
+  "evidence": {
+    "count": 21,
+    "by_severity": {
+      "critical": 0,
+      "high": 13,
+      "medium": 8,
+      "low": 0
+    },
+    "by_analyzer": {
+      "complexity-analyzer": 8,
+      "metrics-engine": 8,
+      "architecture-analyzer": 5
+    }
+  },
+  "root_causes": {
+    "count": 2,
+    "categories": [
+      "god_class",
+      "large_file"
+    ],
+    "avg_confidence": 0.8
+  },
+  "recommendations": {
+    "count": 2,
+    "by_priority": {
+      "high": 1,
+      "medium": 1,
+      "low": 0
+    },
+    "by_verified_status": {
+      "verified": 1,
+      "evidence_backed": 1,
+      "partially_verified": 0,
+      "ai_opinion": 0,
+      "rejected": 0
+    }
+  },
+  "patterns": [],
+  "smells": [
+    {
+      "smell": "God Component",
+      "severity": "high",
+      "confidence": 0.85
+    },
+    {
+      "smell": "Architecture Sink",
+      "severity": "medium",
+      "confidence": 0.75
+    }
+  ],
+  "knowledge_graph": {
+    "nodes": 1552,
+    "edges": 834
+  },
+  "coverage": 100,
+  "confidence_distribution": [
+    {
+      "range": "0-20",
+      "count": 0
+    },
+    {
+      "range": "20-40",
+      "count": 0
+    },
+    {
+      "range": "40-60",
+      "count": 0
+    },
+    {
+      "range": "60-80",
+      "count": 1
+    },
+    {
+      "range": "80-90",
+      "count": 1
+    },
+    {
+      "range": "90-100",
+      "count": 0
+    }
+  ],
+  "decision_statistics": {
+    "total": 2,
+    "verified": 1,
+    "partially_verified": 1,
+    "ai_opinion": 0,
+    "rejected": 0
+  },
+  "performance": {
+    "clone_time_ms": 3784,
+    "analysis_time_ms": 115,
+    "total_time_ms": 3899,
+    "peak_memory_mb": 184
+  },
+  "execution_log": {
+    "started": "2026-07-25T08:20:47.937Z",
+    "finished": "2026-07-25T08:20:48.111Z",
+    "duration_ms": 3899,
+    "status": "completed",
+    "retries": 0,
+    "errors": []
+  }
+}
