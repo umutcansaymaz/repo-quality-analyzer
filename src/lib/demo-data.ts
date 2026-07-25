@@ -614,6 +614,299 @@ export function generateDemoData(repoUrl: string, options?: GenerateOptions): De
           source_traceability: { file: "src/api/users.py", line: null, analyzer: "import-analizörü", ast_node: null },
         },
       ],
+
+      // ======== Sprint 12: Architect Intelligence Engine ========
+
+      // Evidence Cluster Engine — groups related evidence into clusters.
+      evidence_clusters: [
+        {
+          cluster_id: "ec-1",
+          cluster_name: "UserService Karmaşıklık Kümesi",
+          cluster_type: "complexity",
+          strength: 0.88,
+          confidence: 0.85,
+          supporting_evidence: ["ev-1", "ev-2", "ev-3", "ev-5"],
+          conflicting_evidence: [],
+          coverage: 100,
+          affected_files: ["src/services/user_service.py"],
+          affected_classes: ["UserService"],
+          graph_nodes: ["n4", "n5", "n9"],
+          validation_status: "pass",
+        },
+        {
+          cluster_id: "ec-2",
+          cluster_name: "Döngüsel Bağımlılık Kümesi",
+          cluster_type: "dependency",
+          strength: 0.92,
+          confidence: 0.92,
+          supporting_evidence: ["ev-4", "ev-5"],
+          conflicting_evidence: [],
+          coverage: 100,
+          affected_files: ["src/auth/service.py", "src/user/service.py"],
+          affected_classes: [],
+          graph_nodes: ["n7", "n6"],
+          validation_status: "pass",
+        },
+        {
+          cluster_id: "ec-3",
+          cluster_name: "Güvenlik Zafiyeti Kümesi",
+          cluster_type: "security",
+          strength: 0.90,
+          confidence: 0.90,
+          supporting_evidence: ["ev-7"],
+          conflicting_evidence: [],
+          coverage: 50,
+          affected_files: ["src/config.py"],
+          affected_classes: [],
+          graph_nodes: ["n8"],
+          validation_status: "pass",
+        },
+      ],
+
+      // Hypothesis Engine — hypotheses are generated from evidence clusters,
+      // validated through multi-stage process, and only PASS hypotheses
+      // become Root Causes.
+      hypotheses: [
+        {
+          hypothesis_id: "h-1",
+          hypothesis_name: "UserService God Object",
+          hypothesis_type: "god_class",
+          evidence_cluster_ids: ["ec-1"],
+          supporting_evidence: ["ev-1", "ev-2", "ev-3", "ev-5"],
+          validation_stages: {
+            evidence_cluster: "pass",
+            graph_traversal: "pass",
+            analyzer_consensus: 3,
+            coverage: 100,
+            conflict_detection: "pass",
+            confidence: 0.85,
+          },
+          status: "pass",
+          root_cause_id: "rc-1",
+          confidence_breakdown: { graph_support: 15, coverage: 20, consensus: 18, conflict: 0, missing: 0, total: 82 },
+        },
+        {
+          hypothesis_id: "h-2",
+          hypothesis_name: "Döngüsel Bağımlılık",
+          hypothesis_type: "circular_dependency",
+          evidence_cluster_ids: ["ec-2"],
+          supporting_evidence: ["ev-4", "ev-5"],
+          validation_stages: {
+            evidence_cluster: "pass",
+            graph_traversal: "pass",
+            analyzer_consensus: 2,
+            coverage: 100,
+            conflict_detection: "pass",
+            confidence: 0.92,
+          },
+          status: "pass",
+          root_cause_id: "rc-2",
+          confidence_breakdown: { graph_support: 15, coverage: 20, consensus: 12, conflict: 0, missing: 0, total: 92 },
+        },
+        {
+          hypothesis_id: "h-3",
+          hypothesis_name: "Sıkı Bağlılık — Veritabanı Katmanı",
+          hypothesis_type: "tight_coupling",
+          evidence_cluster_ids: ["ec-1"],
+          supporting_evidence: ["ev-5", "ev-1"],
+          validation_stages: {
+            evidence_cluster: "pass",
+            graph_traversal: "pass",
+            analyzer_consensus: 2,
+            coverage: 67,
+            conflict_detection: "pass",
+            confidence: 0.75,
+          },
+          status: "pass",
+          root_cause_id: "rc-3",
+          confidence_breakdown: { graph_support: 12, coverage: 15, consensus: 12, conflict: 0, missing: -5, total: 75 },
+        },
+        {
+          hypothesis_id: "h-4",
+          hypothesis_name: "Anemic Domain Model",
+          hypothesis_type: "anemic_domain",
+          evidence_cluster_ids: [],
+          supporting_evidence: [],
+          validation_stages: {
+            evidence_cluster: "fail",
+            graph_traversal: "skip",
+            analyzer_consensus: 0,
+            coverage: 0,
+            conflict_detection: "skip",
+            confidence: 0,
+          },
+          status: "fail",
+          root_cause_id: null,
+          confidence_breakdown: { graph_support: 0, coverage: 0, consensus: 0, conflict: 0, missing: -20, total: 0 },
+        },
+      ],
+
+      // Alternative Recommendation Engine — each root cause generates
+      // multiple solution alternatives with full tradeoff analysis.
+      alternatives: {
+        "rc-1": [
+          {
+            alt_id: "alt-rc1-a",
+            name: "Servis Parçalama (Split Service)",
+            approach: "UserService'i auth, profile, notification, settings olmak üzere 4 ayrı servise böl.",
+            impact: 90, risk: 70, implementation_effort: 80, estimated_time: "5 gün", technical_debt_reduction: 85,
+            confidence: 0.80, required_preconditions: ["test coverage >= 60%"],
+            tradeoffs: {
+              advantages: ["Net sorumluluk ayrımı", "Bağımsız test edilebilirlik", "Paralel geliştirme"],
+              disadvantages: ["Daha fazla dosya", "Servisler arası iletişim overhead'i", "Geçiş süreci uzun"],
+              risks: ["Kritik yolları etkiler", "Merge conflict riski"],
+              when_preferred: "Ekip büyükse ve uzun vadeli bakım öncelikliyse",
+              when_not_preferred: "Küçük ekip ve hızlı teslimat gerekiyorsa",
+            },
+            decision_score: { impact: 90, risk: 30, coverage: 75, confidence: 80, complexity_reduction: 85, maintainability_gain: 90, implementation_cost: 20, total: 68 },
+          },
+          {
+            alt_id: "alt-rc1-b",
+            name: "Facade Pattern",
+            approach: "UserService'i Facade olarak koru, iç mantığı alt servislere delegate et.",
+            impact: 60, risk: 25, implementation_effort: 40, estimated_time: "2 gün", technical_debt_reduction: 50,
+            confidence: 0.85, required_preconditions: [],
+            tradeoffs: {
+              advantages: ["Geriye dönük uyumlu", "Hızlı geçiş", "Düşük risk"],
+              disadvantages: ["Facade hatta karmaşık", "Sorun yüzeysel çözülür"],
+              risks: ["Geliştiriciler Facade'i kullanmaya devam edebilir"],
+              when_preferred: "Hızlı düzeltme gerekiyorsa",
+              when_not_preferred: "Köklü çözüm isteniyorsa",
+            },
+            decision_score: { impact: 60, risk: 75, coverage: 75, confidence: 85, complexity_reduction: 40, maintainability_gain: 55, implementation_cost: 60, total: 64 },
+          },
+          {
+            alt_id: "alt-rc1-c",
+            name: "Domain Layer Çıkarımı",
+            approach: "İş mantığını ayrı bir Domain Layer'a taşı, UserService'i uygulama servisine indir.",
+            impact: 75, risk: 50, implementation_effort: 60, estimated_time: "3 gün", technical_debt_reduction: 70,
+            confidence: 0.75, required_preconditions: ["domain model tanımlı olmalı"],
+            tradeoffs: {
+              advantages: ["DDD uyumlu", "İş mantığı merkezi", "Test edilebilir"],
+              disadvantages: ["Learning curve", "Mimari değişiklik"],
+              risks: ["Aşırı mühendislik"],
+              when_preferred: "Karmaşık iş kuralları varsa",
+              when_not_preferred: "Basit CRUD uygulamasıysa",
+            },
+            decision_score: { impact: 75, risk: 50, coverage: 75, confidence: 75, complexity_reduction: 70, maintainability_gain: 80, implementation_cost: 40, total: 66 },
+          },
+        ],
+        "rc-2": [
+          {
+            alt_id: "alt-rc2-a",
+            name: "Ortak Modül Çıkarımı",
+            approach: "Ortak mantığı yeni bir alt seviye modüle taşı.",
+            impact: 85, risk: 45, implementation_effort: 50, estimated_time: "3 gün", technical_debt_reduction: 80,
+            confidence: 0.90, required_preconditions: [],
+            tradeoffs: {
+              advantages: ["Döngü tamamen kırılır", "Test edilebilirlik artar"],
+              disadvantages: ["Yeni modül ekleme"],
+              risks: ["Düşük — izole değişiklik"],
+              when_preferred: "Daima tercih edilir",
+              when_not_preferred: "—",
+            },
+            decision_score: { impact: 85, risk: 55, coverage: 100, confidence: 90, complexity_reduction: 80, maintainability_gain: 85, implementation_cost: 50, total: 78 },
+          },
+        ],
+      },
+
+      // Decision Engine — scores alternatives and selects best recommendation.
+      decision_engine: {
+        "rc-1": { best_alternative_id: "alt-rc1-a", decision_score: 68, runner_up_id: "alt-rc1-c", runner_up_score: 66, rationale: "En yüksek etki ve teknik borç azaltma" },
+        "rc-2": { best_alternative_id: "alt-rc2-a", decision_score: 78, runner_up_id: null, runner_up_score: 0, rationale: "Tek güvenilir çözüm" },
+      },
+
+      // Architectural Pattern Matcher — detects which patterns the repo follows.
+      architectural_patterns: [
+        { pattern: "Layered", compatibility: 65, matched_layers: ["api", "services", "models"], missing_layers: ["repository", "domain"], description: "Kısmen katmanlı — repository ve domain katmanları eksik" },
+        { pattern: "MVC", compatibility: 40, matched_layers: ["api (Controller)", "models (Model)"], missing_layers: ["views"], description: "MVC yapısı zayıf — views katmanı yok" },
+        { pattern: "Modular Monolith", compatibility: 55, matched_layers: ["services", "auth", "user"], missing_layers: [], description: "Modüler monolith yaklaşımı var ama modül sınırları belirsiz" },
+        { pattern: "DDD", compatibility: 25, matched_layers: ["models"], missing_layers: ["domain", "application", "infrastructure"], description: "DDD uyumu düşük — anemic domain model" },
+        { pattern: "Hexagonal", compatibility: 15, matched_layers: [], missing_layers: ["ports", "adapters"], description: "Hexagonal mimari yok" },
+      ],
+
+      // Architectural Smell Engine — detects architectural-level smells
+      // (not code smells, architecture-level patterns).
+      architectural_smells: [
+        { smell_id: "as-1", smell_type: "God Component", severity: "high", confidence: 0.85, affected: "UserService", evidence_ids: ["ev-1", "ev-2", "ev-3"], description: "UserService 4+ sorumluluğu üstlenmiş — God Component anti-deseni" },
+        { smell_id: "as-2", smell_type: "Cyclic Dependency", severity: "high", confidence: 0.92, affected: "auth ↔ user", evidence_ids: ["ev-4"], description: "Döngüsel modül bağımlılığı — test edilebilirliği engelliyor" },
+        { smell_id: "as-3", smell_type: "Architecture Sink", severity: "medium", confidence: 0.75, affected: "user_service.py", evidence_ids: ["ev-5", "ev-1"], description: "Her şey user_service.py'a akıyor — darboğaz oluşturuyor" },
+        { smell_id: "as-4", smell_type: "Anemic Domain", severity: "medium", confidence: 0.60, affected: "User model", evidence_ids: [], description: "Domain model sadece veri taşıyor, davranış içermiyor" },
+      ],
+
+      // Impact Simulator — simulates what happens if a recommendation is applied.
+      impact_simulations: [
+        {
+          recommendation_id: "step-1",
+          scenario: "UserService parçalandıktan sonra",
+          current_metrics: { complexity: 41, coupling: 0.85, maintainability: 55, technical_debt: 70 },
+          projected_metrics: { complexity: 12, coupling: 0.45, maintainability: 85, technical_debt: 30 },
+          delta: { complexity: -29, coupling: -0.40, maintainability: +30, technical_debt: -40 },
+          confidence: 0.80,
+        },
+        {
+          recommendation_id: "step-2",
+          scenario: "Döngüsel bağımlılık kırıldıktan sonra",
+          current_metrics: { complexity: 15, coupling: 0.70, maintainability: 60, technical_debt: 50 },
+          projected_metrics: { complexity: 12, coupling: 0.40, maintainability: 80, technical_debt: 25 },
+          delta: { complexity: -3, coupling: -0.30, maintainability: +20, technical_debt: -25 },
+          confidence: 0.90,
+        },
+      ],
+
+      // Refactor Roadmap Engine — dependency graph instead of flat list.
+      roadmap_graph: {
+        nodes: [
+          { id: "step-1", title: "UserService'i parçala", dependencies: [], blocks: ["step-2", "step-3"], phase: 1 },
+          { id: "step-2", title: "Döngüsel bağımlılığı kır", dependencies: ["step-1"], blocks: [], phase: 2 },
+          { id: "step-3", title: "Repository arayüzü tanımla", dependencies: ["step-1"], blocks: [], phase: 2 },
+          { id: "step-4", title: "Ortak loglama çıkar", dependencies: [], blocks: [], phase: 1 },
+        ],
+        edges: [
+          { from: "step-4", to: null, type: "parallel" },
+          { from: "step-1", to: "step-2", type: "blocking" },
+          { from: "step-1", to: "step-3", type: "blocking" },
+        ],
+        phases: [
+          { phase: 1, title: "Hızlı Kazançlar + Temel", step_ids: ["step-1", "step-4"], can_parallel: true },
+          { phase: 2, title: "Mimari Düzeltmeler", step_ids: ["step-2", "step-3"], can_parallel: true },
+        ],
+      },
+
+      // Confidence Explanation — shows WHY a confidence score is what it is.
+      confidence_explanations: {
+        "rc-1": {
+          score: 82,
+          components: [
+            { name: "Graph Support", contribution: +15, reason: "4 düğümlü geçiş yolu doğrulandı" },
+            { name: "Coverage", contribution: +20, reason: "4/4 kanıt kapsamı %100" },
+            { name: "Analyzer Consensus", contribution: +18, reason: "3 bağımsız analizör doğruladı" },
+            { name: "Conflict", contribution: 0, reason: "Çakışan kanıt yok" },
+            { name: "Missing Evidence", contribution: 0, reason: "Eksik kanıt yok" },
+          ],
+        },
+        "rc-2": {
+          score: 92,
+          components: [
+            { name: "Graph Support", contribution: +15, reason: "3 düğümlü geçiş yolu doğrulandı" },
+            { name: "Coverage", contribution: +20, reason: "2/2 kanıt kapsamı %100" },
+            { name: "Analyzer Consensus", contribution: +12, reason: "2 bağımsız analizör doğruladı" },
+            { name: "Conflict", contribution: 0, reason: "Çakışan kanıt yok" },
+            { name: "Missing Evidence", contribution: 0, reason: "Eksik kanıt yok" },
+          ],
+        },
+        "rc-4": {
+          score: 50,
+          components: [
+            { name: "Graph Support", contribution: +5, reason: "Sığ geçiş (depth 2)" },
+            { name: "Coverage", contribution: +10, reason: "1/2 kanıt kapsamı %50" },
+            { name: "Analyzer Consensus", contribution: +6, reason: "Sadece 1 analizör (min 2 gerekli)" },
+            { name: "Conflict", contribution: 0, reason: "Çakışan kanıt yok" },
+            { name: "Missing Evidence", contribution: -5, reason: "1 kanıt eksik" },
+            { name: "Single Analyzer Penalty", contribution: -16, reason: "Tek analizöre bağımlılık riski" },
+          ],
+        },
+      },
     },
     analyzed_at: new Date().toISOString(),
   };

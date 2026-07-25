@@ -3427,7 +3427,224 @@ function AIReviewSection({ data }: { data: any }) {
           </CardContent>
         </Card>
       )}
+
+      {/* Sprint 12: Architect Intelligence Engine panels */}
+      <ArchitecturalSmellsCard data={data} />
+      <DetectedPatternsCard data={data} />
+      <AlternativeSolutionsCard data={data} />
+      <ImpactSimulatorCard data={data} />
+      <ConfidenceExplanationCard data={data} />
     </div>
+  );
+}
+
+// Architectural Smells card — architecture-level smell detection
+function ArchitecturalSmellsCard({ data }: { data: any }) {
+  const { t } = useI18n();
+  const smells = data?.engineering_review?.architectural_smells || [];
+  if (smells.length === 0) return null;
+  return (
+    <Card>
+      <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Bug className="h-5 w-5 text-rose-500" /> {t("arch.smells")}</CardTitle></CardHeader>
+      <CardContent>
+        <div className="space-y-2">
+          {smells.map((smell: any) => (
+            <div key={smell.smell_id} className="flex items-start gap-2 rounded border p-2">
+              <span className={`mt-0.5 shrink-0 ${smell.severity === "high" ? "text-rose-500" : smell.severity === "medium" ? "text-amber-500" : "text-sky-500"}`}>
+                <Bug className="h-4 w-4" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">{smell.smell_type}</span>
+                  <Badge variant={severityVariant(smell.severity)} className="text-xs">{smell.severity}</Badge>
+                  <span className="text-xs text-muted-foreground">%{(smell.confidence * 100).toFixed(0)}</span>
+                </div>
+                <p className="mt-0.5 text-xs text-muted-foreground">{smell.description}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground/70">Etkilenen: <span className="font-mono">{smell.affected}</span></p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Detected Patterns card — architectural pattern matching with compatibility %
+function DetectedPatternsCard({ data }: { data: any }) {
+  const { t } = useI18n();
+  const patterns = data?.engineering_review?.architectural_patterns || [];
+  if (patterns.length === 0) return null;
+  return (
+    <Card>
+      <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Layers className="h-5 w-5 text-violet-500" /> {t("arch.patterns")}</CardTitle></CardHeader>
+      <CardContent>
+        <div className="space-y-2">
+          {patterns.map((p: any, i: number) => (
+            <div key={i} className="rounded border p-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">{p.pattern}</span>
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-16 rounded-full bg-muted overflow-hidden">
+                    <div className={`h-full ${p.compatibility >= 60 ? "bg-emerald-500" : p.compatibility >= 30 ? "bg-amber-500" : "bg-rose-500"}`} style={{ width: `${p.compatibility}%` }} />
+                  </div>
+                  <span className="text-sm font-bold tabular-nums">{p.compatibility}%</span>
+                </div>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">{p.description}</p>
+              {p.matched_layers?.length > 0 && (
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {p.matched_layers.map((l: string, j: number) => <Badge key={j} variant="secondary" className="text-xs">{l}</Badge>)}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Alternative Solutions card — multiple solutions per root cause with tradeoffs
+function AlternativeSolutionsCard({ data }: { data: any }) {
+  const { t } = useI18n();
+  const alternatives = data?.engineering_review?.alternatives || {};
+  const decisionEngine = data?.engineering_review?.decision_engine || {};
+  const entries = Object.entries(alternatives);
+  if (entries.length === 0) return null;
+  return (
+    <Card>
+      <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><MapIcon className="h-5 w-5 text-emerald-500" /> {t("arch.alternatives")}</CardTitle></CardHeader>
+      <CardContent className="space-y-4">
+        {entries.map(([rcId, alts]: [string, any]) => {
+          const decision = decisionEngine[rcId];
+          return (
+            <div key={rcId}>
+              <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                <Badge variant="outline" className="font-mono text-xs">{rcId}</Badge>
+                {decision && <Badge className="gap-1 text-xs bg-emerald-500/15 text-emerald-600"><CheckCircle className="h-3 w-3" /> {t("alt.best")}: {decision.decision_score} puan</Badge>}
+              </h4>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {alts.map((alt: any) => {
+                  const isBest = decision?.best_alternative_id === alt.alt_id;
+                  return (
+                    <div key={alt.alt_id} className={`rounded-lg border p-3 ${isBest ? "border-emerald-500/40 bg-emerald-500/5" : ""}`}>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium">{alt.name}</span>
+                        {isBest && <Badge className="gap-1 text-xs bg-emerald-500/15 text-emerald-600"><CheckCircle className="h-3 w-3" /> {t("alt.best")}</Badge>}
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">{alt.approach}</p>
+                      <div className="mt-2 grid grid-cols-2 gap-1 text-xs">
+                        <span><span className="text-muted-foreground">{t("alt.impact")}:</span> <span className="font-medium">{alt.impact}</span></span>
+                        <span><span className="text-muted-foreground">{t("alt.risk")}:</span> <span className="font-medium">{alt.risk}</span></span>
+                        <span><span className="text-muted-foreground">{t("alt.effort")}:</span> <span className="font-medium">{alt.implementation_effort}</span></span>
+                        <span><span className="text-muted-foreground">{t("alt.debtReduction")}:</span> <span className="font-medium">{alt.technical_debt_reduction}</span></span>
+                      </div>
+                      <div className="mt-2 flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">Süre: {alt.estimated_time}</span>
+                        <span className="font-bold text-lg tabular-nums">{alt.decision_score.total}</span>
+                      </div>
+                      {alt.tradeoffs && (
+                        <div className="mt-2 border-t pt-2">
+                          <div className="flex flex-wrap gap-1">
+                            {alt.tradeoffs.advantages?.slice(0, 2).map((a: string, i: number) => <Badge key={i} variant="outline" className="text-xs text-emerald-600 border-emerald-500/30">+ {a}</Badge>)}
+                            {alt.tradeoffs.disadvantages?.slice(0, 2).map((d: string, i: number) => <Badge key={i} variant="outline" className="text-xs text-rose-600 border-rose-500/30">- {d}</Badge>)}
+                          </div>
+                          <p className="mt-1 text-xs text-muted-foreground/70">{alt.tradeoffs.when_preferred}</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
+  );
+}
+
+// Impact Simulator card — before/after metrics projection
+function ImpactSimulatorCard({ data }: { data: any }) {
+  const { t } = useI18n();
+  const sims = data?.engineering_review?.impact_simulations || [];
+  if (sims.length === 0) return null;
+  return (
+    <Card>
+      <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><TrendingUp className="h-5 w-5 text-amber-500" /> {t("arch.impactSim")}</CardTitle></CardHeader>
+      <CardContent>
+        <div className="space-y-3">
+          {sims.map((sim: any, i: number) => (
+            <div key={i} className="rounded-lg border p-3">
+              <div className="mb-2 flex items-center gap-2">
+                <Badge variant="outline" className="font-mono text-xs">{sim.recommendation_id}</Badge>
+                <span className="text-sm font-medium">{sim.scenario}</span>
+              </div>
+              <div className="grid grid-cols-4 gap-2 text-xs">
+                <div className="font-medium text-muted-foreground">Metrik</div>
+                <div className="font-medium text-muted-foreground text-right">{t("impact.current")}</div>
+                <div className="font-medium text-muted-foreground text-right">{t("impact.projected")}</div>
+                <div className="font-medium text-muted-foreground text-right">{t("impact.delta")}</div>
+                {["complexity", "coupling", "maintainability", "technical_debt"].map((metric) => {
+                  const cur = sim.current_metrics[metric];
+                  const proj = sim.projected_metrics[metric];
+                  const delta = sim.delta[metric];
+                  const isPositive = (metric === "maintainability" && delta > 0) || (metric !== "maintainability" && delta < 0);
+                  return (
+                    <React.Fragment key={metric}>
+                      <div className="text-muted-foreground">{humanize(metric)}</div>
+                      <div className="text-right tabular-nums">{cur}</div>
+                      <div className="text-right tabular-nums font-medium">{proj}</div>
+                      <div className={`text-right tabular-nums font-bold ${isPositive ? "text-emerald-500" : "text-rose-500"}`}>
+                        {delta > 0 ? "+" : ""}{delta}
+                      </div>
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Confidence Explanation card — shows WHY a confidence score is what it is
+function ConfidenceExplanationCard({ data }: { data: any }) {
+  const { t } = useI18n();
+  const explanations = data?.engineering_review?.confidence_explanations || {};
+  const entries = Object.entries(explanations);
+  if (entries.length === 0) return null;
+  return (
+    <Card>
+      <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Shield className="h-5 w-5 text-primary" /> {t("confidence.explanation")}</CardTitle></CardHeader>
+      <CardContent className="space-y-3">
+        {entries.map(([rcId, exp]: [string, any]) => (
+          <div key={rcId} className="rounded-lg border p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <Badge variant="outline" className="font-mono text-xs">{rcId}</Badge>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">{t("rootCause.confidence")}:</span>
+                <span className="text-2xl font-bold tabular-nums">{exp.score}</span>
+              </div>
+            </div>
+            <div className="space-y-1">
+              {exp.components.map((comp: any, i: number) => (
+                <div key={i} className="flex items-center gap-2 text-xs">
+                  <span className={`font-mono font-bold tabular-nums w-12 text-right ${comp.contribution > 0 ? "text-emerald-500" : comp.contribution < 0 ? "text-rose-500" : "text-muted-foreground"}`}>
+                    {comp.contribution > 0 ? "+" : ""}{comp.contribution}
+                  </span>
+                  <span className="font-medium">{comp.name}</span>
+                  <span className="text-muted-foreground/70">— {comp.reason}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
   );
 }
 
