@@ -1139,6 +1139,7 @@ function ResultsDashboard({ data, onReset }: { data: any; onReset: () => void })
           <TabsTrigger value="benchmark" data-tab="benchmark" className="gap-1.5"><Gauge className="h-4 w-4" /> {t("benchmark.title")}</TabsTrigger>
           <TabsTrigger value="validation" data-tab="validation" className="gap-1.5"><Shield className="h-4 w-4" /> {t("validation.title")}</TabsTrigger>
           <TabsTrigger value="extval" data-tab="extval" className="gap-1.5"><Network className="h-4 w-4" /> {t("extValidation.title")}</TabsTrigger>
+          <TabsTrigger value="realexec" data-tab="realexec" className="gap-1.5"><Rocket className="h-4 w-4" /> {t("realExec.title")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-4"><OverviewSection data={data} /></TabsContent>
@@ -1151,6 +1152,7 @@ function ResultsDashboard({ data, onReset }: { data: any; onReset: () => void })
         <TabsContent value="benchmark" className="mt-4"><BenchmarkSection /></TabsContent>
         <TabsContent value="validation" className="mt-4"><ValidationSection /></TabsContent>
         <TabsContent value="extval" className="mt-4"><ExternalValidationSection /></TabsContent>
+        <TabsContent value="realexec" className="mt-4"><RealExecutionSection /></TabsContent>
       </Tabs>
     </div>
   );
@@ -4054,6 +4056,477 @@ function downloadJSON(data: any, filename: string) {
   a.click();
   URL.revokeObjectURL(url);
   toast.success(`${filename} indirildi`);
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 15 — Real Execution Engine Dashboard
+// ---------------------------------------------------------------------------
+
+const REAL_EXEC_STATUS_CONFIG: Record<string, { color: string; bg: string; dot: string; icon: React.ReactNode }> = {
+  pending: { color: "text-muted-foreground", bg: "bg-muted/15 border-border", dot: "bg-muted-foreground", icon: <Circle className="h-3.5 w-3.5" /> },
+  cloning: { color: "text-violet-500", bg: "bg-violet-500/15 border-violet-500/30", dot: "bg-violet-500", icon: <Loader2 className="h-3.5 w-3.5 animate-spin" /> },
+  analyzing: { color: "text-sky-500", bg: "bg-sky-500/15 border-sky-500/30", dot: "bg-sky-500", icon: <Loader2 className="h-3.5 w-3.5 animate-spin" /> },
+  completed: { color: "text-emerald-500", bg: "bg-emerald-500/15 border-emerald-500/30", dot: "bg-emerald-500", icon: <CheckCircle className="h-3.5 w-3.5" /> },
+  failed: { color: "text-rose-500", bg: "bg-rose-500/15 border-rose-500/30", dot: "bg-rose-500", icon: <XCircle className="h-3.5 w-3.5" /> },
+  retrying: { color: "text-amber-500", bg: "bg-amber-500/15 border-amber-500/30", dot: "bg-amber-500", icon: <RotateCcw className="h-3.5 w-3.5" /> },
+  skipped: { color: "text-muted-foreground", bg: "bg-muted/15 border-border", dot: "bg-muted-foreground", icon: <Circle className="h-3.5 w-3.5" /> },
+};
+
+function RealExecutionSection() {
+  const { t } = useI18n();
+  const [existing, setExisting] = React.useState<any>(null);
+  const [running, setRunning] = React.useState(false);
+  const [batchSize, setBatchSize] = React.useState<5 | 20 | 70>(5);
+  const [result, setResult] = React.useState<any>(null);
+  const [loading, setLoading] = React.useState(true);
+
+  const loadExisting = React.useCallback(() => {
+    setLoading(true);
+    fetch("/api/real-exec")
+      .then((r) => r.json())
+      .then((data) => {
+        setExisting(data);
+        if (data?.summary) setResult({ summary: data.summary, execution_log: data.execution_log });
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  React.useEffect(() => { loadExisting(); }, [loadExisting]);
+
+  const handleRun = async () => {
+    setRunning(true);
+    try {
+      const res = await fetch("/api/real-exec", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ batch_size: batchSize }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        toast.error(data.error);
+      } else {
+        setResult(data);
+        toast.success(`${batchSize} repo analiz edildi`);
+      }
+    } catch (e: any) {
+      toast.error("Analiz başarısız: " + (e.message || "bilinmeyen hata"));
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const summary = result?.summary;
+  const execLog = result?.execution_log;
+  const hasRealData = summary?.is_real === true;
+
+  // ===== Empty state — no analysis executed yet =====
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
+          <Rocket className="h-4 w-4 shrink-0 text-primary animate-pulse" />
+          <span className="text-muted-foreground">{t("realExec.title")} — {t("realExec.realData")}</span>
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-24 rounded-lg" />
+          ))}
+        </div>
+        <Skeleton className="h-64 rounded-lg" />
+      </div>
+    );
+  }
+
+  if (!hasRealData) {
+    return (
+      <div className="space-y-4">
+        {/* Self-protection banner */}
+        <div className="flex items-start gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 text-sm">
+          <Shield className="h-4 w-4 shrink-0 text-emerald-500 mt-0.5" />
+          <div>
+            <div className="font-semibold text-emerald-600 dark:text-emerald-400">{t("realExec.selfProtection")}</div>
+            <div className="text-xs text-muted-foreground mt-1">{t("realExec.selfProtectionDesc")}</div>
+          </div>
+        </div>
+
+        {/* No data empty state */}
+        <Card className="border-dashed">
+          <CardContent className="py-16 text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+              <Rocket className="h-8 w-8 text-primary" />
+            </div>
+            <h3 className="text-lg font-semibold mb-2">{t("realExec.noData")}</h3>
+            <p className="text-sm text-muted-foreground max-w-md mx-auto mb-6">{t("realExec.noDataDesc")}</p>
+
+            {/* Batch size selector */}
+            <div className="max-w-2xl mx-auto space-y-3">
+              <div className="text-sm font-medium">{t("realExec.batchSize")}</div>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                {([5, 20, 70] as const).map((size) => {
+                  const mode = size === 5 ? "pilotMode" : size === 20 ? "scaleMode" : "fullMode";
+                  const hint = size === 5 ? "pilotHint" : size === 20 ? "scaleHint" : "fullHint";
+                  const label = size === 5 ? "pilot" : size === 20 ? "scaleUp" : "full";
+                  return (
+                    <button
+                      key={size}
+                      onClick={() => setBatchSize(size)}
+                      className={`rounded-lg border p-3 text-left transition-all ${
+                        batchSize === size
+                          ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+                          : "border-border hover:border-primary/40 hover:bg-muted/30"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-semibold">{t(`realExec.${label}`)}</span>
+                        {batchSize === size && <CheckCircle className="h-4 w-4 text-primary" />}
+                      </div>
+                      <div className="text-xs text-muted-foreground">{t(`realExec.${hint}`)}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <Button onClick={handleRun} disabled={running} className="mt-6" size="lg">
+              {running ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Rocket className="mr-2 h-4 w-4" />}
+              {running ? t("realExec.running") : t("realExec.runBatch")}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // ===== Real data view =====
+  const totalRepos = summary.total_repositories || 0;
+  const completed = execLog?.completed ?? summary.successful ?? 0;
+  const failed = execLog?.failed ?? summary.failed ?? 0;
+  const progressPct = totalRepos > 0 ? Math.round(((completed + failed) / totalRepos) * 100) : 100;
+
+  return (
+    <div className="space-y-4">
+      {/* Self-protection + real-data banner */}
+      <div className="grid gap-2 sm:grid-cols-2">
+        <div className="flex items-start gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 text-sm">
+          <Shield className="h-4 w-4 shrink-0 text-emerald-500 mt-0.5" />
+          <div>
+            <div className="font-semibold text-emerald-600 dark:text-emerald-400">{t("realExec.selfProtection")}</div>
+            <div className="text-xs text-muted-foreground mt-1">{t("realExec.selfProtectionDesc")}</div>
+          </div>
+        </div>
+        <div className="flex items-start gap-2 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-primary mt-0.5" />
+          <div>
+            <div className="font-semibold text-primary">{t("realExec.realData")}</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              {t("realExec.runId")}: <code className="font-mono text-xs">{summary.run_id}</code>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Batch control bar */}
+      <div className="flex flex-wrap items-center gap-3 rounded-lg border p-3 bg-muted/20">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">{t("realExec.batchSize")}:</span>
+          <Select value={String(batchSize)} onValueChange={(v) => setBatchSize(Number(v) as 5 | 20 | 70)}>
+            <SelectTrigger className="h-8 w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="5">{t("realExec.pilot")}</SelectItem>
+              <SelectItem value="20">{t("realExec.scaleUp")}</SelectItem>
+              <SelectItem value="70">{t("realExec.full")}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <Button onClick={handleRun} disabled={running} size="sm">
+          {running ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Rocket className="mr-2 h-4 w-4" />}
+          {running ? t("realExec.running") : t("realExec.startNew")}
+        </Button>
+        <Button variant="outline" size="sm" onClick={loadExisting} disabled={running}>
+          <RotateCcw className="mr-2 h-3.5 w-3.5" /> {t("realExec.refresh")}
+        </Button>
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">{t("realExec.batchProgress")}:</span>
+          <Progress value={progressPct} className="w-32 h-2" />
+          <span className="text-xs font-mono font-semibold">{progressPct}%</span>
+        </div>
+      </div>
+
+      {/* Summary grid */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        <RealExecStatCard
+          icon={<Database className="h-4 w-4" />}
+          label={t("realExec.totalRepos")}
+          value={totalRepos}
+          accent="border-primary/30 bg-primary/5"
+        />
+        <RealExecStatCard
+          icon={<CheckCircle2 className="h-4 w-4 text-emerald-500" />}
+          label={t("realExec.successful")}
+          value={completed}
+          accent="border-emerald-500/30 bg-emerald-500/5"
+        />
+        <RealExecStatCard
+          icon={<XCircle className="h-4 w-4 text-rose-500" />}
+          label={t("realExec.failed")}
+          value={failed}
+          accent="border-rose-500/30 bg-rose-500/5"
+        />
+        <RealExecStatCard
+          icon={<Beaker className="h-4 w-4 text-amber-500" />}
+          label={t("realExec.totalEvidence")}
+          value={summary.total_evidence ?? 0}
+          accent="border-amber-500/30 bg-amber-500/5"
+        />
+        <RealExecStatCard
+          icon={<Bug className="h-4 w-4 text-rose-500" />}
+          label={t("realExec.totalRootCauses")}
+          value={summary.total_root_causes ?? 0}
+        />
+        <RealExecStatCard
+          icon={<Lightbulb className="h-4 w-4 text-yellow-500" />}
+          label={t("realExec.totalRecommendations")}
+          value={summary.total_recommendations ?? 0}
+        />
+        <RealExecStatCard
+          icon={<Layers className="h-4 w-4 text-violet-500" />}
+          label={t("realExec.totalPatterns")}
+          value={summary.total_patterns ?? 0}
+        />
+        <RealExecStatCard
+          icon={<AlertCircle className="h-4 w-4 text-orange-500" />}
+          label={t("realExec.totalSmells")}
+          value={summary.total_smells ?? 0}
+        />
+      </div>
+
+      {/* Performance row */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <RealExecPerfCard icon={<Clock className="h-4 w-4" />} label={t("realExec.avgAnalysisTime")} value={summary.avg_analysis_time_ms ?? 0} unit={t("realExec.timeMs")} />
+        <RealExecPerfCard icon={<Database className="h-4 w-4" />} label={t("realExec.avgMemory")} value={summary.avg_memory_mb ?? 0} unit={t("realExec.memoryMb")} />
+        <RealExecPerfCard icon={<Gauge className="h-4 w-4" />} label={t("realExec.avgCoverage")} value={summary.avg_coverage ?? 0} unit={t("realExec.percent")} />
+        <RealExecPerfCard icon={<Target className="h-4 w-4" />} label={t("realExec.avgConfidence")} value={summary.avg_confidence ?? 0} unit="" />
+      </div>
+
+      {/* Execution queue table */}
+      {execLog && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Workflow className="h-4 w-4 text-primary" />
+              {t("realExec.queue")}
+              <Badge variant="secondary" className="ml-1 text-xs">{execLog.entries?.length || 0} {t("realExec.repo")}</Badge>
+              {execLog.pilot_mode && <Badge variant="outline" className="text-xs">{t("realExec.pilotMode")}</Badge>}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="max-h-96 overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-muted/80 backdrop-blur-sm">
+                  <tr className="text-left text-xs text-muted-foreground">
+                    <th className="px-4 py-2 font-medium">{t("realExec.repo")}</th>
+                    <th className="px-4 py-2 font-medium">{t("realExec.lang")}</th>
+                    <th className="px-4 py-2 font-medium hidden sm:table-cell">{t("realExec.type")}</th>
+                    <th className="px-4 py-2 font-medium text-right">{t("realExec.duration")}</th>
+                    <th className="px-4 py-2 font-medium text-right">{t("realExec.status")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {execLog.entries?.map((entry: any, i: number) => {
+                    const cfg = REAL_EXEC_STATUS_CONFIG[entry.status] || REAL_EXEC_STATUS_CONFIG.pending;
+                    return (
+                      <tr key={i} className="border-t hover:bg-muted/30 transition-colors">
+                        <td className="px-4 py-2 font-mono text-xs">{entry.repo_name}</td>
+                        <td className="px-4 py-2">
+                          <Badge variant="outline" className="text-xs">{entry.lang}</Badge>
+                        </td>
+                        <td className="px-4 py-2 hidden sm:table-cell text-xs text-muted-foreground">{entry.type}</td>
+                        <td className="px-4 py-2 text-right font-mono text-xs tabular-nums">
+                          {entry.duration_ms != null ? `${entry.duration_ms}${t("realExec.timeMs")}` : "—"}
+                        </td>
+                        <td className="px-4 py-2 text-right">
+                          <span className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-medium ${cfg.bg} ${cfg.color}`}>
+                            {cfg.icon}
+                            {t(`realExec.status.${entry.status}`)}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Cross-repository analysis */}
+      {summary.cross_repository_analysis && (
+        <div className="grid gap-3 lg:grid-cols-2">
+          <RealExecCrossCard
+            title={t("realExec.commonSmells")}
+            items={summary.cross_repository_analysis.most_common_smells?.map((s: any) => ({ name: s.smell, count: s.count, pct: s.percentage }))}
+            color="rose"
+            icon={<AlertCircle className="h-4 w-4" />}
+          />
+          <RealExecCrossCard
+            title={t("realExec.commonRootCauses")}
+            items={summary.cross_repository_analysis.most_common_root_causes?.map((s: any) => ({ name: s.cause, count: s.count, pct: s.percentage }))}
+            color="amber"
+            icon={<Bug className="h-4 w-4" />}
+          />
+          <RealExecCrossCard
+            title={t("realExec.commonPatterns")}
+            items={summary.cross_repository_analysis.most_common_patterns?.map((s: any) => ({ name: s.pattern, count: s.count, pct: s.percentage }))}
+            color="violet"
+            icon={<Layers className="h-4 w-4" />}
+          />
+          <RealExecCrossCard
+            title={t("realExec.byLanguage")}
+            items={summary.cross_repository_analysis.by_language?.map((s: any) => ({ name: s.language, count: s.count, pct: s.avg_coverage }))}
+            color="emerald"
+            icon={<Globe className="h-4 w-4" />}
+            pctLabel={t("realExec.avgCoverage")}
+          />
+        </div>
+      )}
+
+      {/* Failures card */}
+      {summary.failures && summary.failures.length > 0 && (
+        <Card className="border-rose-500/30">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base text-rose-600 dark:text-rose-400">
+              <XCircle className="h-4 w-4" />
+              {t("realExec.failures")}
+              <Badge variant="secondary" className="ml-1 text-xs bg-rose-500/15 text-rose-600">{summary.failures.length}</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {summary.failures.map((f: any, i: number) => (
+              <div key={i} className="rounded-md border border-rose-500/20 bg-rose-500/5 p-3 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-xs font-semibold">{f.repo}</span>
+                  {f.retry_count > 0 && (
+                    <Badge variant="outline" className="text-xs">
+                      <RotateCcw className="h-3 w-3 mr-1" /> ×{f.retry_count}
+                    </Badge>
+                  )}
+                </div>
+                <div className="mt-1 text-xs text-muted-foreground">{f.reason}</div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {summary.failures && summary.failures.length === 0 && (
+        <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 text-sm">
+          <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+          <span className="text-emerald-600 dark:text-emerald-400">{t("realExec.noFailures")}</span>
+        </div>
+      )}
+
+      {/* Real outputs info */}
+      <Card className="border-primary/20 bg-muted/20">
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <FileText className="h-4 w-4 text-primary" />
+            {t("realExec.outputs")}
+          </CardTitle>
+          <CardDescription className="text-xs">{t("realExec.outputsDesc")}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-2">
+            {["evidence.json", "root_causes.json", "recommendations.json", "patterns.json", "smells.json", "performance.json", "analysis_result.json"].map((f) => (
+              <Badge key={f} variant="outline" className="font-mono text-xs bg-background">
+                <FileCode2 className="h-3 w-3 mr-1 text-muted-foreground" />
+                {f}
+              </Badge>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function RealExecStatCard({ icon, label, value, accent = "border-border bg-muted/20" }: { icon: React.ReactNode; label: string; value: number; accent?: string }) {
+  return (
+    <div className={`rounded-lg border p-3 ${accent}`}>
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-xs text-muted-foreground">{label}</span>
+        {icon}
+      </div>
+      <div className="text-2xl font-bold tabular-nums">{value}</div>
+    </div>
+  );
+}
+
+function RealExecPerfCard({ icon, label, value, unit }: { icon: React.ReactNode; label: string; value: number; unit: string }) {
+  return (
+    <Card>
+      <CardContent className="pt-4 pb-3">
+        <div className="flex items-center gap-2 mb-1.5 text-xs text-muted-foreground">
+          {icon}
+          <span>{label}</span>
+        </div>
+        <div className="flex items-baseline gap-1">
+          <span className="text-xl font-bold tabular-nums">{value.toLocaleString()}</span>
+          {unit && <span className="text-xs text-muted-foreground">{unit}</span>}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function RealExecCrossCard({
+  title,
+  items,
+  color,
+  icon,
+  pctLabel = "%",
+}: {
+  title: string;
+  items: { name: string; count: number; pct: number }[] | undefined;
+  color: "rose" | "amber" | "violet" | "emerald";
+  icon: React.ReactNode;
+  pctLabel?: string;
+}) {
+  const colorMap = {
+    rose: "bg-rose-500",
+    amber: "bg-amber-500",
+    violet: "bg-violet-500",
+    emerald: "bg-emerald-500",
+  };
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          {icon}
+          {title}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-1.5">
+        {(!items || items.length === 0) && (
+          <div className="text-xs text-muted-foreground py-4 text-center">—</div>
+        )}
+        {items?.slice(0, 8).map((item, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <span className="text-xs font-mono w-32 truncate shrink-0" title={item.name}>{item.name}</span>
+            <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
+              <div className={`h-full ${colorMap[color]}`} style={{ width: `${Math.min(item.pct, 100)}%` }} />
+            </div>
+            <span className="text-xs tabular-nums text-muted-foreground w-14 text-right">
+              {item.count} · {item.pct}{pctLabel}
+            </span>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
 }
 
 function BenchmarkSection() {

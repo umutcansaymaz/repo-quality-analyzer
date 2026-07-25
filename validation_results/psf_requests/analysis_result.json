@@ -102,15 +102,15 @@
     "rejected": 0
   },
   "performance": {
-    "clone_time_ms": 1354,
-    "analysis_time_ms": 75,
-    "total_time_ms": 1429,
-    "peak_memory_mb": 197
+    "clone_time_ms": 1699,
+    "analysis_time_ms": 64,
+    "total_time_ms": 1763,
+    "peak_memory_mb": 117
   },
   "execution_log": {
-    "started": "2026-07-25T08:20:55.476Z",
-    "finished": "2026-07-25T08:20:55.576Z",
-    "duration_ms": 1429,
+    "started": "2026-07-25T14:00:01.536Z",
+    "finished": "2026-07-25T14:00:01.620Z",
+    "duration_ms": 1763,
     "status": "completed",
     "retries": 0,
     "errors": []

@@ -5,26 +5,26 @@
     "name": "django",
     "org": "django",
     "primary_language": "Python",
-    "loc": 16635,
+    "loc": 48838,
     "file_count": 500,
-    "class_count": 483,
-    "function_count": 1069,
-    "dependency_count": 834,
+    "class_count": 1137,
+    "function_count": 3241,
+    "dependency_count": 2042,
     "github_stars": 78000,
     "repository_size_mb": 87
   },
   "evidence": {
-    "count": 21,
+    "count": 70,
     "by_severity": {
       "critical": 0,
-      "high": 13,
-      "medium": 8,
+      "high": 41,
+      "medium": 29,
       "low": 0
     },
     "by_analyzer": {
-      "complexity-analyzer": 8,
-      "metrics-engine": 8,
-      "architecture-analyzer": 5
+      "complexity-analyzer": 22,
+      "metrics-engine": 29,
+      "architecture-analyzer": 19
     }
   },
   "root_causes": {
@@ -64,8 +64,8 @@
     }
   ],
   "knowledge_graph": {
-    "nodes": 1552,
-    "edges": 834
+    "nodes": 4378,
+    "edges": 2042
   },
   "coverage": 100,
   "confidence_distribution": [
@@ -102,15 +102,15 @@
     "rejected": 0
   },
   "performance": {
-    "clone_time_ms": 3784,
-    "analysis_time_ms": 115,
-    "total_time_ms": 3899,
-    "peak_memory_mb": 184
+    "clone_time_ms": 3822,
+    "analysis_time_ms": 138,
+    "total_time_ms": 3960,
+    "peak_memory_mb": 112
   },
   "execution_log": {
-    "started": "2026-07-25T08:20:47.937Z",
-    "finished": "2026-07-25T08:20:48.111Z",
-    "duration_ms": 3899,
+    "started": "2026-07-25T13:59:53.641Z",
+    "finished": "2026-07-25T13:59:53.827Z",
+    "duration_ms": 3960,
     "status": "completed",
     "retries": 0,
     "errors": []

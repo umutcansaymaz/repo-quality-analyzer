@@ -5,25 +5,25 @@
     "name": "celery",
     "org": "celery",
     "primary_language": "Python",
-    "loc": 57022,
+    "loc": 42521,
     "file_count": 417,
-    "class_count": 683,
-    "function_count": 4222,
-    "dependency_count": 3883,
+    "class_count": 545,
+    "function_count": 3363,
+    "dependency_count": 2417,
     "github_stars": 23000,
     "repository_size_mb": 11
   },
   "evidence": {
-    "count": 106,
+    "count": 53,
     "by_severity": {
       "critical": 0,
-      "high": 76,
-      "medium": 30,
+      "high": 31,
+      "medium": 22,
       "low": 0
     },
     "by_analyzer": {
-      "complexity-analyzer": 51,
-      "metrics-engine": 30,
+      "complexity-analyzer": 6,
+      "metrics-engine": 22,
       "architecture-analyzer": 25
     }
   },
@@ -64,8 +64,8 @@
     }
   ],
   "knowledge_graph": {
-    "nodes": 4905,
-    "edges": 3883
+    "nodes": 3908,
+    "edges": 2417
   },
   "coverage": 100,
   "confidence_distribution": [
@@ -102,15 +102,15 @@
     "rejected": 0
   },
   "performance": {
-    "clone_time_ms": 1489,
-    "analysis_time_ms": 167,
-    "total_time_ms": 1656,
-    "peak_memory_mb": 194
+    "clone_time_ms": 1805,
+    "analysis_time_ms": 99,
+    "total_time_ms": 1904,
+    "peak_memory_mb": 117
   },
   "execution_log": {
-    "started": "2026-07-25T08:20:53.924Z",
-    "finished": "2026-07-25T08:20:54.122Z",
-    "duration_ms": 1656,
+    "started": "2026-07-25T13:59:59.718Z",
+    "finished": "2026-07-25T13:59:59.836Z",
+    "duration_ms": 1904,
     "status": "completed",
     "retries": 0,
     "errors": []

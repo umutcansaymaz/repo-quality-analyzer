@@ -5,26 +5,26 @@
     "name": "sqlalchemy",
     "org": "sqlalchemy",
     "primary_language": "Python",
-    "loc": 304592,
+    "loc": 176977,
     "file_count": 500,
-    "class_count": 6173,
-    "function_count": 15445,
-    "dependency_count": 13165,
+    "class_count": 3309,
+    "function_count": 7836,
+    "dependency_count": 15468,
     "github_stars": 9000,
     "repository_size_mb": 34
   },
   "evidence": {
-    "count": 587,
+    "count": 238,
     "by_severity": {
       "critical": 0,
-      "high": 466,
-      "medium": 121,
+      "high": 166,
+      "medium": 72,
       "low": 0
     },
     "by_analyzer": {
-      "complexity-analyzer": 364,
-      "metrics-engine": 121,
-      "architecture-analyzer": 102
+      "complexity-analyzer": 117,
+      "metrics-engine": 72,
+      "architecture-analyzer": 49
     }
   },
   "root_causes": {
@@ -64,8 +64,8 @@
     }
   ],
   "knowledge_graph": {
-    "nodes": 21618,
-    "edges": 13165
+    "nodes": 11145,
+    "edges": 15468
   },
   "coverage": 100,
   "confidence_distribution": [
@@ -102,15 +102,15 @@
     "rejected": 0
   },
   "performance": {
-    "clone_time_ms": 2757,
-    "analysis_time_ms": 374,
-    "total_time_ms": 3131,
-    "peak_memory_mb": 193
+    "clone_time_ms": 2597,
+    "analysis_time_ms": 317,
+    "total_time_ms": 2914,
+    "peak_memory_mb": 114
   },
   "execution_log": {
-    "started": "2026-07-25T08:20:52.025Z",
-    "finished": "2026-07-25T08:20:52.434Z",
-    "duration_ms": 3131,
+    "started": "2026-07-25T13:59:57.553Z",
+    "finished": "2026-07-25T13:59:57.913Z",
+    "duration_ms": 2914,
     "status": "completed",
     "retries": 0,
     "errors": []

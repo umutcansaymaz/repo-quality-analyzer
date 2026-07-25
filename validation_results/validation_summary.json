@@ -1,17 +1,17 @@
 {
-  "run_id": "run-1784967644152",
-  "timestamp": "2026-07-25T08:20:55.577Z",
+  "run_id": "run-1784987989817",
+  "timestamp": "2026-07-25T14:00:01.622Z",
   "total_repositories": 5,
   "successful": 5,
   "failed": 0,
   "skipped": 0,
-  "total_evidence": 761,
+  "total_evidence": 408,
   "total_root_causes": 9,
   "total_recommendations": 9,
   "total_patterns": 0,
   "total_smells": 9,
-  "avg_analysis_time_ms": 160,
-  "avg_memory_mb": 190,
+  "avg_analysis_time_ms": 132,
+  "avg_memory_mb": 114,
   "avg_coverage": 100,
   "avg_confidence": 0.81,
   "results": [
@@ -22,26 +22,26 @@
         "name": "django",
         "org": "django",
         "primary_language": "Python",
-        "loc": 16635,
+        "loc": 48838,
         "file_count": 500,
-        "class_count": 483,
-        "function_count": 1069,
-        "dependency_count": 834,
+        "class_count": 1137,
+        "function_count": 3241,
+        "dependency_count": 2042,
         "github_stars": 78000,
         "repository_size_mb": 87
       },
       "evidence": {
-        "count": 21,
+        "count": 70,
         "by_severity": {
           "critical": 0,
-          "high": 13,
-          "medium": 8,
+          "high": 41,
+          "medium": 29,
           "low": 0
         },
         "by_analyzer": {
-          "complexity-analyzer": 8,
-          "metrics-engine": 8,
-          "architecture-analyzer": 5
+          "complexity-analyzer": 22,
+          "metrics-engine": 29,
+          "architecture-analyzer": 19
         }
       },
       "root_causes": {
@@ -81,8 +81,8 @@
         }
       ],
       "knowledge_graph": {
-        "nodes": 1552,
-        "edges": 834
+        "nodes": 4378,
+        "edges": 2042
       },
       "coverage": 100,
       "confidence_distribution": [
@@ -119,15 +119,15 @@
         "rejected": 0
       },
       "performance": {
-        "clone_time_ms": 3784,
-        "analysis_time_ms": 115,
-        "total_time_ms": 3899,
-        "peak_memory_mb": 184
+        "clone_time_ms": 3822,
+        "analysis_time_ms": 138,
+        "total_time_ms": 3960,
+        "peak_memory_mb": 112
       },
       "execution_log": {
-        "started": "2026-07-25T08:20:47.937Z",
-        "finished": "2026-07-25T08:20:48.111Z",
-        "duration_ms": 3899,
+        "started": "2026-07-25T13:59:53.641Z",
+        "finished": "2026-07-25T13:59:53.827Z",
+        "duration_ms": 3960,
         "status": "completed",
         "retries": 0,
         "errors": []
@@ -231,15 +231,15 @@
         "rejected": 0
       },
       "performance": {
-        "clone_time_ms": 1051,
-        "analysis_time_ms": 68,
-        "total_time_ms": 1119,
-        "peak_memory_mb": 183
+        "clone_time_ms": 1074,
+        "analysis_time_ms": 40,
+        "total_time_ms": 1114,
+        "peak_memory_mb": 111
       },
       "execution_log": {
-        "started": "2026-07-25T08:20:49.163Z",
-        "finished": "2026-07-25T08:20:49.268Z",
-        "duration_ms": 1119,
+        "started": "2026-07-25T13:59:54.902Z",
+        "finished": "2026-07-25T13:59:54.955Z",
+        "duration_ms": 1114,
         "status": "completed",
         "retries": 0,
         "errors": []
@@ -252,26 +252,26 @@
         "name": "sqlalchemy",
         "org": "sqlalchemy",
         "primary_language": "Python",
-        "loc": 304592,
+        "loc": 176977,
         "file_count": 500,
-        "class_count": 6173,
-        "function_count": 15445,
-        "dependency_count": 13165,
+        "class_count": 3309,
+        "function_count": 7836,
+        "dependency_count": 15468,
         "github_stars": 9000,
         "repository_size_mb": 34
       },
       "evidence": {
-        "count": 587,
+        "count": 238,
         "by_severity": {
           "critical": 0,
-          "high": 466,
-          "medium": 121,
+          "high": 166,
+          "medium": 72,
           "low": 0
         },
         "by_analyzer": {
-          "complexity-analyzer": 364,
-          "metrics-engine": 121,
-          "architecture-analyzer": 102
+          "complexity-analyzer": 117,
+          "metrics-engine": 72,
+          "architecture-analyzer": 49
         }
       },
       "root_causes": {
@@ -311,8 +311,8 @@
         }
       ],
       "knowledge_graph": {
-        "nodes": 21618,
-        "edges": 13165
+        "nodes": 11145,
+        "edges": 15468
       },
       "coverage": 100,
       "confidence_distribution": [
@@ -349,15 +349,15 @@
         "rejected": 0
       },
       "performance": {
-        "clone_time_ms": 2757,
-        "analysis_time_ms": 374,
-        "total_time_ms": 3131,
-        "peak_memory_mb": 193
+        "clone_time_ms": 2597,
+        "analysis_time_ms": 317,
+        "total_time_ms": 2914,
+        "peak_memory_mb": 114
       },
       "execution_log": {
-        "started": "2026-07-25T08:20:52.025Z",
-        "finished": "2026-07-25T08:20:52.434Z",
-        "duration_ms": 3131,
+        "started": "2026-07-25T13:59:57.553Z",
+        "finished": "2026-07-25T13:59:57.913Z",
+        "duration_ms": 2914,
         "status": "completed",
         "retries": 0,
         "errors": []
@@ -370,25 +370,25 @@
         "name": "celery",
         "org": "celery",
         "primary_language": "Python",
-        "loc": 57022,
+        "loc": 42521,
         "file_count": 417,
-        "class_count": 683,
-        "function_count": 4222,
-        "dependency_count": 3883,
+        "class_count": 545,
+        "function_count": 3363,
+        "dependency_count": 2417,
         "github_stars": 23000,
         "repository_size_mb": 11
       },
       "evidence": {
-        "count": 106,
+        "count": 53,
         "by_severity": {
           "critical": 0,
-          "high": 76,
-          "medium": 30,
+          "high": 31,
+          "medium": 22,
           "low": 0
         },
         "by_analyzer": {
-          "complexity-analyzer": 51,
-          "metrics-engine": 30,
+          "complexity-analyzer": 6,
+          "metrics-engine": 22,
           "architecture-analyzer": 25
         }
       },
@@ -429,8 +429,8 @@
         }
       ],
       "knowledge_graph": {
-        "nodes": 4905,
-        "edges": 3883
+        "nodes": 3908,
+        "edges": 2417
       },
       "coverage": 100,
       "confidence_distribution": [
@@ -467,15 +467,15 @@
         "rejected": 0
       },
       "performance": {
-        "clone_time_ms": 1489,
-        "analysis_time_ms": 167,
-        "total_time_ms": 1656,
-        "peak_memory_mb": 194
+        "clone_time_ms": 1805,
+        "analysis_time_ms": 99,
+        "total_time_ms": 1904,
+        "peak_memory_mb": 117
       },
       "execution_log": {
-        "started": "2026-07-25T08:20:53.924Z",
-        "finished": "2026-07-25T08:20:54.122Z",
-        "duration_ms": 1656,
+        "started": "2026-07-25T13:59:59.718Z",
+        "finished": "2026-07-25T13:59:59.836Z",
+        "duration_ms": 1904,
         "status": "completed",
         "retries": 0,
         "errors": []
@@ -585,15 +585,15 @@
         "rejected": 0
       },
       "performance": {
-        "clone_time_ms": 1354,
-        "analysis_time_ms": 75,
-        "total_time_ms": 1429,
-        "peak_memory_mb": 197
+        "clone_time_ms": 1699,
+        "analysis_time_ms": 64,
+        "total_time_ms": 1763,
+        "peak_memory_mb": 117
       },
       "execution_log": {
-        "started": "2026-07-25T08:20:55.476Z",
-        "finished": "2026-07-25T08:20:55.576Z",
-        "duration_ms": 1429,
+        "started": "2026-07-25T14:00:01.536Z",
+        "finished": "2026-07-25T14:00:01.620Z",
+        "duration_ms": 1763,
         "status": "completed",
         "retries": 0,
         "errors": []
@@ -602,9 +602,9 @@
   ],
   "failures": [],
   "execution_log": {
-    "run_id": "run-1784967644152",
-    "started_at": "2026-07-25T08:20:44.152Z",
-    "finished_at": "2026-07-25T08:20:55.577Z",
+    "run_id": "run-1784987989817",
+    "started_at": "2026-07-25T13:59:49.817Z",
+    "finished_at": "2026-07-25T14:00:01.622Z",
     "total_repositories": 5,
     "completed": 5,
     "failed": 0,
@@ -619,9 +619,9 @@
         "stars": 78000,
         "status": "completed",
         "retry_count": 0,
-        "started_at": "2026-07-25T08:20:44.152Z",
-        "completed_at": "2026-07-25T08:20:48.112Z",
-        "duration_ms": 3899,
+        "started_at": "2026-07-25T13:59:49.817Z",
+        "completed_at": "2026-07-25T13:59:53.828Z",
+        "duration_ms": 3960,
         "error": null
       },
       {
@@ -633,9 +633,9 @@
         "stars": 6500,
         "status": "completed",
         "retry_count": 0,
-        "started_at": "2026-07-25T08:20:48.112Z",
-        "completed_at": "2026-07-25T08:20:49.268Z",
-        "duration_ms": 1119,
+        "started_at": "2026-07-25T13:59:53.828Z",
+        "completed_at": "2026-07-25T13:59:54.956Z",
+        "duration_ms": 1114,
         "error": null
       },
       {
@@ -647,9 +647,9 @@
         "stars": 9000,
         "status": "completed",
         "retry_count": 0,
-        "started_at": "2026-07-25T08:20:49.268Z",
-        "completed_at": "2026-07-25T08:20:52.434Z",
-        "duration_ms": 3131,
+        "started_at": "2026-07-25T13:59:54.956Z",
+        "completed_at": "2026-07-25T13:59:57.913Z",
+        "duration_ms": 2914,
         "error": null
       },
       {
@@ -661,9 +661,9 @@
         "stars": 23000,
         "status": "completed",
         "retry_count": 0,
-        "started_at": "2026-07-25T08:20:52.435Z",
-        "completed_at": "2026-07-25T08:20:54.122Z",
-        "duration_ms": 1656,
+        "started_at": "2026-07-25T13:59:57.913Z",
+        "completed_at": "2026-07-25T13:59:59.836Z",
+        "duration_ms": 1904,
         "error": null
       },
       {
@@ -675,9 +675,9 @@
         "stars": 51000,
         "status": "completed",
         "retry_count": 0,
-        "started_at": "2026-07-25T08:20:54.122Z",
-        "completed_at": "2026-07-25T08:20:55.576Z",
-        "duration_ms": 1429,
+        "started_at": "2026-07-25T13:59:59.837Z",
+        "completed_at": "2026-07-25T14:00:01.621Z",
+        "duration_ms": 1763,
         "error": null
       }
     ],
