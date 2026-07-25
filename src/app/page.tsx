@@ -1138,6 +1138,7 @@ function ResultsDashboard({ data, onReset }: { data: any; onReset: () => void })
           <TabsTrigger value="ai" data-tab="ai" className="gap-1.5"><Sparkles className="h-4 w-4" /> {t("commentary.title")}</TabsTrigger>
           <TabsTrigger value="benchmark" data-tab="benchmark" className="gap-1.5"><Gauge className="h-4 w-4" /> {t("benchmark.title")}</TabsTrigger>
           <TabsTrigger value="validation" data-tab="validation" className="gap-1.5"><Shield className="h-4 w-4" /> {t("validation.title")}</TabsTrigger>
+          <TabsTrigger value="extval" data-tab="extval" className="gap-1.5"><Network className="h-4 w-4" /> {t("extValidation.title")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-4"><OverviewSection data={data} /></TabsContent>
@@ -1149,6 +1150,7 @@ function ResultsDashboard({ data, onReset }: { data: any; onReset: () => void })
         <TabsContent value="ai" className="mt-4"><AIReviewSection data={data} /></TabsContent>
         <TabsContent value="benchmark" className="mt-4"><BenchmarkSection /></TabsContent>
         <TabsContent value="validation" className="mt-4"><ValidationSection /></TabsContent>
+        <TabsContent value="extval" className="mt-4"><ExternalValidationSection /></TabsContent>
       </Tabs>
     </div>
   );
@@ -3449,6 +3451,262 @@ function AIReviewSection({ data }: { data: any }) {
 // ---------------------------------------------------------------------------
 // Sprint 14: Real World Validation Dashboard
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Phase A: External Validation Dashboard
+// ---------------------------------------------------------------------------
+
+function ExternalValidationSection() {
+  const { t } = useI18n();
+  const [report, setReport] = React.useState<any>(null);
+  const [running, setRunning] = React.useState(false);
+  const [expandedFinding, setExpandedFinding] = React.useState<string | null>(null);
+
+  const handleRun = async () => {
+    setRunning(true);
+    try {
+      const res = await fetch("/api/external-validate", { method: "POST" });
+      const data = await res.json();
+      setReport(data);
+    } catch {
+      toast.error("External validation failed");
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const statusConfig: Record<string, { color: string; bg: string; icon: React.ReactNode }> = {
+    verified: { color: "text-emerald-500", bg: "bg-emerald-500/15 border-emerald-500/30", icon: <CheckCircle className="h-4 w-4" /> },
+    likely_verified: { color: "text-sky-500", bg: "bg-sky-500/15 border-sky-500/30", icon: <CheckCircle className="h-4 w-4" /> },
+    weak_evidence: { color: "text-amber-500", bg: "bg-amber-500/15 border-amber-500/30", icon: <AlertCircle className="h-4 w-4" /> },
+    contradicted: { color: "text-rose-500", bg: "bg-rose-500/15 border-rose-500/30", icon: <XCircle className="h-4 w-4" /> },
+    unknown: { color: "text-muted-foreground", bg: "bg-muted/15 border-border", icon: <Circle className="h-4 w-4" /> },
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Provider banner */}
+      <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
+        <Network className="h-4 w-4 shrink-0 text-primary" />
+        <span className="text-muted-foreground">{t("extValidation.provider")} — External Evidence Connector altyapısı (GitLab, Jira, Confluence eklenebilir)</span>
+      </div>
+
+      {/* Run button */}
+      <div className="flex items-center gap-3">
+        <Button onClick={handleRun} disabled={running}>
+          {running ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Network className="mr-2 h-4 w-4" />}
+          {running ? t("extValidation.running") : t("extValidation.run")}
+        </Button>
+      </div>
+
+      {report && (
+        <>
+          {/* Summary grid */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            <div className="rounded-lg border p-3 text-center">
+              <div className="text-2xl font-bold">{report.validated_findings}</div>
+              <div className="text-xs text-muted-foreground">{t("extValidation.validatedFindings")}</div>
+            </div>
+            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 text-center">
+              <div className="text-2xl font-bold text-emerald-500">{report.verified + report.likely_verified}</div>
+              <div className="text-xs text-muted-foreground">{t("extValidation.verified")} + {t("extValidation.likelyVerified")}</div>
+            </div>
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-center">
+              <div className="text-2xl font-bold text-amber-500">{report.weak_evidence}</div>
+              <div className="text-xs text-muted-foreground">{t("extValidation.weakEvidence")}</div>
+            </div>
+            <div className="rounded-lg border border-rose-500/30 bg-rose-500/5 p-3 text-center">
+              <div className="text-2xl font-bold text-rose-500">{report.contradicted}</div>
+              <div className="text-xs text-muted-foreground">{t("extValidation.contradicted")}</div>
+            </div>
+          </div>
+
+          {/* Agreement + Sources */}
+          <div className="grid grid-cols-2 gap-3">
+            <Card>
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">{t("extValidation.avgAgreement")}</span>
+                  <div className="flex items-center gap-2">
+                    <div className="text-2xl font-bold tabular-nums">{(report.average_agreement * 100).toFixed(0)}%</div>
+                    <div className="h-2 w-16 rounded-full bg-muted overflow-hidden">
+                      <div className={`h-full ${report.average_agreement >= 0.7 ? "bg-emerald-500" : report.average_agreement >= 0.5 ? "bg-amber-500" : "bg-rose-500"}`} style={{ width: `${report.average_agreement * 100}%` }} />
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">{t("extValidation.avgSources")}</span>
+                  <span className="text-2xl font-bold tabular-nums">{report.average_external_evidence}</span>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Most supported / contradicted */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3">
+              <div className="text-xs text-muted-foreground">{t("extValidation.mostSupported")}</div>
+              <div className="mt-1 flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 text-emerald-500" />
+                <span className="font-medium text-emerald-500">{report.most_confirmed_finding ? humanize(report.most_confirmed_finding) : "—"}</span>
+              </div>
+            </div>
+            <div className="rounded-lg border border-rose-500/30 bg-rose-500/5 p-3">
+              <div className="text-xs text-muted-foreground">{t("extValidation.mostContradicted")}</div>
+              <div className="mt-1 flex items-center gap-2">
+                <XCircle className="h-4 w-4 text-rose-500" />
+                <span className="font-medium text-rose-500">{report.most_controversial_finding ? humanize(report.most_controversial_finding) : "—"}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* FP / FN Candidates */}
+          {(report.false_positive_candidates.length > 0 || report.false_negative_candidates.length > 0) && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-center">
+                <div className="text-2xl font-bold text-amber-500">{report.false_positive_candidates.length}</div>
+                <div className="text-xs text-muted-foreground">{t("extValidation.fpCandidates")}</div>
+              </div>
+              <div className="rounded-lg border border-sky-500/30 bg-sky-500/5 p-3 text-center">
+                <div className="text-2xl font-bold text-sky-500">{report.false_negative_candidates.length}</div>
+                <div className="text-xs text-muted-foreground">{t("extValidation.fnCandidates")}</div>
+              </div>
+            </div>
+          )}
+
+          {/* Evidence Explorer — per-repository findings with expandable details */}
+          <Card>
+            <CardHeader><CardTitle className="text-lg">{t("extValidation.evidenceExplorer")}</CardTitle></CardHeader>
+            <CardContent>
+              <ScrollArea className="max-h-[600px]">
+                <div className="space-y-2">
+                  {report.datasets.map((ds: any) => (
+                    <div key={ds.repository} className="rounded-lg border p-3">
+                      <div className="mb-2 flex items-center justify-between">
+                        <span className="font-mono text-sm font-medium">{ds.repository}</span>
+                        <div className="flex gap-1.5">
+                          {ds.verified > 0 && <Badge className="text-xs bg-emerald-500/15 text-emerald-600">{ds.verified} ✓</Badge>}
+                          {ds.likely_verified > 0 && <Badge className="text-xs bg-sky-500/15 text-sky-600">{ds.likely_verified} ✓?</Badge>}
+                          {ds.weak_evidence > 0 && <Badge className="text-xs bg-amber-500/15 text-amber-600">{ds.weak_evidence} ⚠</Badge>}
+                          {ds.contradicted > 0 && <Badge className="text-xs bg-rose-500/15 text-rose-600">{ds.contradicted} ✗</Badge>}
+                        </div>
+                      </div>
+                      {/* Per-finding expandable rows */}
+                      <div className="space-y-1">
+                        {ds.findings.map((fm: any) => {
+                          const cfg = statusConfig[fm.validation_status] || statusConfig.unknown;
+                          const isExpanded = expandedFinding === `${ds.repository}-${fm.finding_id}`;
+                          return (
+                            <div key={fm.finding_id} className={`rounded border p-2 ${cfg.bg}`}>
+                              <button
+                                onClick={() => setExpandedFinding(isExpanded ? null : `${ds.repository}-${fm.finding_id}`)}
+                                className="flex w-full items-center justify-between text-left"
+                              >
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className={cfg.color}>{cfg.icon}</span>
+                                  <span className="truncate text-sm font-medium">{fm.finding_title}</span>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <Badge variant="outline" className={`text-xs ${cfg.color} border-current/20`}>{t(`extValidation.${fm.validation_status}`)}</Badge>
+                                  <span className="text-xs text-muted-foreground">{fm.independent_sources} kaynak</span>
+                                  <span className="text-xs font-bold tabular-nums">{(fm.agreement_score * 100).toFixed(0)}%</span>
+                                  <ChevronRight className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${isExpanded ? "rotate-90" : ""}`} />
+                                </div>
+                              </button>
+                              {/* Expanded: Evidence Explorer */}
+                              {isExpanded && (
+                                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} className="mt-2 overflow-hidden">
+                                  <div className="space-y-2 border-t pt-2">
+                                    {/* Internal vs External confidence */}
+                                    <div className="grid grid-cols-2 gap-2 text-xs">
+                                      <div className="rounded bg-muted/30 p-2">
+                                        <div className="text-muted-foreground">{t("extValidation.internalEvidence")}</div>
+                                        <div className="font-bold tabular-nums">{(fm.internal_confidence * 100).toFixed(0)}%</div>
+                                      </div>
+                                      <div className="rounded bg-muted/30 p-2">
+                                        <div className="text-muted-foreground">{t("extValidation.externalEvidence")}</div>
+                                        <div className="font-bold tabular-nums">{(fm.external_confidence * 100).toFixed(0)}%</div>
+                                      </div>
+                                    </div>
+                                    {/* External evidence list */}
+                                    <div>
+                                      <h5 className="mb-1 text-xs font-semibold text-muted-foreground">{t("extValidation.externalEvidence")} ({fm.external_evidence.length})</h5>
+                                      <div className="space-y-1">
+                                        {fm.external_evidence.map((ev: any, j: number) => (
+                                          <div key={j} className="flex items-start gap-2 rounded border p-1.5 text-xs">
+                                            <Badge variant="outline" className="shrink-0 text-xs">
+                                              {ev.source_type === "github_issue" ? "Issue" :
+                                               ev.source_type === "github_pr" ? "PR" :
+                                               ev.source_type === "github_discussion" ? "Discussion" :
+                                               ev.source_type === "adr" ? "ADR" :
+                                               ev.source_type === "tech_debt_discussion" ? "Tech Debt" : ev.source_type}
+                                            </Badge>
+                                            <div className="min-w-0 flex-1">
+                                              <a href={ev.url} target="_blank" rel="noopener noreferrer" className="font-medium hover:underline">{ev.title}</a>
+                                              <p className="text-muted-foreground/70 truncate">{ev.content_snippet}</p>
+                                              <div className="mt-0.5 flex items-center gap-2 text-muted-foreground/60">
+                                                <span>{ev.author}</span>
+                                                <span>·</span>
+                                                <span>{ev.date}</span>
+                                                <span>·</span>
+                                                <span className="font-mono">{ev.issue_id || ev.pr_id || ev.discussion_id || ev.document}</span>
+                                              </div>
+                                            </div>
+                                            <span className="shrink-0 font-bold tabular-nums text-muted-foreground">{(ev.confidence * 100).toFixed(0)}%</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                    {/* Contradictions */}
+                                    {fm.contradictions.length > 0 && (
+                                      <div>
+                                        <h5 className="mb-1 text-xs font-semibold text-rose-500">{t("extValidation.contradictions")} ({fm.contradictions.length})</h5>
+                                        {fm.contradictions.map((c: any, j: number) => (
+                                          <div key={j} className="rounded border border-rose-500/30 bg-rose-500/5 p-2 text-xs">
+                                            <p className="font-medium text-rose-600">{c.description}</p>
+                                            <p className="mt-1 text-muted-foreground">Sistem: "{c.system_says}" → Dış kaynak: "{c.external_says}"</p>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                    {/* Reason */}
+                                    <div className="text-xs text-muted-foreground/70">{fm.reason}</div>
+                                  </div>
+                                </motion.div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+
+          {/* Download */}
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={() => downloadJSON(report, "external_validation_summary.json")}>
+              <Download className="mr-1.5 h-3.5 w-3.5" /> external_validation_summary.json
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => downloadJSON(report.external_graph, "external_knowledge_graph.json")}>
+              <Download className="mr-1.5 h-3.5 w-3.5" /> external_knowledge_graph.json
+            </Button>
+          </div>
+        </>
+      )}
+
+      {!report && !running && (
+        <EmptyState icon={<Network className="h-12 w-12" />} title={t("extValidation.title")} description="External Evidence Connector hazır. GitHub Issues, PR'lar, ADR'ler ve Discussions'dan bağımsız kanıt toplamak için butona tıklayın." />
+      )}
+    </div>
+  );
+}
 
 function ValidationSection() {
   const { t } = useI18n();
