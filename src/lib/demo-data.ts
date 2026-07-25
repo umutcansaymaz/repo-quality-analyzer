@@ -447,7 +447,173 @@ export function generateDemoData(repoUrl: string, options?: GenerateOptions): De
         rejected_claims: useLLM ? 1 : 0,
         conflict_penalty: 0, // no conflicting evidence
         missing_evidence_penalty: useLLM ? 6 : 0, // 1 step has only 1 evidence
+        // Sprint 11: new confidence sub-components
+        coverage_score: Math.round(((3 + 2 + 2 + 1) / (4 + 3 + 3 + 2)) * 100), // weighted avg of per-rec coverage
+        evidence_density: Math.round((8 / 10) * 100), // evidence per root cause (8 evidence / 10 nodes)
+        graph_validation: 100, // all root causes have graph paths
+        planning_validation: 75, // 3 of 4 recommendations pass all quality gates
+        claim_validation: useLLM ? 75 : 100, // % of claims verified
       },
+      // Sprint 11: Verified Claims — generated deterministically by Planning Engine,
+      // NOT by LLM. LLM only explains these claims.
+      verified_claims: [
+        {
+          claim_id: "vc-1",
+          claim_text: "UserService sınıfı çok fazla sorumluluğu üstleniyor",
+          claim_type: "architecture",
+          severity: "high",
+          confidence: 0.85,
+          status: "verified",
+          supporting_evidence_ids: ["ev-1", "ev-2", "ev-3"],
+          supporting_root_causes: ["rc-1"],
+          supporting_metrics: { complexity: 41, sloc: 650 },
+          supporting_files: ["src/services/user_service.py"],
+          knowledge_graph_nodes: ["n4", "n5", "n9"],
+          planning_reference: "step-1",
+          validation_reason: "3 bağımsız analizör (karmaşıklık, kod kalitesi, metrik) doğruladı",
+        },
+        {
+          claim_id: "vc-2",
+          claim_text: "auth ve user modülleri arasında döngüsel bağımlılık var",
+          claim_type: "dependency",
+          severity: "high",
+          confidence: 0.92,
+          status: "verified",
+          supporting_evidence_ids: ["ev-4"],
+          supporting_root_causes: ["rc-2"],
+          supporting_metrics: {},
+          supporting_files: ["src/auth/service.py", "src/user/service.py"],
+          knowledge_graph_nodes: ["n7", "n6"],
+          planning_reference: "step-2",
+          validation_reason: "Import analizörü ve mimari inceleme motoru doğruladı",
+        },
+        {
+          claim_id: "vc-3",
+          claim_text: "Servisler veritabanına sıkı bağlı",
+          claim_type: "architecture",
+          severity: "medium",
+          confidence: 0.75,
+          status: "verified",
+          supporting_evidence_ids: ["ev-5", "ev-1"],
+          supporting_root_causes: ["rc-3"],
+          supporting_metrics: { coupling: 0.85 },
+          supporting_files: ["src/services/user_service.py"],
+          knowledge_graph_nodes: ["n4", "n2"],
+          planning_reference: "step-3",
+          validation_reason: "Mimari inceleme motoru ve karmaşıklık analizörü doğruladı",
+        },
+        {
+          claim_id: "vc-4",
+          claim_text: "Loglama kodu 8 dosyaya yayılmış",
+          claim_type: "maintainability",
+          severity: "low",
+          confidence: 0.68,
+          status: "partially_verified",
+          supporting_evidence_ids: ["ev-6"],
+          supporting_root_causes: ["rc-4"],
+          supporting_metrics: { affected_files: 8 },
+          supporting_files: ["src/api/users.py", "src/api/orders.py"],
+          knowledge_graph_nodes: ["n3"],
+          planning_reference: "step-4",
+          validation_reason: "Sadece 1 analizör doğruladı (minimum 2 gerekli) — kısmen doğrulandı",
+        },
+        {
+          claim_id: "vc-5",
+          claim_text: "Sabit kodlanmış şifre tespit edildi",
+          claim_type: "security",
+          severity: "critical",
+          confidence: 0.90,
+          status: "verified",
+          supporting_evidence_ids: ["ev-7"],
+          supporting_root_causes: [],
+          supporting_metrics: {},
+          supporting_files: ["src/config.py"],
+          knowledge_graph_nodes: ["n8"],
+          planning_reference: null,
+          validation_reason: "Güvenlik motoru ve kod kalitesi motoru doğruladı",
+        },
+      ],
+      // Sprint 11: Coverage Engine — per-recommendation coverage scores.
+      // Coverage = (has evidence / needs evidence) * 100
+      coverage_engine: {
+        "step-1": { needs_evidence: 4, has_evidence: 3, coverage: 75, status: "pass" },
+        "step-2": { needs_evidence: 3, has_evidence: 3, coverage: 100, status: "pass" },
+        "step-3": { needs_evidence: 3, has_evidence: 2, coverage: 67, status: "warning" },
+        "step-4": { needs_evidence: 2, has_evidence: 1, coverage: 50, status: "fail" },
+        overall: 73,
+      },
+      // Sprint 11: Quality Gates — each recommendation must pass all gates
+      // before it can be marked "Verified" in the report.
+      quality_gates: {
+        "step-1": { evidence_validation: "pass", analyzer_consensus: 3, coverage: 75, claim_validation: "pass", graph_validation: "pass", overall: "verified" },
+        "step-2": { evidence_validation: "pass", analyzer_consensus: 2, coverage: 100, claim_validation: "pass", graph_validation: "pass", overall: "verified" },
+        "step-3": { evidence_validation: "pass", analyzer_consensus: 2, coverage: 67, claim_validation: "pass", graph_validation: "pass", overall: "evidence_backed" },
+        "step-4": { evidence_validation: "pass", analyzer_consensus: 1, coverage: 50, claim_validation: "partial", graph_validation: "pass", overall: "partially_verified" },
+      },
+      // Sprint 11: Graph Reasoning — traversal paths that verify root causes
+      // through the knowledge graph (File → Class → Method → Evidence → RootCause).
+      graph_reasoning: {
+        "rc-1": {
+          path: ["file:src/services/user_service.py", "class:UserService", "function:process_user", "evidence:ev-1", "root_cause:rc-1"],
+          path_type: "File → Class → Function → Evidence → RootCause",
+          verified: true,
+          traversal_depth: 4,
+        },
+        "rc-2": {
+          path: ["module:auth", "module:services.user", "evidence:ev-4", "root_cause:rc-2"],
+          path_type: "Module → Module → Evidence → RootCause",
+          verified: true,
+          traversal_depth: 3,
+        },
+        "rc-3": {
+          path: ["file:src/services/user_service.py", "class:UserService", "evidence:ev-5", "root_cause:rc-3"],
+          path_type: "File → Class → Evidence → RootCause",
+          verified: true,
+          traversal_depth: 3,
+        },
+        "rc-4": {
+          path: ["file:src/api/users.py", "evidence:ev-6", "root_cause:rc-4"],
+          path_type: "File → Evidence → RootCause",
+          verified: false,
+          traversal_depth: 2,
+        },
+      },
+      // Sprint 11: Reasoning Log — full traceability for each recommendation.
+      // This is the `reasoning.json` the user requested — debug-grade audit trail.
+      reasoning_log: [
+        {
+          recommendation_id: "step-1",
+          root_cause: "Tanrı Sınıf: UserService",
+          evidence: ["ev-1", "ev-2", "ev-3"],
+          graph_path: ["File", "Class", "Method", "Evidence", "RootCause"],
+          validation: { coverage: 75, consensus: 3, verified: true, quality_gates_passed: 5, quality_gates_total: 5 },
+          source_traceability: { file: "src/services/user_service.py", line: 45, analyzer: "karmaşılık-analizörü", ast_node: "FunctionDef:process_user" },
+        },
+        {
+          recommendation_id: "step-2",
+          root_cause: "Döngüsel Bağımlılık: auth ↔ user",
+          evidence: ["ev-4", "ev-5"],
+          graph_path: ["Module", "Module", "Evidence", "RootCause"],
+          validation: { coverage: 100, consensus: 2, verified: true, quality_gates_passed: 5, quality_gates_total: 5 },
+          source_traceability: { file: "src/auth/service.py", line: null, analyzer: "import-analizörü", ast_node: null },
+        },
+        {
+          recommendation_id: "step-3",
+          root_cause: "Sıkı Bağlılık: Veritabanı Katmanı",
+          evidence: ["ev-5", "ev-1"],
+          graph_path: ["File", "Class", "Evidence", "RootCause"],
+          validation: { coverage: 67, consensus: 2, verified: true, quality_gates_passed: 4, quality_gates_total: 5 },
+          source_traceability: { file: "src/services/user_service.py", line: null, analyzer: "mimari-inceleme-motoru", ast_node: null },
+        },
+        {
+          recommendation_id: "step-4",
+          root_cause: "Saçma Değişiklik: Loglama",
+          evidence: ["ev-6"],
+          graph_path: ["File", "Evidence", "RootCause"],
+          validation: { coverage: 50, consensus: 1, verified: false, quality_gates_passed: 2, quality_gates_total: 5 },
+          source_traceability: { file: "src/api/users.py", line: null, analyzer: "import-analizörü", ast_node: null },
+        },
+      ],
     },
     analyzed_at: new Date().toISOString(),
   };

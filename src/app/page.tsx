@@ -1135,7 +1135,7 @@ function ResultsDashboard({ data, onReset }: { data: any; onReset: () => void })
           <TabsTrigger value="evidence" data-tab="evidence" className="gap-1.5"><Beaker className="h-4 w-4" /> {t("dashboard.evidence")}</TabsTrigger>
           <TabsTrigger value="graph" data-tab="graph" className="gap-1.5"><Network className="h-4 w-4" /> {t("dashboard.graph")}</TabsTrigger>
           <TabsTrigger value="files" data-tab="files" className="gap-1.5"><FileCode2 className="h-4 w-4" /> {t("dashboard.files")}</TabsTrigger>
-          <TabsTrigger value="ai" data-tab="ai" className="gap-1.5"><Sparkles className="h-4 w-4" /> {t("dashboard.aiReview")}</TabsTrigger>
+          <TabsTrigger value="ai" data-tab="ai" className="gap-1.5"><Sparkles className="h-4 w-4" /> {t("commentary.title")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-4"><OverviewSection data={data} /></TabsContent>
@@ -1298,6 +1298,11 @@ function TrustPanel({ data }: { data: any }) {
   const verifiedFindings = cm.verified_findings ?? 0;
   const aiOpinions = cm.ai_opinions ?? 0;
   const rejectedClaims = cm.rejected_claims ?? 0;
+  // Sprint 11: new sub-components
+  const coverageScore = cm.coverage_score ?? 0;
+  const evidenceDensity = cm.evidence_density ?? 0;
+  const graphValidation = cm.graph_validation ?? 0;
+  const planningValidation = cm.planning_validation ?? 0;
 
   return (
     <Card>
@@ -1335,6 +1340,16 @@ function TrustPanel({ data }: { data: any }) {
           } />
           <TrustRow label={t("trust.analyzerConsensus")} value={
             <TrustMetricBar value={consensus} color={consensus >= 75 ? "bg-emerald-500" : "bg-amber-500"} />
+          } />
+          {/* Sprint 11: new confidence sub-components */}
+          <TrustRow label={t("coverage.score")} value={
+            <TrustMetricBar value={coverageScore} color={coverageScore >= 70 ? "bg-emerald-500" : coverageScore >= 50 ? "bg-amber-500" : "bg-rose-500"} />
+          } />
+          <TrustRow label="Evidence Density" value={
+            <TrustMetricBar value={evidenceDensity} color={evidenceDensity >= 70 ? "bg-emerald-500" : "bg-amber-500"} />
+          } />
+          <TrustRow label={t("qualityGates.graph")} value={
+            <TrustMetricBar value={graphValidation} color={graphValidation >= 80 ? "bg-emerald-500" : "bg-amber-500"} />
           } />
           <TrustRow label={t("trust.evidenceCount")} value={evCount} />
           <TrustRow label={t("trust.analyzerCount")} value={analyzerCount} />
@@ -3068,20 +3083,193 @@ function AIReviewSection({ data }: { data: any }) {
   const status = useLLMStatus(review);
   if (!review) return <EmptyState icon={<Sparkles className="h-12 w-12" />} title={t("ai.noReview")} description={t("ai.enableProvider")} />;
 
+  const verifiedClaims = review.verified_claims || [];
+  const coverageEngine = review.coverage_engine;
+  const qualityGates = review.quality_gates;
+  const reasoningLog = review.reasoning_log || [];
+  const graphReasoning = review.graph_reasoning;
+
   return (
     <div className="space-y-4">
-      {status === "offline" && (
-        <div className="flex items-center gap-2 rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3 text-sm">
-          <AlertCircle className="h-4 w-4 shrink-0 text-yellow-500" />
-          <span>{t("ai.offlineMode")}</span>
-        </div>
-      )}
-      {status === "ready" && (
-        <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
-          <Key className="h-4 w-4 shrink-0 text-amber-500" />
-          <span>{t("ai.keySavedMode")}</span>
-        </div>
-      )}
+      {/* Sprint 11: Separator — deterministic findings vs AI commentary */}
+      <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
+        <Shield className="h-4 w-4 shrink-0 text-primary" />
+        <span className="text-muted-foreground">{t("commentary.separator")}</span>
+      </div>
+
+      {/* Sprint 11: Verified Engineering Findings — deterministic, from pipeline */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Shield className="h-5 w-5 text-emerald-500" /> {t("commentary.verifiedFindings")}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {/* Verified Claims from Planning Engine (deterministic, NOT LLM) */}
+          {verifiedClaims.length > 0 && (
+            <div className="space-y-2">
+              <h4 className="mb-2 text-sm font-semibold">Verified Claims (Deterministic)</h4>
+              {verifiedClaims.map((vc: any) => {
+                const statusCfg: Record<string, { color: string; icon: React.ReactNode }> = {
+                  verified: { color: "text-emerald-500", icon: <CheckCircle className="h-3.5 w-3.5" /> },
+                  partially_verified: { color: "text-amber-500", icon: <AlertCircle className="h-3.5 w-3.5" /> },
+                  rejected: { color: "text-rose-500", icon: <XCircle className="h-3.5 w-3.5" /> },
+                };
+                const cfg = statusCfg[vc.status] || statusCfg.verified;
+                return (
+                  <div key={vc.claim_id} className="flex items-start gap-2 rounded border p-2">
+                    <span className={`mt-0.5 shrink-0 ${cfg.color}`}>{cfg.icon}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium">{vc.claim_text}</p>
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <Badge variant="outline" className="text-xs">{humanize(vc.claim_type)}</Badge>
+                        <Badge variant={severityVariant(vc.severity)} className="text-xs">{vc.severity}</Badge>
+                        <span>Güven: %{(vc.confidence * 100).toFixed(0)}</span>
+                        {vc.supporting_evidence_ids?.length > 0 && (
+                          <span className="font-mono">Kanıt: {vc.supporting_evidence_ids.join(", ")}</span>
+                        )}
+                        {vc.planning_reference && <span className="font-mono">Plan: {vc.planning_reference}</span>}
+                      </div>
+                      <p className="mt-0.5 text-xs text-muted-foreground/70">{vc.validation_reason}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Coverage Engine */}
+          {coverageEngine && (
+            <div className="mt-4">
+              <h4 className="mb-2 flex items-center gap-1.5 text-sm font-semibold"><Gauge className="h-4 w-4" /> {t("coverage.title")}</h4>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {["step-1", "step-2", "step-3", "step-4"].map((sid) => {
+                  const ce = coverageEngine[sid];
+                  if (!ce) return null;
+                  const color = ce.coverage >= 70 ? "text-emerald-500" : ce.coverage >= 50 ? "text-amber-500" : "text-rose-500";
+                  const bgColor = ce.coverage >= 70 ? "bg-emerald-500/10 border-emerald-500/30" : ce.coverage >= 50 ? "bg-amber-500/10 border-amber-500/30" : "bg-rose-500/10 border-rose-500/30";
+                  return (
+                    <div key={sid} className={`rounded-lg border p-2 text-center ${bgColor}`}>
+                      <div className="text-xs text-muted-foreground">{sid}</div>
+                      <div className={`text-lg font-bold ${color}`}>{ce.coverage}%</div>
+                      <div className="text-xs text-muted-foreground">{ce.has_evidence}/{ce.needs_evidence}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Quality Gates */}
+          {qualityGates && (
+            <div className="mt-4">
+              <h4 className="mb-2 flex items-center gap-1.5 text-sm font-semibold"><Shield className="h-4 w-4" /> {t("qualityGates.title")}</h4>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b text-muted-foreground">
+                      <th className="p-1.5 text-left">Step</th>
+                      <th className="p-1.5 text-center">{t("qualityGates.evidence")}</th>
+                      <th className="p-1.5 text-center">{t("qualityGates.consensus")}</th>
+                      <th className="p-1.5 text-center">{t("qualityGates.coverage")}</th>
+                      <th className="p-1.5 text-center">{t("qualityGates.claim")}</th>
+                      <th className="p-1.5 text-center">{t("qualityGates.graph")}</th>
+                      <th className="p-1.5 text-center">{t("qualityGates.overall")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {["step-1", "step-2", "step-3", "step-4"].map((sid) => {
+                      const qg = qualityGates[sid];
+                      if (!qg) return null;
+                      const GateCell = ({ value }: { value: any }) => (
+                        <td className="p-1.5 text-center">
+                          {typeof value === "number" ? (
+                            <span className={value >= 2 ? "text-emerald-500" : "text-rose-500"}>{value}</span>
+                          ) : value === "pass" ? (
+                            <CheckCircle className="mx-auto h-3.5 w-3.5 text-emerald-500" />
+                          ) : value === "partial" ? (
+                            <AlertCircle className="mx-auto h-3.5 w-3.5 text-amber-500" />
+                          ) : (
+                            <XCircle className="mx-auto h-3.5 w-3.5 text-rose-500" />
+                          )}
+                        </td>
+                      );
+                      const overallCfg: Record<string, string> = {
+                        verified: "text-emerald-500", evidence_backed: "text-sky-500",
+                        partially_verified: "text-amber-500", rejected: "text-rose-500",
+                      };
+                      return (
+                        <tr key={sid} className="border-b">
+                          <td className="p-1.5 font-mono">{sid}</td>
+                          <GateCell value={qg.evidence_validation} />
+                          <GateCell value={qg.analyzer_consensus} />
+                          <GateCell value={qg.coverage >= 70 ? "pass" : qg.coverage >= 50 ? "partial" : "fail"} />
+                          <GateCell value={qg.claim_validation} />
+                          <GateCell value={qg.graph_validation} />
+                          <td className={`p-1.5 text-center font-medium ${overallCfg[qg.overall] || ""}`}>
+                            {t(`verified.${qg.overall}`)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Graph Reasoning — traversal paths */}
+          {graphReasoning && (
+            <div className="mt-4">
+              <h4 className="mb-2 flex items-center gap-1.5 text-sm font-semibold"><Network className="h-4 w-4" /> {t("graph.path")}</h4>
+              <div className="space-y-1.5">
+                {Object.entries(graphReasoning).map(([rcId, gr]: [string, any]) => (
+                  <div key={rcId} className="flex items-center gap-2 rounded border p-2 text-xs">
+                    <span className={`shrink-0 ${gr.verified ? "text-emerald-500" : "text-amber-500"}`}>
+                      {gr.verified ? <CheckCircle className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
+                    </span>
+                    <span className="font-mono text-muted-foreground">{rcId}</span>
+                    <div className="flex flex-1 flex-wrap items-center gap-1">
+                      {gr.path.map((node: string, i: number) => (
+                        <React.Fragment key={i}>
+                          <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{node}</span>
+                          {i < gr.path.length - 1 && <ChevronRight className="h-3 w-3 text-muted-foreground/40" />}
+                        </React.Fragment>
+                      ))}
+                    </div>
+                    <span className="shrink-0 text-muted-foreground/60">d={gr.traversal_depth}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* AI Commentary — LLM explains the verified claims (not generates) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Sparkles className="h-5 w-5 text-primary" /> {t("commentary.aiCommentary")}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {status === "offline" && (
+            <div className="flex items-center gap-2 rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3 text-sm">
+              <AlertCircle className="h-4 w-4 shrink-0 text-yellow-500" />
+              <span>{t("ai.offlineMode")}</span>
+            </div>
+          )}
+          {status === "ready" && (
+            <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
+              <Key className="h-4 w-4 shrink-0 text-amber-500" />
+              <span>{t("ai.keySavedMode")}</span>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* LLM sections — AI Commentary (explains verified claims, doesn't generate) */}
       {review.sections?.map((section: any, i: number) => (
         <Card key={i}>
           <CardHeader>
@@ -3178,6 +3366,62 @@ function AIReviewSection({ data }: { data: any }) {
                     </div>
                   );
                 })}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Sprint 11: Reasoning Log — full traceability for each recommendation.
+          This is the `reasoning.json` — debug-grade audit trail. */}
+      {reasoningLog.length > 0 && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <FileText className="h-5 w-5 text-primary" /> {t("reasoningLog.title")}
+              </CardTitle>
+              <Button
+                variant="outline" size="sm"
+                onClick={() => {
+                  const blob = new Blob([JSON.stringify(reasoningLog, null, 2)], { type: "application/json" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = "reasoning.json";
+                  a.click();
+                  URL.revokeObjectURL(url);
+                  toast.success("reasoning.json downloaded");
+                }}
+              >
+                <Download className="mr-1.5 h-3.5 w-3.5" /> {t("reasoningLog.download")}
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="max-h-[400px]">
+              <div className="space-y-2">
+                {reasoningLog.map((entry: any, i: number) => (
+                  <div key={i} className="rounded-lg border p-3">
+                    <div className="mb-2 flex items-center gap-2">
+                      <span className={`shrink-0 ${entry.validation.verified ? "text-emerald-500" : "text-amber-500"}`}>
+                        {entry.validation.verified ? <CheckCircle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+                      </span>
+                      <span className="text-sm font-medium">{entry.recommendation_id}</span>
+                      <Badge variant="outline" className="text-xs">
+                        {entry.validation.quality_gates_passed}/{entry.validation.quality_gates_total} {t("qualityGates.title")}
+                      </Badge>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                      <div><span className="font-medium">{t("reasoningLog.rootCause")}:</span> {entry.root_cause}</div>
+                      <div><span className="font-medium">{t("reasoningLog.evidence")}:</span> <span className="font-mono">{entry.evidence.join(", ")}</span></div>
+                      <div><span className="font-medium">{t("reasoningLog.graphPath")}:</span> {entry.graph_path.join(" → ")}</div>
+                      <div><span className="font-medium">{t("coverage.score")}:</span> {entry.validation.coverage}%</div>
+                      <div><span className="font-medium">{t("qualityGates.consensus")}:</span> {entry.validation.consensus}</div>
+                      <div><span className="font-medium">{t("reasoningLog.sourceTraceability")}:</span> <span className="font-mono">{entry.source_traceability.file}{entry.source_traceability.line ? `:${entry.source_traceability.line}` : ""}</span></div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </ScrollArea>
           </CardContent>
@@ -3425,6 +3669,83 @@ function ExplainabilityChain({ rootCause, step, data }: { rootCause?: any; step?
         </div>
       ),
     });
+  }
+
+  // Sprint 11: Layer — Coverage Engine
+  if (step && data?.engineering_review?.coverage_engine) {
+    const ce = data.engineering_review.coverage_engine[step.id];
+    if (ce) {
+      layers.push({
+        label: t("coverage.title"),
+        value: `${ce.coverage}% (${ce.has_evidence}/${ce.needs_evidence} kanıt)`,
+        icon: <Gauge className="h-4 w-4" />,
+        color: ce.coverage >= 70 ? "border-emerald-500/30 bg-emerald-500/5" : ce.coverage >= 50 ? "border-amber-500/30 bg-amber-500/5" : "border-rose-500/30 bg-rose-500/5",
+        detail: (
+          <div className="space-y-1 text-xs text-muted-foreground">
+            <p>Bu öneri {ce.needs_evidence} kanıt gerektiriyor, {ce.has_evidence} kanıt mevcut.</p>
+            <div className="flex items-center gap-2">
+              <div className="h-2 flex-1 rounded-full bg-muted overflow-hidden">
+                <div className={`h-full ${ce.coverage >= 70 ? "bg-emerald-500" : ce.coverage >= 50 ? "bg-amber-500" : "bg-rose-500"}`} style={{ width: `${ce.coverage}%` }} />
+              </div>
+              <span className="font-bold">{ce.coverage}%</span>
+            </div>
+          </div>
+        ),
+      });
+    }
+  }
+
+  // Sprint 11: Layer — Quality Gates
+  if (step && data?.engineering_review?.quality_gates) {
+    const qg = data.engineering_review.quality_gates[step.id];
+    if (qg) {
+      const gates = [
+        { name: t("qualityGates.evidence"), value: qg.evidence_validation },
+        { name: t("qualityGates.consensus"), value: qg.analyzer_consensus >= 2 ? "pass" : "fail" },
+        { name: t("qualityGates.coverage"), value: qg.coverage >= 70 ? "pass" : qg.coverage >= 50 ? "partial" : "fail" },
+        { name: t("qualityGates.claim"), value: qg.claim_validation },
+        { name: t("qualityGates.graph"), value: qg.graph_validation },
+      ];
+      const passed = gates.filter((g) => g.value === "pass").length;
+      layers.push({
+        label: t("qualityGates.title"),
+        value: `${passed}/${gates.length} kapı geçti · ${t(`verified.${qg.overall}`)}`,
+        icon: <Shield className="h-4 w-4" />,
+        color: qg.overall === "verified" ? "border-emerald-500/30 bg-emerald-500/5" : qg.overall === "evidence_backed" ? "border-sky-500/30 bg-sky-500/5" : "border-amber-500/30 bg-amber-500/5",
+        detail: (
+          <div className="space-y-1">
+            {gates.map((g, i) => (
+              <div key={i} className="flex items-center gap-2 text-xs">
+                {g.value === "pass" ? <CheckCircle className="h-3 w-3 text-emerald-500" /> : g.value === "partial" ? <AlertCircle className="h-3 w-3 text-amber-500" /> : <XCircle className="h-3 w-3 text-rose-500" />}
+                <span className="text-muted-foreground">{g.name}</span>
+              </div>
+            ))}
+          </div>
+        ),
+      });
+    }
+  }
+
+  // Sprint 11: Layer — Source Traceability
+  if (data?.engineering_review?.reasoning_log) {
+    const logEntry = data.engineering_review.reasoning_log.find((e: any) => e.recommendation_id === step?.id || e.root_cause === rootCause?.title);
+    if (logEntry?.source_traceability) {
+      const st = logEntry.source_traceability;
+      layers.push({
+        label: t("reasoningLog.sourceTraceability"),
+        value: `${st.file}${st.line ? `:${st.line}` : ""} · ${humanize(st.analyzer || "")}`,
+        icon: <FileCode2 className="h-4 w-4" />,
+        color: "border-sky-500/30 bg-sky-500/5",
+        detail: (
+          <div className="space-y-1 text-xs text-muted-foreground">
+            <div><span className="font-medium">{t("source.line")}:</span> {st.line || "—"}</div>
+            <div><span className="font-medium">{t("source.analyzer")}:</span> {humanize(st.analyzer || "")}</div>
+            {st.ast_node && <div><span className="font-medium">{t("source.astNode")}:</span> <span className="font-mono">{st.ast_node}</span></div>}
+            <div><span className="font-medium">{t("reasoningLog.graphPath")}:</span> {logEntry.graph_path.join(" → ")}</div>
+          </div>
+        ),
+      });
+    }
   }
 
   // Layer: LLM Summary
