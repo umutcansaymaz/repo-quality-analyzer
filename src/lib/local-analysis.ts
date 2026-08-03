@@ -1154,14 +1154,19 @@ function shannonEntropy(s: string): number {
 /** Öncelik sıralı cap: critical → high → medium → low. Aynı dosyadaki tekrarlar tek evidence'a indirgenir
  * (en yüksek severity korunur), JSON boyutu ve skor doğruluğu için. */
 function capEvidenceByPriority(evidence: LocalEvidence[]): LocalEvidence[] {
-  const byFile = new Map<string, LocalEvidence>();
+  // Kategori bazlı dedup: aynı dosya+kategori çiftinde yalnızca en yüksek
+  // severity korunur. FARKLI kategoriler aynı dosyada olsa bile korunur —
+  // aksi halde tight_coupling gibi bulgular, aynı dosyadaki daha yüksek
+  // severity'li bulgu (örn. missing_tests) tarafından ezilirdi.
+  const byFileCategory = new Map<string, LocalEvidence>();
   for (const item of evidence) {
-    const cur = byFile.get(item.file_path);
+    const key = `${item.file_path}\u0000${item.category}`;
+    const cur = byFileCategory.get(key);
     if (!cur || (SEVERITY_WEIGHT[item.severity] || 0) > (SEVERITY_WEIGHT[cur.severity] || 0)) {
-      byFile.set(item.file_path, item);
+      byFileCategory.set(key, item);
     }
   }
-  return [...byFile.values()]
+  return [...byFileCategory.values()]
     .sort((a, b) => (SEVERITY_WEIGHT[b.severity] || 0) - (SEVERITY_WEIGHT[a.severity] || 0))
     .slice(0, MAX_EVIDENCE);
 }
@@ -2253,6 +2258,21 @@ export function buildLocalReport(
       { id: "local-n-repo", node_type: "repository", label: repoName, key: "repo:local" },
       ...files.slice(0, 50).map((path, index) => ({ id: `local-n-file-${index + 1}`, node_type: "file", label: path, key: `file:${index + 1}`, file_path: path })),
       ...evidence.slice(0, 50).map((item, index) => ({ id: `local-n-ev-${index + 1}`, node_type: "evidence", label: String(item.message || item.category), key: `evidence:${index + 1}`, file_path: item.file_path, evidence_id: item.id, severity: item.severity })),
+      // Gerçek dependency node'ları: mimari analiz bulguları (döngüsel bağımlılık
+      // ve sıkı bağlılık) bilgi grafiğinde dependency türüyle temsil edilir.
+      // UI'daki "Dependency Analysis" fazı bu node_type'ı bekler (node_type === "dependency").
+      ...evidence
+        .filter((item) => item.category === "circular_dependency" || item.category === "tight_coupling")
+        .map((item, index) => ({
+          id: `local-n-dep-${index + 1}`,
+          node_type: "dependency",
+          label: String(item.message || item.category),
+          key: `dependency:${index + 1}`,
+          file_path: item.file_path,
+          evidence_id: item.id,
+          severity: item.severity,
+          dep_type: item.category,
+        })),
     ],
     edges: files.slice(0, 50).map((_, index) => ({ id: `local-e-file-${index + 1}`, source_id: `local-n-file-${index + 1}`, target_id: "local-n-repo", edge_type: "belongs_to" })),
     total_nodes: Math.min(1 + files.length + evidence.length, 101),

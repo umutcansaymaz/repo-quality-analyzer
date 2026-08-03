@@ -197,4 +197,27 @@ describe("Doğrulama ve kanıt", () => {
       expect(Array.isArray(c.evidence_ids)).toBe(true);
     }
   });
+
+  it("Knowledge graph: mimari bulgular dependency node'ları üretir (pipeline fazı)", async () => {
+    const { buildLocalReport } = await import("../src/lib/local-analysis");
+    // Sıkı bağlılık üreten repo: çok sayıda import içeren dosya
+    const imports: string[] = [];
+    for (let i = 0; i < 20; i++) imports.push(`import { a${i} } from "./mod${i}";`);
+    const complexLines = ["function big() {"];
+    for (let i = 0; i < 30; i++) complexLines.push(`  if (x${i} > ${i}) { y += ${i}; }`);
+    complexLines.push("  return y;", "}");
+    const scan = await scanRepo([
+      { path: "src/hub.ts", content: imports.join("\n") + "\nexport const hub = 1;\n" },
+      { path: "src/complex.ts", content: complexLines.join("\n") },
+      ...Array.from({ length: 20 }, (_, i) => ({ path: `src/mod${i}.ts`, content: `export const a${i} = ${i};\n` })),
+    ]);
+    const report = buildLocalReport(scan, "test", { useLLM: false });
+    const depNodes = report.knowledge_graph.nodes.filter((n: any) => n.node_type === "dependency");
+    expect(depNodes.length).toBeGreaterThan(0);
+    // Pipeline faz kontrolü UI ile aynı mantıkla
+    const dependencyPhase = report.knowledge_graph.nodes.some((n: any) => n.node_type === "dependency");
+    expect(dependencyPhase).toBe(true);
+    const metricsPhase = report.evidence.evidence.some((e: any) => ["metric", "complexity"].includes(e.finding_type));
+    expect(metricsPhase).toBe(true);
+  });
 });
