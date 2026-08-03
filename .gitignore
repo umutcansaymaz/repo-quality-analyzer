@@ -40,7 +40,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-local-*
+# Analiz çıktıları (db/analysis-results/local-*.json) — kaynak kod değil.
+# Not: "local-*" KULLANMAYIN — src/lib/local-analysis.ts gibi kaynak dosyaları
+# da ignore eder. Yalnızca db/ altındaki çıktılar hedeflenir.
+db/analysis-results/local-*
 .claude
 .z-ai-config
 *.log

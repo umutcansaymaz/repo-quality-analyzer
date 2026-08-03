@@ -87,6 +87,55 @@ describe("circular_dependency tarayıcı", () => {
     ]);
     expect(evidenceIn(scan, "circular_dependency")).toContain("src/consumer.ts");
   });
+
+  it("JSDoc yorumundaki from './x' ifadesi sahte döngü üretmez (Hedeflerim dersi)", async () => {
+    // seed.js gerçek import içermez; yalnızca JSDoc kullanım örneğinde
+    // "import { seed } from './seed.js'" yazar — yorum maskelenmeli.
+    const scan = await scanRepo([
+      {
+        path: "test/e2e/seed.js",
+        content: [
+          "/**",
+          " * Kullanım:",
+          " *   import { seedTestData, clearTestData } from './seed.js';",
+          " *   await seedTestData(page);",
+          " */",
+          "export async function seedTestData(page) { return page; }",
+          "export async function clearTestData(page) { return page; }",
+        ].join("\n"),
+      },
+      {
+        path: "test/e2e/visual.spec.js",
+        content: 'import { test } from "@playwright/test";\nimport { seedTestData } from "./seed.js";\n',
+      },
+    ]);
+    expect(evidenceIn(scan, "circular_dependency")).toHaveLength(0);
+  });
+
+  it("// yorum satırındaki import ifadesi sahte döngü üretmez", async () => {
+    const scan = await scanRepo([
+      { path: "src/a.ts", content: '// import { b } from "./b";\nexport const a = 1;\n' },
+      { path: "src/b.ts", content: 'import { a } from "./a";\nexport const b = 2;\n' },
+    ]);
+    // b.ts → a.ts var ama a.ts b.ts'i GERÇEKTE import etmiyor → döngü yok.
+    expect(evidenceIn(scan, "circular_dependency")).toHaveLength(0);
+  });
+
+  it("Python # yorumundaki import ifadesi sahte döngü üretmez", async () => {
+    const scan = await scanRepo([
+      { path: "src/a.py", content: '# from b import x\nx = 1\n' },
+      { path: "src/b.py", content: "from a import x\ny = 2\n" },
+    ]);
+    expect(evidenceIn(scan, "circular_dependency")).toHaveLength(0);
+  });
+
+  it("Self-import (A→A) döngüsel bağımlılık sayılmaz", async () => {
+    const scan = await scanRepo([
+      { path: "src/self.js", content: 'import { helper } from "./self.js";\nexport const helper = 1;\n' },
+    ]);
+    // Kendine import gerçek bir döngü değildir (iki ayrı modül arası bağımlılık gerekir).
+    expect(evidenceIn(scan, "circular_dependency")).toHaveLength(0);
+  });
 });
 
 // ---------------------------------------------------------------------------

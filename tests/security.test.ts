@@ -102,6 +102,17 @@ describe("Security skor — C entegrasyonu", () => {
     const report = buildLocalReport(scan, "test", { useLLM: false });
     expect(report.ai_review.health_score.security).toBeLessThan(85);
   });
+
+  it("YOUR_ placeholder'lı şablon dosyası secret ÜRETMEZ (Hedeflerim dersi)", async () => {
+    const scan = await scanRepo([
+      {
+        path: "src/config/firebase-config.example.js",
+        content: 'window.CONFIG = {\n    apiKey: "YOUR_FIREBASE_WEB_API_KEY",\n    projectId: "YOUR_PROJECT_ID"\n};\n',
+      },
+      { path: "src/app.js", content: "export const x = 1;\n" },
+    ]);
+    expect(evidenceIn(scan, "hardcoded_secret")).toHaveLength(0);
+  });
 });
 
 // ---------------------------------------------------------------------------
