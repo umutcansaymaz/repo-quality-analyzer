@@ -48,8 +48,10 @@ npm run dev               # http://localhost:3000
 ### 3. (Optional) AI explanations
 
 Open the settings in the UI, pick a provider (OpenAI, Anthropic, Azure
-OpenAI, Ollama) and paste your key. The key stays in your browser — the
-server never receives it.
+OpenAI, Ollama, Gemini, OpenRouter) and paste your key. After an analysis,
+click **"Generate LLM explanations"** on the LLM status card — the call goes
+straight from your browser to the provider; the key is **never sent to the
+server**.
 
 ## Architecture
 

@@ -66,6 +66,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { explainWithLLM, type LLMRunConfig, type FindingSummary, type EvidenceSnippet } from "@/lib/llm";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from "@/components/ui/sheet";
@@ -195,7 +196,7 @@ export const LLM_PROVIDER_LABELS: Record<string, string> = {
   ollama: "Ollama (Local)",
 };
 
-function readLLMConfig(): LLMConfig {
+export function readLLMConfig(): LLMConfig {
   if (typeof window === "undefined") return EMPTY_CONFIG;
   try {
     const raw = window.localStorage.getItem(LLM_CONFIG_STORAGE_KEY);
@@ -399,6 +400,58 @@ function AppContent() {
   const [showOnboarding, setShowOnboarding] = React.useState(false);
   const searchInputRef = React.useRef<HTMLInputElement>(null);
   const historyEntries = useHistoryEntries();
+
+  // BYOK LLM açıklamaları — tarayıcıdan provider'a doğrudan çağrı (key sunucuya gitmez).
+  const handleExplainLLM = React.useCallback(async (): Promise<{ error?: string }> => {
+    const result = analysisData?.result;
+    if (!result) return { error: "Analiz sonucu yok." };
+    const config = readLLMConfig();
+    if (!config.provider) return { error: "Önce Settings'ten bir LLM sağlayıcısı seçin." };
+    const severityRank = (s: string) => ({ critical: 4, high: 3, medium: 2, low: 1 })[s as string] || 0;
+    const rcs: FindingSummary[] = (result?.root_causes?.root_causes || []).map((rc: any) => ({
+      category: String(rc.category || ""),
+      severity: String(rc.severity || "medium"),
+      message: String(rc.message || rc.title || rc.description || ""),
+      file_path: String(rc.file_path || ""),
+      evidence_count: Number(rc.evidence_count || 0),
+      verified: Number(rc.verified_evidence || 0),
+    }));
+    const evs = result?.evidence?.evidence || [];
+    const snippets: EvidenceSnippet[] = evs
+      .filter((e: any) => e.validation_status === "verified" || e.verified)
+      .sort((a: any, b: any) => severityRank(b.severity) - severityRank(a.severity))
+      .slice(0, 3)
+      .map((e: any) => ({
+        file_path: String(e.file_path || ""),
+        line: Number(e.line || 0),
+        snippet: String(e.evidence_snippet || e.message || ""),
+      }));
+    const out = await explainWithLLM(config as unknown as LLMRunConfig, rcs, snippets);
+    if (out.error) return { error: out.error };
+    if (out.sections.length === 0) return { error: "LLM boş yanıt döndü." };
+    setAnalysisData((prev) =>
+      prev
+        ? {
+            ...prev,
+            result: {
+              ...prev.result,
+              engineering_review: {
+                ...(prev.result?.engineering_review || {}),
+                sections: out.sections,
+                offline: false,
+                model_info: {
+                  provider: config.provider,
+                  model: config.model || "—",
+                  temperature: config.temperature,
+                  max_tokens: config.maxTokens,
+                },
+              },
+            },
+          }
+        : prev
+    );
+    return {};
+  }, [analysisData]);
 
   React.useEffect(() => {
     queueMicrotask(() => setMounted(true));
@@ -861,7 +914,7 @@ function AppContent() {
           )}
           {view === "results" && analysisData && (
             <motion.div key="results" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-              <ResultsDashboard data={analysisData.result} onReset={handleReset} />
+              <ResultsDashboard data={analysisData.result} onReset={handleReset} onExplain={handleExplainLLM} />
             </motion.div>
           )}
           {view === "settings" && (
@@ -1464,7 +1517,7 @@ function ProgressView({ steps, repoUrl, scanProgress }: { steps: PipelineStep[];
 // Results Dashboard
 // ---------------------------------------------------------------------------
 
-function ResultsDashboard({ data, onReset }: { data: any; onReset: () => void }) {
+function ResultsDashboard({ data, onReset, onExplain }: { data: any; onReset: () => void; onExplain?: () => Promise<{ error?: string }> }) {
   const { t } = useI18n();
   const [activeTab, setActiveTab] = React.useState("overview");
 
@@ -1492,7 +1545,7 @@ function ResultsDashboard({ data, onReset }: { data: any; onReset: () => void })
       <div className="grid gap-4 lg:grid-cols-[1fr_auto]">
         <div className="space-y-4">
           <HealthScoreCard data={data} />
-          <LLMStatusCard data={data} />
+          <LLMStatusCard data={data} onExplain={onExplain || null} />
           <ScanSummaryCard data={data} />
           <RootCauseMiniCard data={data} />
           {/* Pipeline phases card — fills the vertical gap when the right
@@ -1649,11 +1702,13 @@ function HealthScoreCard({ data }: { data: any }) {
 // LLM Status Card
 // ---------------------------------------------------------------------------
 
-function LLMStatusCard({ data }: { data: any }) {
+function LLMStatusCard({ data, onExplain }: { data: any; onExplain?: (() => Promise<{ error?: string }>) | null }) {
   const { t } = useI18n();
   const review = data?.engineering_review;
   const { config, providerLabel, isConfigured } = useLLMConfig();
   const status = useLLMStatus(review);
+  const [explaining, setExplaining] = React.useState(false);
+  const [explainError, setExplainError] = React.useState<string | null>(null);
   if (!review && !isConfigured) return null;
 
   // Prefer the backend-reported provider/model (when an LLM was actually used),
@@ -1693,6 +1748,35 @@ function LLMStatusCard({ data }: { data: any }) {
           {status === "ready" && (
             <span className="text-xs text-amber-600 dark:text-amber-400 italic">
               {t("llm.readyHint")}
+            </span>
+          )}
+          {status === "ready" && onExplain && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={explaining}
+              onClick={async () => {
+                setExplaining(true);
+                setExplainError(null);
+                const out = await onExplain();
+                setExplaining(false);
+                if (out?.error) setExplainError(out.error);
+              }}
+            >
+              {explaining ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t("llm.generating")}
+                </>
+              ) : (
+                <>
+                  <Sparkles className="mr-2 h-4 w-4" /> {t("llm.generate")}
+                </>
+              )}
+            </Button>
+          )}
+          {explainError && (
+            <span className="text-xs text-rose-600 dark:text-rose-400">
+              {t("llm.failed")}: {explainError}
             </span>
           )}
         </div>
