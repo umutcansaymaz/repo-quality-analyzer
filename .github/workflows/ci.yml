@@ -31,5 +31,8 @@ jobs:
       - name: Production build
         run: npm run build
 
+      - name: Docker image build (verify Dockerfile on CI)
+        run: docker build -t repo-quality-analyzer .
+
       - name: Verify CLI bridge still works
         run: node -e "import('./audit/generator.mjs').then(m => { const r = m.generateRepos(); if (r.length < 400) throw new Error('audit repo matrix shrank'); console.log('audit matrix OK:', r.length, 'repos'); })"
