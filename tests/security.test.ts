@@ -113,6 +113,52 @@ describe("Security skor — C entegrasyonu", () => {
     ]);
     expect(evidenceIn(scan, "hardcoded_secret")).toHaveLength(0);
   });
+
+  it("Gömülü sk- (ask-gemini-v1, task-123) secret ÜRETMEZ (TUSLA dersi)", async () => {
+    const scan = await scanRepo([
+      { path: "src/prompts.js", content: "let promptVersion = 'ask-gemini-generate-case-v1';\ngenerate_case: 'ask-gemini-chat-v2',\n" },
+      { path: "src/handlers.js", content: "const taskId = 'task-1234567890abcdefghijklm';\nconst riskFlag = 'risk-9876543210zyxwvutsrqp';\n" },
+    ]);
+    expect(evidenceIn(scan, "hardcoded_secret")).toHaveLength(0);
+  });
+
+  it("Gerçek sk- (kelime başında) hâlâ yakalanır", async () => {
+    const scan = await scanRepo([{ path: "src/keys.ts", content: "const k = 'sk-" + "abc1234567890abcdefghijklmnop';\n" }]);
+    expect(evidenceIn(scan, "hardcoded_secret")).toHaveLength(1);
+  });
+
+  it("Firebase AIzaSy Web API key → yakalanır ama severity medium (client key)", async () => {
+    const scan = await scanRepo([
+      { path: "src/firebase.js", content: `const firebaseConfig = {\n    apiKey: "${"AIzaSy" + "BOHjbWanWnlKRuQSSSZDJyTUHmQ8MBQ1Y"}",\n};\n` },
+    ]);
+    const ev = scan.rawEvidence.find((e) => e.category === "hardcoded_secret");
+    expect(ev).toBeDefined();
+    expect(ev?.severity).toBe("medium");
+    expect(String(ev?.message)).toContain("Firebase");
+  });
+
+  it("Şifrelenmiş dosya (encrypted.json) taramaya girmez (TUSLA dersi)", async () => {
+    const { shouldSkip } = await import("../src/lib/local-analysis");
+    expect(shouldSkip("src/data/subjects/histoloji.encrypted.json")).toBe(true);
+    expect(shouldSkip("secrets.enc.json")).toBe(true);
+    expect(shouldSkip("keys.gpg")).toBe(true);
+    expect(shouldSkip("src/app.js")).toBe(false);
+  });
+
+  it("backups klasörü taramaya girmez (TUSLA dersi)", async () => {
+    const { shouldSkip } = await import("../src/lib/local-analysis");
+    expect(shouldSkip("backups/20260202/src/firebase.js")).toBe(true);
+    expect(shouldSkip("src/backups/data.json")).toBe(true);
+    expect(shouldSkip("src/firebase.js")).toBe(false);
+  });
+
+  it("Geçici araç çıktıları (temp_*.json, *.tmp) taramaya girmez (TUSLA dersi)", async () => {
+    const { shouldSkip } = await import("../src/lib/local-analysis");
+    expect(shouldSkip("temp_eslint_warnings.json")).toBe(true);
+    expect(shouldSkip("build/temp/output.js")).toBe(true);
+    expect(shouldSkip("src/cache.tmp")).toBe(true);
+    expect(shouldSkip("src/app.js")).toBe(false);
+  });
 });
 
 // ---------------------------------------------------------------------------

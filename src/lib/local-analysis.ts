@@ -23,6 +23,19 @@ const SKIP_SEGMENTS = new Set([
   "analysis-results",
   "vendor",
   "__pycache__",
+  // Yedekler: eski kopyalar güncel kodu yansıtmaz ve aynı sorunları tekrar
+  // üretir (TUSLA backups/ dersi). Yedekler evrensel olarak tarama dışıdır.
+  "backups",
+  "backup",
+  "bak",
+  "old",
+  "archive",
+  "archived",
+  "backup-files",
+  "snapshots",
+  // Geçici/araç çıktıları: temp, tmp, geçici linter raporları (temp_*.json)
+  "temp",
+  "tmp",
   ".pytest_cache",
   ".mypy_cache",
   ".ruff_cache",
@@ -82,6 +95,27 @@ const GENERATED_PATTERNS = [
   /\.(css|js|ts)\.map$/i,
 ];
 
+// Şifrelenmiş dosyalar: içerik analiz edilemez — base64/şifreli veride rastgele
+// secret-deseni eşleşmeleri yalnızca gürültü üretir (örn. 970KB'lık encrypted
+// JSON içinde rastgele "AKIA..." dizisi). Taramaya hiç girmemelidir.
+const ENCRYPTED_PATTERNS = [
+  /\.encrypted\.[a-z0-9]+$/i,
+  /\.enc\.[a-z0-9]+$/i,
+  /\.gpg$/i,
+  /\.age$/i,
+  /\.lockbox$/i,
+  /\.vault$/i,
+];
+
+// Geçici araç çıktıları: linter/derleyici raporları (temp_*.json, *.tmp vb.)
+// gerçek kod değildir ve kaynak dosya içeriğini yansıtabilir (TUSLA
+// temp_eslint_warnings.json dersi).
+const TEMP_FILE_PATTERNS = [
+  /(^|\/)temp[_-]/i,
+  /\.tmp$/i,
+  /\.temp$/i,
+];
+
 /**
  * Kök .gitignore içeriğini basit kurallarla parse eder: repo sahibi hangi
  * klasör/dosyaların analiz dışı olduğuna .gitignore ile karar verir (repo'ya
@@ -121,6 +155,10 @@ export function shouldSkip(path: string, gitignoreSegs?: Set<string>): boolean {
   }
   // A2: üretilmiş dosya imzaları
   if (GENERATED_PATTERNS.some((re) => re.test(path))) return true;
+  // Şifrelenmiş dosyalar: içerik analiz edilemez, yalnızca gürültü üretir
+  if (ENCRYPTED_PATTERNS.some((re) => re.test(path))) return true;
+  // Geçici araç çıktıları (temp_*.json, *.tmp) — gerçek kod değil
+  if (TEMP_FILE_PATTERNS.some((re) => re.test(path))) return true;
   return false;
 }
 
@@ -927,7 +965,7 @@ function validateEvidence(evidence: LocalEvidence[], fileContents: Map<string, s
     switch (item.category) {
       case "hardcoded_secret": {
         // İkinci doğrulama: Shannon entropy — gerçek secret yüksek karakter çeşitliliğine sahiptir.
-        const match = lineText.match(/(sk-[A-Za-z0-9_-]{16,}|ghp_[A-Za-z0-9]{20,}|AKIA[A-Z0-9]{16}|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,})/i);
+        const match = lineText.match(/(?<![A-Za-z0-9_-])sk-[A-Za-z0-9_-]{16,}|ghp_[A-Za-z0-9]{20,}|AKIA[A-Z0-9]{16}|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}|AIzaSy[A-Za-z0-9_-]{20,}/i);
         if (match) {
           const entropy = shannonEntropy(match[0]);
           if (entropy >= 3.5) {
@@ -939,6 +977,10 @@ function validateEvidence(evidence: LocalEvidence[], fileContents: Map<string, s
           }
         } else {
           item.validation_status = "partial";
+        }
+        // Firebase Web API key (AIzaSy...) client-tarafı key'dir → severity medium.
+        if (/AIzaSy[A-Za-z0-9_-]{20,}/.test(String(match?.[0] || ""))) {
+          item.severity = "medium";
         }
         break;
       }
@@ -1623,7 +1665,12 @@ export async function analyzeLocalFiles(
       });
     }
 
-    const secretRegex = /(sk-[A-Za-z0-9_-]{16,}|ghp_[A-Za-z0-9]{20,}|AKIA[A-Z0-9]{16}|xox[baprs]-[A-Za-z0-9-]{10,}|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}|-----BEGIN [A-Z ]+ PRIVATE KEY-----|(?:password|passwd|api[_-]?key|secret)\s*[:=]\s*["'][A-Za-z0-9+/_\-.]{20,}["'])/ig;
+    // Secret formatları. Not:
+    //  - sk- öncesinde harf/rakam/alt çizgi OLMAMALI — "ask-gemini-v1" içindeki
+    //    gömülü "sk-" yanlış pozitif üretir (task-, risk-, desk- aynı aile).
+    //  - AIzaSy (Firebase Web API key) client-tarafı key'dir — güvenlik Firestore
+    //    kurallarıyla sağlanır, bu yüzden severity ayrıca medium'a düşürülür.
+    const secretRegex = /(?<![A-Za-z0-9_-])sk-[A-Za-z0-9_-]{16,}|ghp_[A-Za-z0-9]{20,}|AKIA[A-Z0-9]{16}|xox[baprs]-[A-Za-z0-9-]{10,}|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}|-----BEGIN [A-Z ]+ PRIVATE KEY-----|(?:password|passwd|api[_-]?key|secret)\s*[:=]\s*["'][A-Za-z0-9+/_\-.]{20,}["']|AIzaSy[A-Za-z0-9_-]{20,}/ig;
     let secretMatch: RegExpExecArray | null;
     let secretCount = 0;
     while ((secretMatch = secretRegex.exec(text)) !== null && secretCount < 5) {
@@ -1656,14 +1703,19 @@ export async function analyzeLocalFiles(
       // Not: "YOUR_FIREBASE_API_KEY" gibi şablon değerleri alt çizgiyle yazılır —
       // hem kısa çizgi (your-) hem alt çizgi (your_) yakalanmalı.
       if (!/(test|example|demo|dummy|sample|xxxx+|your[-_]|placeholder)/i.test(snippet)) {
+        // Firebase Web API key (AIzaSy...) client-tarafı key'dir — güvenlik
+        // Firestore kurallarıyla sağlanır; gerçek backend secret değil → medium.
+        const isFirebaseWebKey = /AIzaSy[A-Za-z0-9_-]{20,}/.test(matchText);
         makeEvidence(result.evidence, {
           analyzer: "local-security-scanner",
           finding_type: "security",
-          severity: "critical",
+          severity: isFirebaseWebKey ? "medium" : "critical",
           category: "hardcoded_secret",
           file_path: relPath,
           line: lineNumberFor(text, secretMatch.index),
-          message: "Olası secret veya parola kaynak dosyada bulundu",
+          message: isFirebaseWebKey
+            ? "Firebase Web API key kod içinde bulundu (client-tarafı key)"
+            : "Olası secret veya parola kaynak dosyada bulundu",
           tags: ["security", "secret"],
           confidence: 0.95,
         });
