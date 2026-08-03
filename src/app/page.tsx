@@ -3586,7 +3586,7 @@ function RoiRefactoringBody({ body, t }: { body: string; t: (k: string) => strin
   // Fallback: if we couldn't parse any pairs or title, render the raw body
   // text so the section never shows an empty badge grid.
   if (pairs.length === 0 && !title) {
-    return <p className="whitespace-pre-wrap text-sm text-muted-foreground">{body}</p>;
+    return <p className="whitespace-pre-wrap break-words text-sm text-muted-foreground">{body}</p>;
   }
 
   return (
@@ -3610,7 +3610,7 @@ function RoiRefactoringBody({ body, t }: { body: string; t: (k: string) => strin
           })}
         </div>
       ) : (
-        <p className="whitespace-pre-wrap text-sm text-muted-foreground">{body}</p>
+        <p className="whitespace-pre-wrap break-words text-sm text-muted-foreground">{body}</p>
       )}
     </div>
   );
@@ -3659,17 +3659,17 @@ function AIReviewSection({ data }: { data: any }) {
                   <div key={vc.claim_id} className="flex items-start gap-2 rounded border p-2">
                     <span className={`mt-0.5 shrink-0 ${cfg.color}`}>{cfg.icon}</span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium">{vc.claim_text}</p>
+                      <p className="break-words text-sm font-medium">{vc.claim_text}</p>
                       <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                         <Badge variant="outline" className="text-xs">{humanize(vc.claim_type)}</Badge>
                         <Badge variant={severityVariant(vc.severity)} className="text-xs">{vc.severity}</Badge>
                         <span>Güven: %{(vc.confidence * 100).toFixed(0)}</span>
                         {vc.supporting_evidence_ids?.length > 0 && (
-                          <span className="font-mono">Kanıt: {vc.supporting_evidence_ids.join(", ")}</span>
+                          <span className="font-mono">Kanıt: {vc.supporting_evidence_ids.length} ({vc.supporting_evidence_ids.slice(0, 3).join(", ")}{vc.supporting_evidence_ids.length > 3 ? ", …" : ""})</span>
                         )}
                         {vc.planning_reference && <span className="font-mono">Plan: {vc.planning_reference}</span>}
                       </div>
-                      <p className="mt-0.5 text-xs text-muted-foreground/70">{vc.validation_reason}</p>
+                      <p className="mt-0.5 break-words text-xs text-muted-foreground/70">{vc.validation_reason}</p>
                     </div>
                   </div>
                 );
@@ -3825,7 +3825,7 @@ function AIReviewSection({ data }: { data: any }) {
           <CardContent>
             {section.section_type === "highest_roi_refactoring"
               ? <RoiRefactoringBody body={section.body} t={t} />
-              : <p className="whitespace-pre-wrap text-sm text-muted-foreground">{section.body}</p>}
+              : <p className="whitespace-pre-wrap break-words text-sm text-muted-foreground">{section.body}</p>}
           </CardContent>
         </Card>
       ))}
@@ -3837,8 +3837,8 @@ function AIReviewSection({ data }: { data: any }) {
               {review.challenges.map((ch: any, i: number) => (
                 <div key={i} className="rounded-lg border p-3">
                   <Badge variant="outline" className="mb-1 text-xs">{ch.challenge_type}</Badge>
-                  <p className="text-sm">{ch.description}</p>
-                  {ch.alternative && <p className="mt-1 text-sm text-muted-foreground">{ch.alternative}</p>}
+                  <p className="break-words text-sm">{ch.description}</p>
+                  {ch.alternative && <p className="mt-1 break-words text-sm text-muted-foreground">{ch.alternative}</p>}
                 </div>
               ))}
             </div>
@@ -3895,7 +3895,7 @@ function AIReviewSection({ data }: { data: any }) {
                         <div className="mt-0.5 text-xs text-muted-foreground">
                           {claim.reason && <span className="block">{claim.reason}</span>}
                           {claim.evidence_ids?.length > 0 && (
-                            <span className="mt-0.5 block break-all font-mono">{claim.evidence_ids.join(", ")}</span>
+                            <span className="mt-0.5 block font-mono">{claim.evidence_ids.length} kanıt ({claim.evidence_ids.slice(0, 3).join(", ")}{claim.evidence_ids.length > 3 ? ", …" : ""})</span>
                           )}
                         </div>
                       </div>
@@ -3951,13 +3951,13 @@ function AIReviewSection({ data }: { data: any }) {
                         {entry.validation.quality_gates_passed}/{entry.validation.quality_gates_total} {t("qualityGates.title")}
                       </Badge>
                     </div>
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                      <div><span className="font-medium">{t("reasoningLog.rootCause")}:</span> {entry.root_cause}</div>
-                      <div><span className="font-medium">{t("reasoningLog.evidence")}:</span> <span className="font-mono">{entry.evidence.join(", ")}</span></div>
-                      <div><span className="font-medium">{t("reasoningLog.graphPath")}:</span> {entry.graph_path.join(" → ")}</div>
-                      <div><span className="font-medium">{t("coverage.score")}:</span> {entry.validation.coverage}%</div>
-                      <div><span className="font-medium">{t("qualityGates.consensus")}:</span> {entry.validation.consensus}</div>
-                      <div><span className="font-medium">{t("reasoningLog.sourceTraceability")}:</span> <span className="font-mono">{entry.source_traceability.file}{entry.source_traceability.line ? `:${entry.source_traceability.line}` : ""}</span></div>
+                    <div className="grid grid-cols-1 gap-x-4 gap-y-1 text-xs text-muted-foreground sm:grid-cols-2">
+                      <div className="min-w-0 break-words"><span className="font-medium">{t("reasoningLog.rootCause")}:</span> {entry.root_cause}</div>
+                      <div className="min-w-0 break-words"><span className="font-medium">{t("reasoningLog.evidence")}:</span> <span className="font-mono">{entry.evidence.length} kanıt ({entry.evidence.slice(0, 3).join(", ")}{entry.evidence.length > 3 ? ", …" : ""})</span></div>
+                      <div className="min-w-0 break-words"><span className="font-medium">{t("reasoningLog.graphPath")}:</span> {entry.graph_path.join(" → ")}</div>
+                      <div className="min-w-0"><span className="font-medium">{t("coverage.score")}:</span> {entry.validation.coverage}%</div>
+                      <div className="min-w-0"><span className="font-medium">{t("qualityGates.consensus")}:</span> {entry.validation.consensus}</div>
+                      <div className="min-w-0 break-all"><span className="font-medium">{t("reasoningLog.sourceTraceability")}:</span> <span className="font-mono">{entry.source_traceability.file}{entry.source_traceability.line ? `:${entry.source_traceability.line}` : ""}</span></div>
                     </div>
                   </div>
                 ))}
