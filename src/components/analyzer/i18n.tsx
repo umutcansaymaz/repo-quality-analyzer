@@ -70,6 +70,9 @@ const translations: Record<Language, TranslationDict> = {
     "dashboard.evidence": "Evidence",
     "dashboard.graph": "Graph",
     "dashboard.files": "Files",
+    "tabGroup.report": "Report",
+    "tabGroup.interpret": "What It Means",
+    "tabGroup.trust": "Trust & Accuracy",
     "dashboard.aiReview": "AI Review",
 
     // Stats
@@ -542,10 +545,15 @@ const translations: Record<Language, TranslationDict> = {
     "reasoningLog.qualityGates": "Quality Gates",
     "reasoningLog.verified": "Verified",
     "reasoningLog.notVerified": "Not Verified",
-    "commentary.title": "Engineering Commentary",
+    "commentary.title": "Plain-Language Findings",
     "commentary.verifiedFindings": "Verified Engineering Findings",
     "commentary.aiCommentary": "AI Commentary",
     "commentary.separator": "Deterministic findings are separate from AI commentary",
+    "commentary.blurb": "Every issue the engine found, explained in plain words — what it means and why it matters.",
+    "benchmark.blurb": "The engine tests itself on deliberately good and bad example repos, so you can see how accurate it is.",
+    "validation.blurb": "Runs the engine against real repositories and reports how often its findings match reality.",
+    "extValidation.blurb": "Checks independent sources (GitHub issues, PRs, ADRs, discussions) to confirm the findings are real.",
+    "realExec.blurb": "Analyzes a batch of well-known real repositories end-to-end, with real clones and real output files.",
     "graph.path": "Graph Traversal Path",
     "graph.verified": "Graph Verified",
     "graph.notVerified": "Graph Not Verified",
@@ -590,7 +598,7 @@ const translations: Record<Language, TranslationDict> = {
     "confidence.reason": "Reason",
 
     // Sprint 13: Benchmark & Validation
-    "benchmark.title": "Engineering Benchmark",
+    "benchmark.title": "Engine Self-Test",
     "benchmark.run": "Run Benchmarks",
     "benchmark.running": "Running benchmarks…",
     "benchmark.total": "Total Benchmarks",
@@ -619,7 +627,7 @@ const translations: Record<Language, TranslationDict> = {
     "benchmark.history": "Benchmark History",
 
     // Sprint 14: Validation Dashboard
-    "validation.title": "Real World Validation",
+    "validation.title": "Engine Validation",
     "validation.run": "Run Full Validation",
     "validation.running": "Validating repositories…",
     "validation.reposTested": "Repositories Tested",
@@ -642,7 +650,7 @@ const translations: Record<Language, TranslationDict> = {
     "validation.selfProtectV2": "Self-Protection Protocol v2 Active",
 
     // Phase A: External Validation
-    "extValidation.title": "External Validation",
+    "extValidation.title": "External Evidence",
     "extValidation.run": "Run External Validation",
     "extValidation.running": "Collecting external evidence…",
     "extValidation.validatedFindings": "Validated Findings",
@@ -666,7 +674,7 @@ const translations: Record<Language, TranslationDict> = {
     "extValidation.demoBanner": "Demo Modu — bu bölüm gerçek GitHub/API kaynaklarına bağlanmaz. Deterministik seed tabanlı örnek kanıtlar üretilir.",
 
     // Sprint 15 — Real Execution Engine
-    "realExec.title": "Real Repository Analysis",
+    "realExec.title": "Sample Analyses",
     "realExec.subtitle": "Real clone → real analysis → real JSON outputs. No simulation, no mock data.",
     "realExec.runBatch": "Run Analysis Batch",
     "realExec.running": "Analyzing repositories…",
@@ -792,6 +800,9 @@ const translations: Record<Language, TranslationDict> = {
     "dashboard.evidence": "Kanıtlar",
     "dashboard.graph": "Graf",
     "dashboard.files": "Dosyalar",
+    "tabGroup.report": "Rapor",
+    "tabGroup.interpret": "Ne Anlama Gelir",
+    "tabGroup.trust": "Güven & Doğruluk",
     "dashboard.aiReview": "AI İncelemesi",
 
     // Stats
@@ -1264,10 +1275,15 @@ const translations: Record<Language, TranslationDict> = {
     "reasoningLog.qualityGates": "Kalite Kapıları",
     "reasoningLog.verified": "Doğrulandı",
     "reasoningLog.notVerified": "Doğrulanmadı",
-    "commentary.title": "Mühendislik Yorumu",
+    "commentary.title": "Sade Dille Bulgular",
     "commentary.verifiedFindings": "Doğrulanmış Mühendislik Bulguları",
     "commentary.aiCommentary": "AI Yorumu",
     "commentary.separator": "Deterministik bulgular AI yorumundan ayrıdır",
+    "commentary.blurb": "Motorun bulduğu her sorun, sade kelimelerle açıklanır — ne anlama geldiği ve neden önemli olduğu.",
+    "benchmark.blurb": "Motor, bilinçli olarak iyi ve kötü hazırlanmış örnek repolarla kendini test eder; böylece ne kadar doğru çalıştığını görürsünüz.",
+    "validation.blurb": "Motoru gerçek repolarda çalıştırır ve bulguların gerçeklikle ne kadar örtüştüğünü raporlar.",
+    "extValidation.blurb": "Bulguların gerçek olduğunu doğrulamak için bağımsız kaynakları (GitHub issue'ları, PR'lar, ADR'ler, tartışmalar) kontrol eder.",
+    "realExec.blurb": "Bilinen gerçek repolardan oluşan bir grubu uçtan uca analiz eder: gerçek klon, gerçek analiz, gerçek çıktı dosyaları.",
     "graph.path": "Graf Geçiş Yolu",
     "graph.verified": "Graf Doğrulandı",
     "graph.notVerified": "Graf Doğrulanmadı",
@@ -1312,7 +1328,7 @@ const translations: Record<Language, TranslationDict> = {
     "confidence.reason": "Gerekçe",
 
     // Sprint 13: Benchmark & Doğrulama
-    "benchmark.title": "Mühendislik Benchmark",
+    "benchmark.title": "Motor Kendini Test",
     "benchmark.run": "Benchmark'ları Çalıştır",
     "benchmark.running": "Benchmark'lar çalıştırılıyor…",
     "benchmark.total": "Toplam Benchmark",
@@ -1341,7 +1357,7 @@ const translations: Record<Language, TranslationDict> = {
     "benchmark.history": "Benchmark Geçmişi",
 
     // Sprint 14: Validasyon Dashboard
-    "validation.title": "Gerçek Dünya Validasyonu",
+    "validation.title": "Motor Doğrulaması",
     "validation.run": "Tam Validasyon Çalıştır",
     "validation.running": "Repolar doğrulanıyor…",
     "validation.reposTested": "Test Edilen Repo",
@@ -1364,7 +1380,7 @@ const translations: Record<Language, TranslationDict> = {
     "validation.selfProtectV2": "Self-Protection Protokolü v2 Aktif",
 
     // Faz A: Dış Validasyon
-    "extValidation.title": "Dış Validasyon",
+    "extValidation.title": "Harici Kanıt",
     "extValidation.run": "Dış Validasyon Çalıştır",
     "extValidation.running": "Dış kanıt toplanıyor…",
     "extValidation.validatedFindings": "Doğrulanan Bulgular",
@@ -1387,7 +1403,7 @@ const translations: Record<Language, TranslationDict> = {
     "extValidation.demoBanner": "Demo Modu — bu bölüm gerçek GitHub/API kaynaklarına bağlanmaz. Deterministik seed tabanlı örnek kanıtlar üretilir.",
 
     // Sprint 15 — Gerçek Execution Engine
-    "realExec.title": "Gerçek Repository Analizi",
+    "realExec.title": "Örnek Analizler",
     "realExec.subtitle": "Gerçek clone → gerçek analiz → gerçek JSON çıktıları. Simülasyon yok, mock veri yok.",
     "realExec.runBatch": "Analiz Batch'i Çalıştır",
     "realExec.running": "Repolar analiz ediliyor…",

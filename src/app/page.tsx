@@ -1509,19 +1509,55 @@ function ResultsDashboard({ data, onReset }: { data: any; onReset: () => void })
 
       {/* Main tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-6">
-        <TabsList className="flex w-full flex-wrap gap-1">
-          <TabsTrigger value="overview" data-tab="overview" className="gap-1.5"><Activity className="h-4 w-4" /> {t("dashboard.overview")}</TabsTrigger>
-          <TabsTrigger value="rootcauses" data-tab="rootcauses" className="gap-1.5"><Bug className="h-4 w-4" /> {t("dashboard.rootCauses")}</TabsTrigger>
-          <TabsTrigger value="roadmap" data-tab="roadmap" className="gap-1.5"><MapIcon className="h-4 w-4" /> {t("dashboard.roadmap")}</TabsTrigger>
-          <TabsTrigger value="evidence" data-tab="evidence" className="gap-1.5"><Beaker className="h-4 w-4" /> {t("dashboard.evidence")}</TabsTrigger>
-          <TabsTrigger value="graph" data-tab="graph" className="gap-1.5"><Network className="h-4 w-4" /> {t("dashboard.graph")}</TabsTrigger>
-          <TabsTrigger value="files" data-tab="files" className="gap-1.5"><FileCode2 className="h-4 w-4" /> {t("dashboard.files")}</TabsTrigger>
-          <TabsTrigger value="ai" data-tab="ai" className="gap-1.5"><Sparkles className="h-4 w-4" /> {t("commentary.title")}</TabsTrigger>
-          <TabsTrigger value="benchmark" data-tab="benchmark" className="gap-1.5"><Gauge className="h-4 w-4" /> {t("benchmark.title")}</TabsTrigger>
-          <TabsTrigger value="validation" data-tab="validation" className="gap-1.5"><Shield className="h-4 w-4" /> {t("validation.title")}</TabsTrigger>
-          <TabsTrigger value="extval" data-tab="extval" className="gap-1.5"><Network className="h-4 w-4" /> {t("extValidation.title")}</TabsTrigger>
-          <TabsTrigger value="realexec" data-tab="realexec" className="gap-1.5"><Rocket className="h-4 w-4" /> {t("realExec.title")}</TabsTrigger>
-        </TabsList>
+        <div className="rounded-lg border bg-muted/30 p-2">
+          {/* Group 1: Analysis report */}
+          <div className="mb-1 flex items-center gap-2 px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+            <FileText className="h-3 w-3" /> {t("tabGroup.report")}
+          </div>
+          <TabsList className="flex w-full flex-wrap gap-1">
+            <TabsTrigger value="overview" data-tab="overview" className="gap-1.5"><Activity className="h-4 w-4" /> {t("dashboard.overview")}</TabsTrigger>
+            <TabsTrigger value="rootcauses" data-tab="rootcauses" className="gap-1.5"><Bug className="h-4 w-4" /> {t("dashboard.rootCauses")}</TabsTrigger>
+            <TabsTrigger value="roadmap" data-tab="roadmap" className="gap-1.5"><MapIcon className="h-4 w-4" /> {t("dashboard.roadmap")}</TabsTrigger>
+            <TabsTrigger value="evidence" data-tab="evidence" className="gap-1.5"><Beaker className="h-4 w-4" /> {t("dashboard.evidence")}</TabsTrigger>
+            <TabsTrigger value="graph" data-tab="graph" className="gap-1.5"><Network className="h-4 w-4" /> {t("dashboard.graph")}</TabsTrigger>
+            <TabsTrigger value="files" data-tab="files" className="gap-1.5"><FileCode2 className="h-4 w-4" /> {t("dashboard.files")}</TabsTrigger>
+          </TabsList>
+          {/* Group 2: Interpretation */}
+          <div className="mb-1 mt-2 flex items-center gap-2 px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+            <Sparkles className="h-3 w-3" /> {t("tabGroup.interpret")}
+          </div>
+          <TabsList className="flex w-full flex-wrap gap-1">
+            <TabsTrigger value="ai" data-tab="ai" className="gap-1.5"><Sparkles className="h-4 w-4" /> {t("commentary.title")}</TabsTrigger>
+            <TabsTrigger value="extval" data-tab="extval" className="gap-1.5"><Network className="h-4 w-4" /> {t("extValidation.title")}</TabsTrigger>
+          </TabsList>
+          {/* Group 3: Trust & validation */}
+          <div className="mb-1 mt-2 flex items-center gap-2 px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+            <Shield className="h-3 w-3" /> {t("tabGroup.trust")}
+          </div>
+          <TabsList className="flex w-full flex-wrap gap-1">
+            <TabsTrigger value="benchmark" data-tab="benchmark" className="gap-1.5"><Gauge className="h-4 w-4" /> {t("benchmark.title")}</TabsTrigger>
+            <TabsTrigger value="validation" data-tab="validation" className="gap-1.5"><Shield className="h-4 w-4" /> {t("validation.title")}</TabsTrigger>
+            <TabsTrigger value="realexec" data-tab="realexec" className="gap-1.5"><Rocket className="h-4 w-4" /> {t("realExec.title")}</TabsTrigger>
+          </TabsList>
+        </div>
+
+        {/* One-line explanation for the active technical tab — first-time users
+            understand what they are looking at without jargon. */}
+        {activeTab === "ai" && t("commentary.blurb") !== "commentary.blurb" && (
+          <p className="mt-2 flex items-start gap-1.5 text-xs text-muted-foreground"><Sparkles className="mt-0.5 h-3 w-3 shrink-0" /> {t("commentary.blurb")}</p>
+        )}
+        {activeTab === "benchmark" && t("benchmark.blurb") !== "benchmark.blurb" && (
+          <p className="mt-2 flex items-start gap-1.5 text-xs text-muted-foreground"><Gauge className="mt-0.5 h-3 w-3 shrink-0" /> {t("benchmark.blurb")}</p>
+        )}
+        {activeTab === "validation" && t("validation.blurb") !== "validation.blurb" && (
+          <p className="mt-2 flex items-start gap-1.5 text-xs text-muted-foreground"><Shield className="mt-0.5 h-3 w-3 shrink-0" /> {t("validation.blurb")}</p>
+        )}
+        {activeTab === "extval" && t("extValidation.blurb") !== "extValidation.blurb" && (
+          <p className="mt-2 flex items-start gap-1.5 text-xs text-muted-foreground"><Network className="mt-0.5 h-3 w-3 shrink-0" /> {t("extValidation.blurb")}</p>
+        )}
+        {activeTab === "realexec" && t("realExec.blurb") !== "realExec.blurb" && (
+          <p className="mt-2 flex items-start gap-1.5 text-xs text-muted-foreground"><Rocket className="mt-0.5 h-3 w-3 shrink-0" /> {t("realExec.blurb")}</p>
+        )}
 
         <TabsContent value="overview" className="mt-4"><OverviewSection data={data} /></TabsContent>
         <TabsContent value="rootcauses" className="mt-4"><RootCausesSection data={data} /></TabsContent>
