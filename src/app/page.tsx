@@ -450,6 +450,8 @@ function AppContent() {
           }
         : prev
     );
+    // Açıklamalar üretildi — kullanıcıyı "Ne Anlama Gelir" sekmesine götür.
+    window.dispatchEvent(new CustomEvent("ra-switch-tab", { detail: "ai" }));
     return {};
   }, [analysisData]);
 
@@ -1760,7 +1762,10 @@ function LLMStatusCard({ data, onExplain }: { data: any; onExplain?: (() => Prom
                 setExplainError(null);
                 const out = await onExplain();
                 setExplaining(false);
-                if (out?.error) setExplainError(out.error);
+                if (out?.error) {
+                  setExplainError(out.error);
+                  toast.error(`${t("llm.failed")}: ${out.error}`);
+                }
               }}
             >
               {explaining ? (
