@@ -251,6 +251,20 @@ describe("shouldSkip evrenselliği", () => {
     const gi = parseGitignore("*.log\n/tmp/**\n!keep.txt\n");
     expect(gi.size).toBe(0);
   });
+
+  it("Çok parçalı desen prefix'li yolda ardışık segment olarak eşleşir", () => {
+    const gi = parseGitignore("/audit/.work/\n");
+    // Prefix'li yol (webkitRelativePath üst klasör adıyla gelir)
+    expect(shouldSkip("kalite/audit/.work/command_injection-x/src/main.ts", gi)).toBe(true);
+    // Prefix'siz yol
+    expect(shouldSkip("audit/.work/weak_crypto-go-single/src/main.go", gi)).toBe(true);
+    // Tam eşleşme de skip
+    expect(shouldSkip("audit/.work", gi)).toBe(true);
+    // Benzer ama farklı dizinler skip EDİLMEZ (segment sınırı korunur)
+    expect(shouldSkip("kalite/my-audit/.work/notes.txt", gi)).toBe(false);
+    expect(shouldSkip("kalite/audit/run.mjs", gi)).toBe(false);
+    expect(shouldSkip("kalite/src/app/page.tsx", gi)).toBe(false);
+  });
 });
 
 // ---------------------------------------------------------------------------

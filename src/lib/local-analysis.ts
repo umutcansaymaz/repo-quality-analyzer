@@ -143,12 +143,20 @@ export function parseGitignore(text: string): Set<string> {
 export function shouldSkip(path: string, gitignoreSegs?: Set<string>): boolean {
   const parts = path.toLowerCase().split("/");
   if (gitignoreSegs) {
-    // Çok parçalı desenler de eşleşmeli: gitignore'daki "audit/.work" →
-    // "audit/.work/command_injection-x/src/main.ts" yolunda önek olarak bulunur.
+    // Çok parçalı desenler yolda ARDIŞIK segmentler olarak aranır — yol üst
+    // klasör adıyla başlayabilir ("kalite/audit/.work/x" gibi), bu yüzden
+    // startsWith kullanılamaz; segment dizisi eşleşmesi gerekir.
     const joined = parts.join("/");
     for (const seg of gitignoreSegs) {
       if (seg.includes("/")) {
-        if (joined === seg || joined.startsWith(seg + "/")) return true;
+        const segParts = seg.split("/");
+        for (let i = 0; i <= parts.length - segParts.length; i++) {
+          let match = true;
+          for (let j = 0; j < segParts.length; j++) {
+            if (parts[i + j] !== segParts[j]) { match = false; break; }
+          }
+          if (match) return true;
+        }
       } else if (parts.includes(seg)) return true;
     }
   }
@@ -1786,11 +1794,14 @@ export async function analyzeLocalFiles(
 
   // Kök .gitignore'ı bul (ilk dosya listesi geçişi). Repo sahibi hangi klasör/
   // dosyaların analiz dışı olduğuna .gitignore ile karar verir — motor hiçbir
-  // repo'ya özel klasör adı tahmin etmez.
+  // repo'ya özel klasör adı tahmin etmez. Yol üst klasör adıyla başlayabilir
+  // ("kalite/.gitignore" — webkitRelativePath prefix'li), bu yüzden SON segment
+  // ".gitignore" olan her dosya kabul edilir.
   let gitignoreSegs: Set<string> | undefined;
   const gitignoreFile = files.find((f) => {
     const p = normalizeUploadPath((f as any).webkitRelativePath || f.name);
-    return p.split("/").filter(Boolean).length === 1 && p.toLowerCase() === ".gitignore";
+    const segs = p.split("/").filter(Boolean);
+    return segs[segs.length - 1]?.toLowerCase() === ".gitignore";
   });
   if (gitignoreFile) {
     try {
