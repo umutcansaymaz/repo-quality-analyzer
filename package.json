@@ -8,7 +8,8 @@
     "start": "node scripts/start-standalone.mjs",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "audit": "node audit/run.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
