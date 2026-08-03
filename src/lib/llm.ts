@@ -32,6 +32,20 @@ export interface LLMExplanationResult {
   provider: string;
 }
 
+/**
+ * HTTP hata durumunu kullanıcının anlayacağı mesaja çevirir.
+ * 429 (kota) ve 401/403 (key) en yaygın kullanıcı hatalarıdır.
+ */
+function apiError(status: number, fallback: string): Error {
+  if (status === 429) {
+    return new Error("Kota aşıldı (429) — provider hesabınızın ücretsiz kotası dolmuş veya billing kapalı. Hesap/plan durumunu kontrol edin.");
+  }
+  if (status === 401 || status === 403) {
+    return new Error(`API anahtarı reddedildi (${status}) — key'i ve model adını kontrol edin.`);
+  }
+  return new Error(`LLM API hatası (${status}): ${fallback}`);
+}
+
 const DEFAULT_TIMEOUT_MS = 90_000;
 
 /**
@@ -65,7 +79,7 @@ export async function callLLM(config: LLMRunConfig, prompt: string, systemPrompt
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(`LLM API hatası (${res.status}): ${data?.error?.message || res.statusText}`);
+      if (!res.ok) throw apiError(res.status, data?.error?.message || res.statusText);
       return data?.choices?.[0]?.message?.content || "";
     }
 
@@ -85,7 +99,7 @@ export async function callLLM(config: LLMRunConfig, prompt: string, systemPrompt
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(`LLM API hatası (${res.status}): ${data?.error?.message || res.statusText}`);
+      if (!res.ok) throw apiError(res.status, data?.error?.message || res.statusText);
       return data?.content?.map((c: any) => c.text || "").join("") || "";
     }
 
@@ -102,7 +116,7 @@ export async function callLLM(config: LLMRunConfig, prompt: string, systemPrompt
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(`LLM API hatası (${res.status}): ${data?.error?.message || res.statusText}`);
+      if (!res.ok) throw apiError(res.status, data?.error?.message || res.statusText);
       return data?.candidates?.[0]?.content?.parts?.map((p: any) => p.text || "").join("") || "";
     }
 
@@ -130,7 +144,7 @@ export async function callLLM(config: LLMRunConfig, prompt: string, systemPrompt
         }
       );
       const data = await res.json();
-      if (!res.ok) throw new Error(`LLM API hatası (${res.status}): ${data?.error?.message || res.statusText}`);
+      if (!res.ok) throw apiError(res.status, data?.error?.message || res.statusText);
       return data?.choices?.[0]?.message?.content || "";
     }
 
@@ -148,7 +162,7 @@ export async function callLLM(config: LLMRunConfig, prompt: string, systemPrompt
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(`Ollama hatası (${res.status}): ${data?.error || res.statusText}`);
+      if (!res.ok) throw apiError(res.status, data?.error || res.statusText);
       return data?.message?.content || "";
     }
 

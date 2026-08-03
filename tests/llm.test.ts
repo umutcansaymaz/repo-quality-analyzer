@@ -113,6 +113,11 @@ describe("callLLM — hatalar", () => {
     await expect(callLLM(baseConfig, "p")).rejects.toThrow("401");
   });
 
+  it("429 kota hatası anlaşılır mesaja çevrilir", async () => {
+    mockFetchOnce(429, { error: { message: "quota" } });
+    await expect(callLLM(baseConfig, "p")).rejects.toThrow("Kota aşıldı");
+  });
+
   it("ağ hatası anlamlı mesaja çevrilir", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
     await expect(callLLM(baseConfig, "p")).rejects.toThrow("Ağ hatası");
