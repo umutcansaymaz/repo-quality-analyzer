@@ -1,0 +1,10 @@
+[project]
+name = "sample"
+version = "1.0.0"
+dependencies = [
+    "requests>=2.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]

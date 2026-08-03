@@ -1,0 +1,18 @@
+# Auto-normalize LF line endings for all text files.
+* text=auto eol=lf
+
+# Binary files — no conversion.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.ttf binary
+*.woff binary
+*.woff2 binary
+*.eot binary
+*.db binary
+*.sqlite binary
+*.tar.gz binary
+*.zip binary
