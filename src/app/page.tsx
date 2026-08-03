@@ -1750,7 +1750,7 @@ function LLMStatusCard({ data, onExplain }: { data: any; onExplain?: (() => Prom
               {t("llm.readyHint")}
             </span>
           )}
-          {status === "ready" && onExplain && (
+          {onExplain && (
             <Button
               size="sm"
               variant="outline"
