@@ -123,6 +123,30 @@ describe("callLLM — hatalar", () => {
   });
 });
 
+describe("callLLM — model adı normalizasyonu", () => {
+  it("'models/' prefix'i kaldırılır (Gemini formatı)", async () => {
+    mockFetchOnce(200, { candidates: [{ content: { parts: [{ text: "ok" }] } }] });
+    await callLLM({ ...baseConfig, provider: "gemini", model: "models/gemini-2.0-flash" }, "p");
+    const url = String(vi.mocked(fetch).mock.calls[0][0]);
+    expect(url).toContain("/models/gemini-2.0-flash:generateContent");
+    expect(url).not.toContain("models/models/");
+  });
+
+  it("boşluklar '-' ile değiştirilir", async () => {
+    mockFetchOnce(200, { choices: [{ message: { content: "ok" } }] });
+    await callLLM({ ...baseConfig, model: "gpt 4o mini" }, "p");
+    const body = JSON.parse((vi.mocked(fetch).mock.calls[0][1] as any).body);
+    expect(body.model).toBe("gpt-4o-mini");
+  });
+
+  it("boş model için provider varsayılanı kullanılır", async () => {
+    mockFetchOnce(200, { candidates: [{ content: { parts: [{ text: "ok" }] } }] });
+    await callLLM({ ...baseConfig, provider: "gemini", model: "" }, "p");
+    const url = String(vi.mocked(fetch).mock.calls[0][0]);
+    expect(url).toContain("gemini-2.0-flash");
+  });
+});
+
 describe("parseLLMSections", () => {
   it("düz JSON array parse edilir", () => {
     const raw = `{"sections":[{"title":"T1","body":"B1","confidence":"high"},{"title":"T2","body":"B2","confidence":"low"}]}`;

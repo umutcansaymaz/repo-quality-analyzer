@@ -42,7 +42,7 @@ export async function callLLM(config: LLMRunConfig, prompt: string, systemPrompt
   const provider = (config.provider || "").toLowerCase();
   const temperature = Number(config.temperature || "0.3") || 0.3;
   const maxTokens = Number(config.maxTokens || "4096") || 4096;
-  const model = config.model?.trim() || defaultModelFor(provider);
+  const model = normalizeModel(provider, config.model);
 
   switch (provider) {
     case "openai":
@@ -165,6 +165,17 @@ function defaultModelFor(provider: string): string {
     case "ollama": return "llama3.2";
     default: return "gpt-4o-mini";
   }
+}
+
+/**
+ * Kullanıcıdan gelen model adını provider'ın beklediği formata getirir:
+ * - boşlukları "-" yapar ("gemini 2.0 flash" -> "gemini-2.0-flash")
+ * - "models/" prefix'ini kaldırır ("models/gemini-2.0-flash" -> "gemini-2.0-flash")
+ * - boşsa provider için varsayılanı kullanır
+ */
+function normalizeModel(provider: string, model: string | undefined): string {
+  const m = (model || "").trim().replace(/^models\//i, "").replace(/\s+/g, "-");
+  return m || defaultModelFor(provider);
 }
 
 async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
