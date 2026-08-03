@@ -2886,6 +2886,16 @@ function GraphSection({ data }: { data: any }) {
   };
   const defaultStyle = { fill: "#94a3b8", dot: "bg-slate-400", label: "other" };
 
+  // Gradient stops: inner = lighter version of the type color, outer = the fill.
+  // Brighten/darken a hex color by an amount (-1..1) for gradient depth.
+  const shade = (hex: string, amt: number): string => {
+    const n = parseInt(hex.slice(1), 16);
+    const r = Math.max(0, Math.min(255, (n >> 16) + Math.round(255 * amt)));
+    const g = Math.max(0, Math.min(255, ((n >> 8) & 0xff) + Math.round(255 * amt)));
+    const b = Math.max(0, Math.min(255, (n & 0xff) + Math.round(255 * amt)));
+    return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
+  };
+
   if (!graph || !graph.nodes?.length) return <EmptyState icon={<Network className="h-12 w-12" />} title={t("graph.noGraph")} />;
 
   // ---------- Layout: deterministic clustered circular placement ----------
@@ -2949,6 +2959,9 @@ function GraphSection({ data }: { data: any }) {
     const c = connCount[n.id] || 0;
     return Math.max(6, Math.min(16, 6 + c * 2.5));
   };
+  // Precomputed radius per node id (for edge trimming)
+  const nodeRMap: Record<string, number> = {};
+  nodes.forEach((n) => { nodeRMap[n.id] = nodeRadius(n); });
 
   // Pan handlers (drag on background — not on a node).
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
@@ -3028,12 +3041,43 @@ function GraphSection({ data }: { data: any }) {
         </CardHeader>
         <CardContent>
           <div className="relative overflow-hidden rounded-lg border bg-muted/20" style={{ height: 500 }}>
+            {/* Subtle dot-grid background for a modern code-graph feel */}
+            <div
+              className="pointer-events-none absolute inset-0 opacity-[0.15] dark:opacity-[0.1]"
+              style={{
+                backgroundImage: "radial-gradient(circle, currentColor 1px, transparent 1px)",
+                backgroundSize: "22px 22px",
+                color: "var(--foreground)",
+              }}
+            />
             <svg
               width="100%" height="100%" viewBox={`0 0 ${W} ${H}`}
               onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={onPointerUp}
-              onWheel={onWheel} className="cursor-grab active:cursor-grabbing"
+              onWheel={onWheel} className="relative cursor-grab active:cursor-grabbing"
               style={{ touchAction: "none" }}
             >
+              <defs>
+                {/* Radial gradient per node type: lighter core → saturated edge */}
+                {presentTypes.map(({ ty, style }) => (
+                  <radialGradient key={`g-${ty}`} id={`node-grad-${ty}`} cx="35%" cy="30%" r="80%">
+                    <stop offset="0%" stopColor={shade(style.fill, 0.35)} />
+                    <stop offset="100%" stopColor={style.fill} />
+                  </radialGradient>
+                ))}
+                {/* Soft drop shadow for nodes */}
+                <filter id="node-shadow" x="-50%" y="-50%" width="200%" height="200%">
+                  <feDropShadow dx="0" dy="1.5" stdDeviation="2.5" floodColor="rgba(0,0,0,0.35)" />
+                </filter>
+                {/* Stronger glow for the active (hovered/selected) node */}
+                <filter id="node-glow" x="-80%" y="-80%" width="260%" height="260%">
+                  <feDropShadow dx="0" dy="0" stdDeviation="6" floodColor="rgba(255,255,255,0.45)" />
+                </filter>
+                {/* Arrow marker for directed edges */}
+                <marker id="arrowhead" markerWidth="7" markerHeight="7" refX="6.5" refY="3.5" orient="auto">
+                  <polygon points="0 0, 7 3.5, 0 7" fill="currentColor" />
+                </marker>
+              </defs>
+
               <g transform={`translate(${pan.x} ${pan.y}) scale(${zoom})`}>
                 {/* Edges — thickness reflects relationship strength.
                     "affects" edges are stronger (2px, solid) than "belongs_to" (1px). */}
@@ -3044,15 +3088,26 @@ function GraphSection({ data }: { data: any }) {
                   const isEdgeActive = activeNode && (edge.source_id === activeNode.id || edge.target_id === activeNode.id);
                   // Derive weight from edge_type: affects=strong, belongs_to=weak, default=medium.
                   const isStrong = edge.edge_type === "affects" || edge.edge_type === "causes";
+                  const isBelongsTo = edge.edge_type === "belongs_to";
                   const baseWidth = isStrong ? 2 : 1;
+                  // Shorten the line so the arrowhead stops before the node circle.
+                  const rS = nodeRMap[edge.source_id] || 6;
+                  const rD = nodeRMap[edge.target_id] || 6;
+                  const dx = d.x - s.x, dy = d.y - s.y;
+                  const len = Math.hypot(dx, dy) || 1;
+                  const ux = dx / len, uy = dy / len;
+                  const from = { x: s.x + ux * (rS + 1), y: s.y + uy * (rS + 1) };
+                  const to = { x: d.x - ux * (rD + 3), y: d.y - uy * (rD + 3) };
                   return (
                     <line
-                      key={i} x1={s.x} y1={s.y} x2={d.x} y2={d.y}
-                      stroke={isEdgeActive ? "currentColor" : "currentColor"}
-                      className={isEdgeActive ? "text-primary" : "text-muted-foreground/30"}
+                      key={i} x1={from.x} y1={from.y} x2={to.x} y2={to.y}
+                      stroke="currentColor"
+                      className={isEdgeActive ? "text-primary" : "text-muted-foreground/40"}
                       strokeWidth={isEdgeActive ? baseWidth + 1 : baseWidth}
-                      strokeOpacity={activeNode ? (isEdgeActive ? 0.9 : 0.08) : isStrong ? 0.55 : 0.3}
-                      strokeDasharray={edge.edge_type === "belongs_to" ? "4 3" : undefined}
+                      strokeOpacity={activeNode ? (isEdgeActive ? 0.95 : 0.08) : isStrong ? 0.6 : 0.35}
+                      strokeDasharray={isBelongsTo ? "4 3" : undefined}
+                      markerEnd={isBelongsTo ? undefined : "url(#arrowhead)"}
+                      style={{ transition: "stroke-opacity 0.15s ease" }}
                     />
                   );
                 })}
@@ -3076,20 +3131,26 @@ function GraphSection({ data }: { data: any }) {
                       onMouseEnter={() => setHoveredNode(node)}
                       onMouseLeave={() => setHoveredNode(null)}
                       opacity={(!matched) ? 0.15 : dim ? 0.25 : 1}
+                      style={{ transition: "opacity 0.15s ease" }}
                     >
-                      {hi && <circle r={r + 4} fill="none" stroke={style.fill} strokeWidth={1.5} strokeOpacity={0.4} />}
+                      {/* Glow ring for active nodes */}
+                      {hi && <circle r={r + 4.5} fill="none" stroke={style.fill} strokeWidth={1.5} strokeOpacity={0.5} style={{ transition: "r 0.15s ease" }} />}
                       <circle
-                        r={r} fill={style.fill}
-                        stroke={isSelected ? "white" : "white"}
+                        r={r}
+                        fill={`url(#node-grad-${node.node_type})`}
+                        stroke={isSelected ? "#ffffff" : "rgba(255,255,255,0.35)"}
                         strokeWidth={isSelected ? 2.5 : 1}
-                        strokeOpacity={isSelected ? 1 : 0.3}
+                        filter={isSelected ? "url(#node-glow)" : "url(#node-shadow)"}
+                        style={{ transition: "r 0.15s ease, stroke-width 0.15s ease" }}
                       />
+                      {/* Inner highlight dot for depth */}
+                      <circle r={r * 0.28} cx={-r * 0.3} cy={-r * 0.3} fill="rgba(255,255,255,0.28)" />
                       {/* Label — only when hovered/selected/highlighted or node is large */}
                       {(hi || r >= 12) && matched && (
                         <text
-                          x={0} y={r + 11} textAnchor="middle"
+                          x={0} y={r + 14} textAnchor="middle"
                           className="fill-foreground pointer-events-none select-none"
-                          style={{ fontSize: 9, fontWeight: hi ? 600 : 400 }}
+                          style={{ fontSize: 9, fontWeight: hi ? 600 : 400, paintOrder: "stroke", stroke: "var(--background)", strokeWidth: 2.5, strokeLinejoin: "round" }}
                         >
                           {(node.label || "").length > 22 ? (node.label || "").slice(0, 20) + "…" : (node.label || "")}
                         </text>
@@ -3913,8 +3974,9 @@ function AIReviewSection({ data }: { data: any }) {
                 <div className="text-xs text-muted-foreground">{t("claim.rate")}</div>
               </div>
             </div>
-            {/* Claim log — each claim as a row */}
-            <ScrollArea className="max-h-[300px]">
+            {/* Claim log — each claim as a row. Height adapts to content:
+                few claims → natural height, many → capped with scroll. */}
+            <ScrollArea className={review.claim_verification.claims.length > 6 ? "max-h-[300px]" : ""}>
               <div className="space-y-1.5">
                 {review.claim_verification.claims.map((claim: any, i: number) => {
                   const statusConfig: Record<string, { color: string; icon: React.ReactNode }> = {
@@ -3974,7 +4036,8 @@ function AIReviewSection({ data }: { data: any }) {
             </div>
           </CardHeader>
           <CardContent>
-            <ScrollArea className="max-h-[400px]">
+            {/* Height adapts to content: few entries → natural height, many → capped scroll. */}
+            <ScrollArea className={reasoningLog.length > 4 ? "max-h-[400px]" : ""}>
               <div className="space-y-2">
                 {reasoningLog.map((entry: any, i: number) => (
                   <div key={i} className="rounded-lg border p-3">
@@ -5480,12 +5543,12 @@ function ConfidenceExplanationCard({ data }: { data: any }) {
             </div>
             <div className="space-y-1">
               {exp.components.map((comp: any, i: number) => (
-                <div key={i} className="flex items-center gap-2 text-xs">
-                  <span className={`font-mono font-bold tabular-nums w-12 text-right ${comp.contribution > 0 ? "text-emerald-500" : comp.contribution < 0 ? "text-rose-500" : "text-muted-foreground"}`}>
+                <div key={i} className="flex items-start gap-2 text-xs">
+                  <span className={`shrink-0 font-mono font-bold tabular-nums w-12 text-right ${comp.contribution > 0 ? "text-emerald-500" : comp.contribution < 0 ? "text-rose-500" : "text-muted-foreground"}`}>
                     {comp.contribution > 0 ? "+" : ""}{comp.contribution}
                   </span>
-                  <span className="font-medium">{comp.name}</span>
-                  <span className="text-muted-foreground/70">— {comp.reason}</span>
+                  <span className="shrink-0 font-medium">{comp.name}</span>
+                  <span className="min-w-0 break-words text-muted-foreground/70">— {comp.reason}</span>
                 </div>
               ))}
             </div>
