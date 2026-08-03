@@ -1,5 +1,7 @@
 # repo-quality-analyzer
 
+**[English](README.md) | [Türkçe](README.tr.md)**
+
 A privacy-first, local repository quality analyzer. Clone a repository (or
 scan a local folder) and get a health score across 14 static-analysis
 dimensions — all in your browser, with bring-your-own-key LLM explanations.
@@ -113,7 +115,7 @@ thresholds (just below/above every limit) and benign look-alike traps.
 ## Development
 
 ```bash
-npm run test        # 141 unit + integration + golden tests
+npm run test        # 164 unit + integration + golden tests
 npm run lint
 npm run audit       # engine black-box audit (above)
 npm run build
