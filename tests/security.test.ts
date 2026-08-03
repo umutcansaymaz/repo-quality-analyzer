@@ -159,6 +159,23 @@ describe("Security skor — C entegrasyonu", () => {
     expect(shouldSkip("src/cache.tmp")).toBe(true);
     expect(shouldSkip("src/app.js")).toBe(false);
   });
+
+  it("Tarih-damgalı yedek klasörleri taramaya girmez (TUSLA dersi)", async () => {
+    const { shouldSkip } = await import("../src/lib/local-analysis");
+    expect(shouldSkip(".backup_admin_20260204/AdminAnalytics.jsx")).toBe(true);
+    expect(shouldSkip("backup_20260101/src/app.py")).toBe(true);
+    expect(shouldSkip("my-backup-20260101/data.json")).toBe(true);
+    expect(shouldSkip("src/backups/x.js")).toBe(true);
+    expect(shouldSkip("src/app.js")).toBe(false);
+  });
+
+  it("Dosya-adı yedekleri (*.backup.*, *.bak.*) taramaya girmez (TUSLA dersi)", async () => {
+    const { shouldSkip } = await import("../src/lib/local-analysis");
+    expect(shouldSkip("src/AdminPanel.backup.jsx")).toBe(true);
+    expect(shouldSkip("src/config.backup.json")).toBe(true);
+    expect(shouldSkip("src/app.bak.js")).toBe(true);
+    expect(shouldSkip("src/AdminPanel.jsx")).toBe(false);
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -149,6 +149,14 @@ export function shouldSkip(path: string, gitignoreSegs?: Set<string>): boolean {
   }
   if (parts.some((part) => SKIP_SEGMENTS.has(part))) return true;
   const basename = parts[parts.length - 1];
+  // Tarih-damgalı yedek segmentleri: .backup_admin_20260204, backup_20260101,
+  // my-backup-20260101 gibi her varyant (TUSLA .backup_admin_20260204 dersi).
+  // Yedekler eski kopyadır, güncel kodu yansıtmaz — analiz gürültüsü üretir.
+  for (const part of parts) {
+    if (/^\.?backup/i.test(part) || /backup[-_.]\d{6,}/i.test(part)) return true;
+  }
+  // Dosya-adı yedekleri: AdminPanel.backup.jsx, config.backup.json, app.bak.js
+  if (/\.(backup|bak)\.[a-z0-9]+$/i.test(basename)) return true;
   for (const f of SKIP_FILES) {
     if (f.startsWith("*.") && basename.endsWith(f.slice(1))) return true;
     if (basename === f) return true;
