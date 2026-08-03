@@ -3891,11 +3891,11 @@ function AIReviewSection({ data }: { data: any }) {
                     <div key={i} className="flex items-start gap-2 rounded border p-2">
                       <span className={`mt-0.5 shrink-0 ${cfg.color}`}>{cfg.icon}</span>
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs font-medium">{claim.text}</p>
-                        <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
-                          <span>{claim.reason}</span>
+                        <p className="break-words text-xs font-medium">{claim.text}</p>
+                        <div className="mt-0.5 text-xs text-muted-foreground">
+                          {claim.reason && <span className="block">{claim.reason}</span>}
                           {claim.evidence_ids?.length > 0 && (
-                            <span className="font-mono">{claim.evidence_ids.join(", ")}</span>
+                            <span className="mt-0.5 block break-all font-mono">{claim.evidence_ids.join(", ")}</span>
                           )}
                         </div>
                       </div>

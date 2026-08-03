@@ -2258,21 +2258,34 @@ export function buildLocalReport(
     total_nodes: Math.min(1 + files.length + evidence.length, 101),
     total_edges: Math.min(files.length, 50),
   };
-  const localVerifiedClaims = rootCauses.map((rc: any) => ({
-    claim_id: `local-vc-${rc.id}`,
-    claim_text: rc.title,
-    claim_type: rc.category,
-    severity: rc.severity,
-    confidence: rc.confidence,
-    status: "verified",
-    supporting_evidence_ids: rc.evidence_links.map((link: any) => link.evidence_id),
-    supporting_root_causes: [rc.id],
-    supporting_metrics: {},
-    supporting_files: rc.affected_files,
-    knowledge_graph_nodes: [],
-    planning_reference: steps.find((step: any) => step.root_cause_id === rc.id)?.id || null,
-    validation_reason: "Verified with local file evidence",
-  }));
+  const localVerifiedClaims = rootCauses.map((rc: any) => {
+    // Gerçek doğrulama durumu: verified kanıt oranına göre claim statüsü.
+    const total = Math.max(1, rc.evidence_count || 1);
+    const verified = rc.verified_evidence || 0;
+    const partial = rc.partial_evidence || 0;
+    const ratio = verified / total;
+    const claimStatus = ratio >= 0.9 ? "verified" : ratio >= 0.5 ? "partially_verified" : "unverified";
+    const reason = ratio >= 0.9
+      ? "İkinci-geçiş doğrulamasından geçti (bağımsız doğrulayıcı)"
+      : ratio >= 0.5
+        ? "Kanıtların bir kısmı ikinci-geçiş doğrulamasından geçti"
+        : "Yalnızca tek tarayıcı tespiti — ikinci doğrulama doğrulayamadı";
+    return {
+      claim_id: `local-vc-${rc.id}`,
+      claim_text: rc.title,
+      claim_type: rc.category,
+      severity: rc.severity,
+      confidence: rc.confidence,
+      status: claimStatus,
+      supporting_evidence_ids: rc.evidence_links.map((link: any) => link.evidence_id),
+      supporting_root_causes: [rc.id],
+      supporting_metrics: {},
+      supporting_files: rc.affected_files,
+      knowledge_graph_nodes: [],
+      planning_reference: steps.find((step: any) => step.root_cause_id === rc.id)?.id || null,
+      validation_reason: reason,
+    };
+  });
 
   result.engineering_review = {
     offline: !options.useLLM,
@@ -2319,7 +2332,33 @@ export function buildLocalReport(
       planning_validation: steps.length === rootCauses.length ? 100 : 0,
       claim_validation: coverage,
     },
-    claim_verification: { total_claims: rootCauses.length, verified: rootCauses.length, opinion: 0, rejected: 0, verification_rate: 1, claims: rootCauses.map((rc: any) => ({ id: `local-claim-${rc.id}`, text: rc.title, evidence_ids: rc.evidence_links.map((link: any) => link.evidence_id), status: "verified", reason: "Yerel dosya kanıtlarıyla doğrulandı" })) },
+    claim_verification: (() => {
+      const claims = rootCauses.map((rc: any) => {
+        const total = Math.max(1, rc.evidence_count || 1);
+        const verified = rc.verified_evidence || 0;
+        const partial = rc.partial_evidence || 0;
+        const ratio = verified / total;
+        // opinion: kısmen doğrulanmış kanıtlar veya verified + partial karışımı
+        const status = ratio >= 0.9 ? "verified" : (ratio >= 0.5 || partial > 0) ? "opinion" : "rejected";
+        const reason = ratio >= 0.9
+          ? "İkinci-geçiş doğrulamasından geçti (bağımsız doğrulayıcı)"
+          : (ratio >= 0.5 || partial > 0)
+            ? "Kanıtların bir kısmı ikinci-geçiş doğrulamasından geçti"
+            : "Yalnızca tek tarayıcı tespiti — ikinci doğrulama doğrulayamadı";
+        return { id: `local-claim-${rc.id}`, text: rc.title, evidence_ids: rc.evidence_links.map((link: any) => link.evidence_id), status, reason };
+      });
+      const verified = claims.filter((c: any) => c.status === "verified").length;
+      const opinion = claims.filter((c: any) => c.status === "opinion").length;
+      const rejected = claims.filter((c: any) => c.status === "rejected").length;
+      return {
+        total_claims: claims.length,
+        verified,
+        opinion,
+        rejected,
+        verification_rate: claims.length ? verified / claims.length : 1,
+        claims,
+      };
+    })(),
     coverage_engine: { overall: coverage, ...Object.fromEntries(steps.map((step: any) => [step.id, { needs_evidence: Math.max(1, step.evidence_chain.length), has_evidence: step.evidence_chain.length, coverage: 100, status: "pass" }])) },
     quality_gates: Object.fromEntries(steps.map((step: any) => [step.id, { evidence_validation: "pass", analyzer_consensus: 1, coverage: 100, claim_validation: "pass", graph_validation: "pass", overall: "verified" }])),
     verified_claims: localVerifiedClaims,

@@ -159,7 +159,7 @@ describe("Doğrulama ve kanıt", () => {
   it("Root cause validation: gerçek konsensüs bilgisi taşır", async () => {
     const { buildLocalReport } = await import("../src/lib/local-analysis");
     const scan = await scanRepo([
-      { path: "src/keys.ts", content: "const k = 'sk-" + "abc1234567890abcdefghijklmnop';\n" },
+      { path: "src/keys.ts", content: `const k = '${"sk-" + "abc1234567890abcdefghijklmnop"}';\n` },
       { path: "src/ok.ts", content: "export const x = 1;\n" },
     ]);
     const report = buildLocalReport(scan, "test", { useLLM: false });
@@ -168,5 +168,33 @@ describe("Doğrulama ve kanıt", () => {
     expect(rc.verified_evidence).toBeGreaterThanOrEqual(1);
     const validation = report.root_causes.validation[rc.id];
     expect(validation.analyzer_consensus).toBeGreaterThanOrEqual(1);
+  });
+
+  it("Claim verification: gerçek doğrulama durumlarını yansıtır (verified/opinion/rejected)", async () => {
+    const { buildLocalReport } = await import("../src/lib/local-analysis");
+    // Yüksek entropy'li gerçek secret → verified claim
+    const scanVerified = await scanRepo([
+      { path: "src/keys.ts", content: `const k = '${"sk-" + "abc1234567890abcdefghijklmnop"}';\n` },
+      { path: "src/ok.ts", content: "export const x = 1;\n" },
+    ]);
+    const reportVerified = buildLocalReport(scanVerified, "test", { useLLM: false });
+    const cv1 = reportVerified.engineering_review.claim_verification;
+    expect(cv1.verified).toBeGreaterThanOrEqual(1);
+    expect(cv1.verified + cv1.opinion + cv1.rejected).toBe(cv1.total_claims);
+
+    // Düşük entropy'li (tekrar eden) secret → partial evidence → opinion claim
+    const scanPartial = await scanRepo([
+      { path: "src/keys.ts", content: `const k = '${"sk-" + "aaaaaaaaaaaaaaaaaaaaaaaa"}';\n` },
+      { path: "src/ok.ts", content: "export const x = 1;\n" },
+    ]);
+    const reportPartial = buildLocalReport(scanPartial, "test", { useLLM: false });
+    const cv2 = reportPartial.engineering_review.claim_verification;
+    expect(cv2.opinion + cv2.rejected).toBeGreaterThanOrEqual(1);
+    // Her claim'in text/status/evidence_ids alanları dolu
+    for (const c of cv2.claims) {
+      expect(c.text).toBeTruthy();
+      expect(["verified", "opinion", "rejected"]).toContain(c.status);
+      expect(Array.isArray(c.evidence_ids)).toBe(true);
+    }
   });
 });
