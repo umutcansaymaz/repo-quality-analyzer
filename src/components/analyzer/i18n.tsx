@@ -328,6 +328,14 @@ const translations: Record<Language, TranslationDict> = {
     "meta.phases": "Phases",
     "meta.files": "Files",
     "meta.languages": "Languages",
+    "meta.scanSummary": "Scan Summary",
+    "meta.sourceLines": "Lines",
+    "meta.validation": "Validation",
+    "meta.verified": "verified",
+    "meta.partial": "partial",
+    "meta.unverified": "unverified",
+    "meta.severityBreakdown": "Findings by severity",
+    "meta.topRootCauses": "Top Root Causes",
 
     // Keyboard Shortcuts
     "shortcuts.title": "Keyboard Shortcuts",
@@ -1042,6 +1050,14 @@ const translations: Record<Language, TranslationDict> = {
     "meta.phases": "Fazlar",
     "meta.files": "Dosyalar",
     "meta.languages": "Diller",
+    "meta.scanSummary": "Tarama Özeti",
+    "meta.sourceLines": "Satır",
+    "meta.validation": "Doğrulama",
+    "meta.verified": "doğrulandı",
+    "meta.partial": "kısmi",
+    "meta.unverified": "doğrulanmadı",
+    "meta.severityBreakdown": "Önem seviyesine göre bulgular",
+    "meta.topRootCauses": "Öncelikli Kök Nedenler",
 
     // Keyboard Shortcuts
     "shortcuts.title": "Klavye Kısayolları",

@@ -27,6 +27,7 @@ import {
   Zap,
   Target,
   Lightbulb,
+  BarChart3,
   FileText,
   Eye,
   Beaker,
@@ -1492,6 +1493,8 @@ function ResultsDashboard({ data, onReset }: { data: any; onReset: () => void })
         <div className="space-y-4">
           <HealthScoreCard data={data} />
           <LLMStatusCard data={data} />
+          <ScanSummaryCard data={data} />
+          <RootCauseMiniCard data={data} />
           {/* Pipeline phases card — fills the vertical gap when the right
               sidebar (Trust + Meta) is taller than the left column. */}
           <PipelinePhasesCard data={data} />
@@ -1848,6 +1851,126 @@ function PipelinePhasesCard({ data }: { data: any }) {
             </div>
           ))}
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Scan Summary card — fills the left column when the right sidebar (Trust +
+// Meta) is taller. Shows real scan statistics: files, lines, evidence count
+// and the validation breakdown (verified / partial / unverified).
+function ScanSummaryCard({ data }: { data: any }) {
+  const { t } = useI18n();
+  const summary = data?.repository_metadata?.scan_summary;
+  const inv = data?.file_inventory;
+  const stats = data?.evidence?.statistics;
+
+  const files = inv?.total_files ?? summary?.files_scanned ?? 0;
+  const evidenceCount = stats?.total_evidence ?? summary?.evidence_count ?? 0;
+  const verified = stats?.passed ?? 0;
+  const partial = stats?.warning ?? 0;
+  const unverified = stats?.failed ?? 0;
+  const sourceLines = data?.repository_metadata?.source_lines ?? 0;
+  const problems = summary?.problems || {};
+
+  const severityBadges: { key: string; label: string; cls: string }[] = [
+    { key: "critical", label: "Crit", cls: "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30" },
+    { key: "high", label: "High", cls: "bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/30" },
+    { key: "medium", label: "Med", cls: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30" },
+    { key: "low", label: "Low", cls: "bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/30" },
+  ];
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <BarChart3 className="h-4 w-4" /> {t("meta.scanSummary")}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid grid-cols-3 gap-2">
+          <div className="rounded-md border p-2 text-center">
+            <div className="text-lg font-bold tabular-nums">{files}</div>
+            <div className="text-[10px] text-muted-foreground">{t("meta.files")}</div>
+          </div>
+          <div className="rounded-md border p-2 text-center">
+            <div className="text-lg font-bold tabular-nums">{sourceLines.toLocaleString()}</div>
+            <div className="text-[10px] text-muted-foreground">{t("meta.sourceLines")}</div>
+          </div>
+          <div className="rounded-md border p-2 text-center">
+            <div className="text-lg font-bold tabular-nums">{evidenceCount}</div>
+            <div className="text-[10px] text-muted-foreground">{t("trust.evidenceCount")}</div>
+          </div>
+        </div>
+
+        {evidenceCount > 0 && (
+          <div className="space-y-1.5">
+            <div className="text-xs text-muted-foreground">{t("meta.validation")}</div>
+            <div className="flex flex-wrap gap-1.5">
+              <Badge variant="secondary" className="gap-1 text-xs bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
+                <CheckCircle className="h-3 w-3" /> {verified} {t("meta.verified")}
+              </Badge>
+              {partial > 0 && (
+                <Badge variant="secondary" className="gap-1 text-xs bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30">
+                  <AlertCircle className="h-3 w-3" /> {partial} {t("meta.partial")}
+                </Badge>
+              )}
+              {unverified > 0 && (
+                <Badge variant="secondary" className="gap-1 text-xs bg-muted text-muted-foreground border-border">
+                  <Circle className="h-3 w-3" /> {unverified} {t("meta.unverified")}
+                </Badge>
+              )}
+            </div>
+          </div>
+        )}
+
+        {Object.keys(problems).length > 0 && (
+          <div className="space-y-1.5">
+            <div className="text-xs text-muted-foreground">{t("meta.severityBreakdown")}</div>
+            <div className="flex flex-wrap gap-1.5">
+              {severityBadges.filter((b) => problems[b.key]).map((b) => (
+                <Badge key={b.key} variant="outline" className={`gap-1 text-xs ${b.cls}`}>
+                  {b.label} ×{problems[b.key]}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// Root Cause Mini card — compact summary of the top root causes.
+// Helps balance the dashboard when the right sidebar is taller.
+function RootCauseMiniCard({ data }: { data: any }) {
+  const { t } = useI18n();
+  const causes = data?.root_causes?.root_causes || [];
+
+  if (causes.length === 0) return null;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <Bug className="h-4 w-4" /> {t("meta.topRootCauses")}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {causes.slice(0, 3).map((rc: any, i: number) => (
+          <div key={rc.id || i} className="flex items-start gap-2">
+            <Badge variant={severityVariant(rc.severity)} className="mt-0.5 shrink-0 text-[10px]">{rc.severity}</Badge>
+            <div className="min-w-0">
+              <div className="truncate text-xs font-medium">{rc.title}</div>
+              <div className="text-[10px] text-muted-foreground">
+                {rc.evidence_count} {t("evidence.ofItems")} · {rc.affected_files?.length || 0} {t("meta.files")}
+                {rc.verified_evidence != null && (
+                  <span className="ml-1 text-emerald-500">· {rc.verified_evidence} ✓</span>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
       </CardContent>
     </Card>
   );
