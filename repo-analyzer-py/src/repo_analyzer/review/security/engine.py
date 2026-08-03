@@ -196,7 +196,7 @@ _CUSTOM_RULES: list[dict[str, Any]] = [
         "category": "shell_true",
         "severity": RiskLevel.HIGH,
         "pattern": r"""subprocess\.\w+\([^)]*shell\s*=\s*True""",
-        "flags": re.DOTALL,
+        "flags": re.DOTALL | re.MULTILINE,
         "why": "shell=True passes the command through a shell, enabling injection via shell metacharacters.",
         "risk": "Command injection — attacker-controlled arguments become shell commands.",
         "solution": "Pass args as a list with shell=False; sanitize and validate inputs.",

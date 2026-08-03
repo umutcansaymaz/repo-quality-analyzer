@@ -15,6 +15,7 @@ import typer
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
+from rich.text import Text
 
 from repo_analyzer.adapters.cache import SQLiteCacheAdapter
 from repo_analyzer.core.domain.repository import parse_repository_url
@@ -51,7 +52,10 @@ def run_analyze(
 
     # Validate URL.
     if not is_valid_git_url(repository_url):
-        console.print(f"[error]✗ Invalid repository URL:[/error] {repository_url}")
+        console.print(
+            Text.assemble(("✗ Invalid repository URL: ", "error"), (repository_url, "")),
+            markup=False,
+        )
         raise ConfigurationException(
             f"Invalid repository URL: {repository_url!r}",
             field="repository",
@@ -81,9 +85,9 @@ def run_analyze(
     )
 
     ui.print("")
-    console.print(f"[title]Analyzing[/title] [key]{repository.owner}/{repository.name}[/key]")
-    console.print(f"[title]Host[/title]       [value]{repository.host}[/value]")
-    console.print(f"[title]Access[/title]     [value]{repository.access.value}[/value]")
+    console.print(Text.assemble(("Analyzing ", "title"), (f"{repository.owner}/{repository.name}", "key")), markup=False)
+    console.print(Text.assemble(("Host       ", "title"), (repository.host, "value")), markup=False)
+    console.print(Text.assemble(("Access     ", "title"), (repository.access.value, "value")), markup=False)
     ui.print("")
 
     # Set up cancellation via SIGINT (Ctrl+C).
@@ -110,7 +114,7 @@ def run_analyze(
     if output:
         payload = result.model_dump(mode="json")
         output.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
-        console.print(f"\n[muted]Analysis result written to {output}[/muted]")
+        console.print(Text.assemble(("Analysis result written to ", "muted"), (str(output), "")), markup=False)
 
     # Generate reports if requested.
     if report_formats:
@@ -249,15 +253,17 @@ def _render_summary(console: Console, result: object) -> None:
 
     console.print(table)
 
-    # Render the AI commentary panel if available.
+    # Render the AI commentary panel if available (LLM output is wrapped as Text to prevent markup injection).
     if review and review.metadata.get("commentary"):
+        commentary_text = Text(review.metadata["commentary"])
         console.print(
             Panel(
-                review.metadata["commentary"],
-                title="[title]AI Engineering Review[/title]",
+                commentary_text,
+                title=Text("AI Engineering Review", style="title"),
                 border_style="info",
                 expand=False,
-            )
+            ),
+            markup=False,
         )
 
 
@@ -307,7 +313,7 @@ def _generate_reports(
     try:
         paths = generator.render(result)  # type: ignore[arg-type]
         for fmt, path in paths.items():
-            console.print(f"[green]✓[/green] {fmt.value} report: [value]{path}[/value]")
+            console.print(Text.assemble(("✓ ", "green"), (f"{fmt.value} report: ", ""), (str(path), "value")), markup=False)
     except Exception as exc:
         console.print(f"[red]✗ Report generation failed:[/red] {exc}")
 

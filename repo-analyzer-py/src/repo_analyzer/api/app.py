@@ -309,7 +309,12 @@ def generate_report(req: ReportRequest, request: Request) -> Response:
     return Response(
         content=content,
         media_type=mime_map[report_format.value],
-        headers={"Content-Disposition": f'inline; filename="report.{fmt}"'},
+        headers={
+            "Content-Disposition": f'inline; filename="report.{fmt}"',
+            "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'",
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "DENY",
+        },
     )
 
 

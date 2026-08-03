@@ -272,6 +272,8 @@ class Orchestrator:
         except Exception as exc:
             _logger.error("Analysis failed: %s", exc)
             result.mark_failed({"error": str(exc), "type": type(exc).__name__})
+        finally:
+            self._cache.purge_expired()
         return result
 
     # ----- internal -------------------------------------------------------------

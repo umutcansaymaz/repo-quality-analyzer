@@ -237,13 +237,18 @@ class SQLiteCacheAdapter(CachePort):
             return entry
 
     def delete(self, key: CacheKey) -> bool:
-        """Delete the entry identified by ``key``."""
+        """Delete the entry identified by ``key`` and clean up its workspace."""
         return self._delete_by_key(key.to_hash())
 
     def _delete_by_key(self, key_hash: str) -> bool:
         with self._lock:
             try:
                 cursor = self._get_conn().execute(
+                    "SELECT workspace_path FROM cache_entries WHERE key = ?", (key_hash,)
+                )
+                row = cursor.fetchone()
+                workspace = Path(row["workspace_path"]) if row and row["workspace_path"] else None
+                self._get_conn().execute(
                     "DELETE FROM cache_entries WHERE key = ?", (key_hash,)
                 )
             except sqlite3.Error as exc:
@@ -251,7 +256,14 @@ class SQLiteCacheAdapter(CachePort):
                     f"Cache delete failed: {exc}",
                     cache_key=key_hash,
                 ) from exc
-            return cursor.rowcount > 0
+            deleted = cursor.rowcount > 0
+        if deleted and workspace and workspace.exists():
+            try:
+                import shutil
+                shutil.rmtree(workspace, ignore_errors=True)
+            except Exception:
+                pass
+        return deleted
 
     def list_entries(self, entry_type: CacheEntryType | None = None) -> Sequence[CacheEntry]:
         """List entries, optionally filtered by type."""
@@ -270,27 +282,47 @@ class SQLiteCacheAdapter(CachePort):
         return [self._row_to_entry(row) for row in rows]
 
     def clear(self) -> int:
-        """Remove all entries and return the count deleted."""
+        """Remove all entries (including their workspace directories) and return the count deleted."""
         with self._lock:
             try:
+                cursor = self._get_conn().execute("SELECT workspace_path FROM cache_entries")
+                workspaces = [Path(r[0]) for r in cursor.fetchall() if r[0]]
                 cursor = self._get_conn().execute("SELECT COUNT(*) FROM cache_entries")
                 count = int(cursor.fetchone()[0])
                 self._get_conn().execute("DELETE FROM cache_entries")
             except sqlite3.Error as exc:
                 raise CacheException(f"Cache clear failed: {exc}") from exc
-            return count
+        for ws in workspaces:
+            try:
+                import shutil
+                if ws.exists():
+                    shutil.rmtree(ws, ignore_errors=True)
+            except Exception:
+                pass
+        return count
 
     def purge_expired(self) -> int:
-        """Delete all expired entries."""
+        """Delete all expired entries and their workspace directories."""
         now = _iso(datetime.now(tz=UTC))
         with self._lock:
             try:
+                cursor = self._get_conn().execute(
+                    "SELECT workspace_path FROM cache_entries WHERE expires_at < ?", (now,)
+                )
+                workspaces = [Path(r[0]) for r in cursor.fetchall() if r[0]]
                 cursor = self._get_conn().execute(
                     "DELETE FROM cache_entries WHERE expires_at < ?", (now,)
                 )
             except sqlite3.Error as exc:
                 raise CacheException(f"Cache purge failed: {exc}") from exc
-            return cursor.rowcount
+        for ws in workspaces:
+            try:
+                import shutil
+                if ws.exists():
+                    shutil.rmtree(ws, ignore_errors=True)
+            except Exception:
+                pass
+        return cursor.rowcount
 
     def close(self) -> None:
         """Close the thread-local database connection (if open)."""
