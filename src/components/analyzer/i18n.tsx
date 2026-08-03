@@ -278,6 +278,11 @@ const translations: Record<Language, TranslationDict> = {
     "onboarding.testSkip": "Skip test",
     "onboarding.optional": "Optional",
 
+    // Report
+    "report.export": "Export Report",
+    "report.exported": "Report exported as",
+    "report.exportFailed": "Export failed",
+
     // Tabs
     "tabs.github": "GitHub Repository",
     "tabs.local": "Local Folder",
@@ -1005,6 +1010,11 @@ const translations: Record<Language, TranslationDict> = {
     "onboarding.testFailed": "Bağlantı başarısız. Bu adımı atlayıp daha sonra deneyebilirsiniz.",
     "onboarding.testSkip": "Testi atla",
     "onboarding.optional": "İsteğe bağlı",
+
+    // Report
+    "report.export": "Raporu Dışa Aktar",
+    "report.exported": "Rapor dışa aktarıldı:",
+    "report.exportFailed": "Dışa aktarma başarısız",
 
     // Tabs
     "tabs.github": "GitHub Deposu",

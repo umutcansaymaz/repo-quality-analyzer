@@ -835,6 +835,7 @@ function AppContent() {
                 />
               </div>
             )}
+            {analysisData && view === "results" && <ReportExport data={analysisData.result} />}
             {analysisData && view === "results" && historyEntries.length > 0 && (
               <Button variant="ghost" size="sm" className="h-9 gap-1.5 px-2" onClick={() => setShowCompare(true)} title={t("compare.title")}>
                 <GitBranch className="h-4 w-4" />
@@ -6469,6 +6470,50 @@ function LLMSettingsSection() {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Report Export
+// ---------------------------------------------------------------------------
+
+function ReportExport({ data }: { data: any }) {
+  const { t } = useI18n();
+  const [open, setOpen] = React.useState(false);
+
+  const handleExport = async (format: string) => {
+    try {
+      const res = await apiFetch("/api/report", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ job_id: data?.id || "latest", format, repository_url: data?.repository?.url || "" }) });
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      // Use the filename from Content-Disposition if present, otherwise guess.
+      const cd = res.headers.get("Content-Disposition") || "";
+      const m = cd.match(/filename="([^"]+)"/);
+      a.download = m ? m[1] : `report.${format === "md" ? "md" : format}`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(`${t("report.exported")} ${format.toUpperCase()}`);
+    } catch (err: any) {
+      toast.error(`${t("report.exportFailed")}: ${err.message}`);
+    }
+    setOpen(false);
+  };
+
+  return (
+    <div className="relative">
+      <Button variant="ghost" size="icon" onClick={() => setOpen(!open)}><Download className="h-4 w-4" /></Button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-50 rounded-lg border bg-background shadow-lg">
+          <div className="p-1">
+            <button onClick={() => handleExport("html")} className="flex w-full items-center gap-2 rounded px-3 py-1.5 text-sm hover:bg-muted">HTML</button>
+            <button onClick={() => handleExport("md")} className="flex w-full items-center gap-2 rounded px-3 py-1.5 text-sm hover:bg-muted">Markdown</button>
+            <button onClick={() => handleExport("json")} className="flex w-full items-center gap-2 rounded px-3 py-1.5 text-sm hover:bg-muted">JSON</button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
