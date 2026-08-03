@@ -44,12 +44,12 @@ describe("Gerçek-dünya golden — TUSLA", () => {
 
 describe("Gerçek-dünya golden — kalite (kendi kodu)", () => {
   it.skipIf(!existsSync(KALITE + "/src/lib/local-analysis.ts"))(
-    "68.7 skor ve 0 komut enjeksiyonu FP'si (kendi motoru dahil)",
+    "70.5 skor ve 0 komut enjeksiyonu FP'si (kendi motoru dahil)",
     async () => {
       const report = await scanDir(KALITE, "kalite");
       const hs = report.ai_review.health_score;
-      expect(hs.overall).toBeGreaterThanOrEqual(67.7);
-      expect(hs.overall).toBeLessThanOrEqual(69.7);
+      expect(hs.overall).toBeGreaterThanOrEqual(69.5);
+      expect(hs.overall).toBeLessThanOrEqual(71.5);
 
       const ev = report.evidence.evidence;
       const injections = ev.filter((e: any) => e.category === "command_injection");
