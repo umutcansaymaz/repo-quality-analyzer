@@ -1,12 +1,27 @@
 ============================================================
-AUDIT SONUCU — 395 repo
+AUDIT SONUCU — 417 repo
 ============================================================
-  Toplam beklenen bulgu: 533
+  Toplam beklenen bulgu: 539
   FALSE POSITIVE: 0
   FALSE NEGATIVE: 0
   Ortalama precision (FP yokluğu): %100.0
   Ortalama recall (kaçırma yokluğu): %100.0
   Temiz repolarda FP: 0 (hedef: 0)
+
+BİLİNEN SINIRLAR (kasıtlı FN — motor bu desenleri yakalayamaz):
+  [secret-concat-ts] → yakalanamayan: secret_concat
+  [secret-base64-ts] → yakalanamayan: secret_base64
+  [secret-concat-py] → yakalanamayan: secret_concat
+  [secret-base64-py] → yakalanamayan: secret_base64
+  [secret-concat-go] → yakalanamayan: secret_concat
+  [secret-base64-go] → yakalanamayan: secret_base64
+  [secret-concat-rb] → yakalanamayan: secret_concat
+  [secret-base64-rb] → yakalanamayan: secret_base64
+  [secret-concat-java] → yakalanamayan: secret_concat
+  [secret-base64-java] → yakalanamayan: secret_base64
+  [crypto-dynamic-ts] → yakalanamayan: crypto_dynamic
+
+SEVERITY UYUMSUZLUĞU: 0 (tüm kategoriler doğru severity üretiyor)
 
 KATEGORİ BAZINDA:
   hardcoded_secret     ok=25 fp=0 fn=0
@@ -17,7 +32,7 @@ KATEGORİ BAZINDA:
   long_function        ok=41 fp=0 fn=0
   deep_nesting         ok=26 fp=0 fn=0
   high_complexity      ok=26 fp=0 fn=0
-  command_injection    ok=25 fp=0 fn=0
+  command_injection    ok=31 fp=0 fn=0
   weak_crypto          ok=25 fp=0 fn=0
   god_class            ok=26 fp=0 fn=0
   tight_coupling       ok=26 fp=0 fn=0

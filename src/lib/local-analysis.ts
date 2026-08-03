@@ -941,8 +941,11 @@ function makeEvidence(
 ): string {
   // Geçici cap: tarama sırasında bellek sınırı. Final kesim tarama sonunda
   // severity önceliğine göre yapılır (critical→low), burada hard cap uygulanmaz
-  // — aksi halde low'lar high'ları ezebilir.
-  if (evidence.length >= MAX_EVIDENCE * 2) return "";
+  // — aksi halde low'lar high'ları ezebilir ve DOSYA SIRALAMASI nedeniyle son
+  // dosyaların bulguları hiç üretilmez (örn. TUSLA src/firebase.js — functions/
+  // önce işlenir, havuz dolarsa src/ bulguları kaybolur). 10× havuz yeterli:
+  // TUSLA ölçeğinde bile bellek yükü KB seviyesinde kalır, kesim 300'de yapılır.
+  if (evidence.length >= MAX_EVIDENCE * 10) return "";
   const id = `local-ev-${evidence.length + 1}`;
   evidence.push({
     id,
@@ -1004,10 +1007,10 @@ function validateEvidence(evidence: LocalEvidence[], fileContents: Map<string, s
       }
       case "command_injection": {
         // İkinci doğrulama: ilk tespitle AYNI fonksiyonu yeniden çalıştır (deterministik
-        // desen seti — findCommandInjection zaten yorum/string maskesi uygular ve
+        // desen seti — findCommandInjections zaten yorum/string maskesi uygular ve
         // ".exec(" RegExp çağrısını komut sanmaz).
-        const found = findCommandInjection(content, languageFamilyOf(extensionOf(item.file_path)));
-        if (found) {
+        const found = findCommandInjections(content, languageFamilyOf(extensionOf(item.file_path)));
+        if (found.length > 0) {
           validators.push("context-validator");
           item.validation_status = "verified";
         } else {
@@ -1017,9 +1020,9 @@ function validateEvidence(evidence: LocalEvidence[], fileContents: Map<string, s
       }
       case "weak_crypto": {
         // İkinci doğrulama: ilk tespitle AYNI fonksiyonu yeniden çalıştır (deterministik
-        // desen seti — findWeakCrypto zaten string/regex maskesi uygular).
-        const found = findWeakCrypto(content, languageFamilyOf(extensionOf(item.file_path)));
-        if (found) {
+        // desen seti — findWeakCryptos zaten string/regex maskesi uygular).
+        const found = findWeakCryptos(content, languageFamilyOf(extensionOf(item.file_path)));
+        if (found.length > 0) {
           validators.push("context-validator");
           item.validation_status = "verified";
         } else {
@@ -1029,8 +1032,8 @@ function validateEvidence(evidence: LocalEvidence[], fileContents: Map<string, s
       }
       case "empty_handler": {
         // İkinci doğrulama: boş blok gerçekten boş mu (yeniden tespit)?
-        const found = findEmptyHandler(content);
-        if (found) {
+        const found = findEmptyHandlers(content);
+        if (found.length > 0) {
           validators.push("brace-validator");
           item.validation_status = "verified";
         } else {
@@ -1051,8 +1054,8 @@ function validateEvidence(evidence: LocalEvidence[], fileContents: Map<string, s
         break;
       }
       case "magic_number": {
-        const found = findMagicNumber(content);
-        if (found) {
+        const found = findMagicNumbers(content);
+        if (found.length > 0) {
           validators.push("context-validator");
           item.validation_status = "verified";
         } else {
@@ -1164,19 +1167,21 @@ function shannonEntropy(s: string): number {
 /** Öncelik sıralı cap: critical → high → medium → low. Aynı dosyadaki tekrarlar tek evidence'a indirgenir
  * (en yüksek severity korunur), JSON boyutu ve skor doğruluğu için. */
 function capEvidenceByPriority(evidence: LocalEvidence[]): LocalEvidence[] {
-  // Kategori bazlı dedup: aynı dosya+kategori çiftinde yalnızca en yüksek
-  // severity korunur. FARKLI kategoriler aynı dosyada olsa bile korunur —
-  // aksi halde tight_coupling gibi bulgular, aynı dosyadaki daha yüksek
-  // severity'li bulgu (örn. missing_tests) tarafından ezilirdi.
-  const byFileCategory = new Map<string, LocalEvidence>();
+  // Aynı dosya+kategori çiftinde birden çok bulgu KORUNUR (dosyada 3 enjeksiyon
+  // = 3 kanıt) — "ilk bulgu saklama" kalktı. Patlama koruması: dosya+kategori
+  // başına en fazla 5 bulgu (bellek + rapor okunabilirliği).
+  // FARKLI kategoriler aynı dosyada olsa bile korunur — aksi halde tight_coupling
+  // gibi bulgular, aynı dosyadaki daha yüksek severity'li bulgu tarafından ezilirdi.
+  const counts = new Map<string, number>();
+  const out: LocalEvidence[] = [];
   for (const item of evidence) {
     const key = `${item.file_path}\u0000${item.category}`;
-    const cur = byFileCategory.get(key);
-    if (!cur || (SEVERITY_WEIGHT[item.severity] || 0) > (SEVERITY_WEIGHT[cur.severity] || 0)) {
-      byFileCategory.set(key, item);
-    }
+    const n = counts.get(key) || 0;
+    if (n >= 5) continue;
+    counts.set(key, n + 1);
+    out.push(item);
   }
-  return [...byFileCategory.values()]
+  return out
     .sort((a, b) => (SEVERITY_WEIGHT[b.severity] || 0) - (SEVERITY_WEIGHT[a.severity] || 0))
     .slice(0, MAX_EVIDENCE);
 }
@@ -1204,7 +1209,8 @@ export interface LocalScanResult {
  * B3: Boş hata yakalama bloğu bulur — catch { }, catch (e) { }, except: pass.
  * Gövde yorum içeriyorsa "boş" sayılmaz (gerçekten sessizce yutma sinyali).
  */
-function findEmptyHandler(text: string): { index: number } | null {
+function findEmptyHandlers(text: string): { index: number }[] {
+  const out: { index: number }[] = [];
   // JS/TS/C#/Java: catch (...) { } — gövde yalnızca boşluk/yorum olabilir.
   const braceRe = /catch\s*(?:\([^)]*\))?\s*\{/g;
   let m: RegExpExecArray | null;
@@ -1213,15 +1219,15 @@ function findEmptyHandler(text: string): { index: number } | null {
     const closeIdx = text.indexOf("}", openIdx);
     if (closeIdx === -1) continue;
     const body = text.slice(openIdx, closeIdx);
-    if (!body.trim()) return { index: m.index };
+    if (!body.trim()) { out.push({ index: m.index }); continue; }
     // Yorum varsa handled sayılır — boş sayılmaz.
     const stripped = body.replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "").trim();
-    if (!stripped) return { index: m.index };
+    if (!stripped) out.push({ index: m.index });
   }
   // Python: except ...: pass
   const pyRe = /except\s+[\w.]*(?:\s+as\s+\w+)?\s*:\s*pass\b/gi;
-  const pm = pyRe.exec(text);
-  if (pm) return { index: pm.index };
+  let pm: RegExpExecArray | null;
+  while ((pm = pyRe.exec(text)) !== null) out.push({ index: pm.index });
   // Ruby: rescue satırından sonra doğrudan "end" geliyorsa boş handler (hata yutuluyor)
   const rubyLines = text.split(/\r?\n/);
   for (let i = 0; i < rubyLines.length; i++) {
@@ -1230,15 +1236,16 @@ function findEmptyHandler(text: string): { index: number } | null {
       if (!next || next === "end") {
         let idx = 0;
         for (let j = 0; j < i; j++) idx += rubyLines[j].length + 1;
-        return { index: idx };
+        out.push({ index: idx });
       }
     }
   }
   // Go: recover() — hata yakalanıp yutuluyor (defer+recover veya _ = recover()).
   const goRecoverRe = /\bdefer\s+[^;\n]*recover\s*\(|_ = \s*recover\s*\(/g;
-  const gr = goRecoverRe.exec(text);
-  if (gr) return { index: gr.index };
-  return null;
+  let gr: RegExpExecArray | null;
+  while ((gr = goRecoverRe.exec(text)) !== null) out.push({ index: gr.index });
+  out.sort((a, b) => a.index - b.index);
+  return out;
 }
 
 /**
@@ -1247,7 +1254,8 @@ function findEmptyHandler(text: string): { index: number } | null {
  * 30-99 gibi yaygın eşikler gürültü ürettiği için hariç tutulur. Yuvarlak
  * değerler (100/200/500/1000) de makul kabul edilir.
  */
-function findMagicNumber(text: string): { index: number; value: string } | null {
+function findMagicNumbers(text: string): { index: number; value: string }[] {
+  const out: { index: number; value: string }[] = [];
   const re = /[=,(]\s*(\d{3,})\b/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
@@ -1261,35 +1269,84 @@ function findMagicNumber(text: string): { index: number; value: string } | null 
     const lineStart = text.lastIndexOf("\n", idx) + 1;
     const line = text.slice(lineStart, idx);
     if (/\/\/|#|\/\*|\*/.test(line)) continue;
-    return { index: idx, value: val };
+    out.push({ index: idx, value: val });
   }
-  return null;
+  return out;
 }
 
 /**
  * C1: Komut enjeksiyonu deseni bulur — doğrudan komut çalıştırma çağrıları.
  * String literal ve yorum içindeki eşleşmeleri atlar (yanlış pozitif koruması).
+ * staticCheck=true → argüman tamamen tırnaklı literal ise (interpolasyon/concat
+ * yok) sabit komut sayılır ve FP üretmez (exec("ls -la") güvenli; exec(cmd) riskli).
+ * staticCheck=false → flag desenleri (shell=True) — argüman komut değildir,
+ * kontrol edilmez. braceOnly → yalnızca brace dillerinde aranır (Python'da
+ * shell=True zaten subprocess deseniyle yakalanır — çifte sayım olmasın).
  */
-const INJECTION_PATTERNS: { re: RegExp; label: string }[] = [
+const INJECTION_PATTERNS: { re: RegExp; label: string; staticCheck?: boolean; braceOnly?: boolean }[] = [
   // exec() - yalnızca nokta öncesi YOKSA (RegExp.prototype.exec'i komut sanma):
   // (?<!\.) lookbehind - "pattern.exec(" yakalanmaz, "exec(cmd)" yakalanır.
-  { re: /(?<!\.)\bexec\s*\(/, label: "exec()" },
-  { re: /\beval\s*\(/, label: "eval()" },
-  { re: /\bos\.system\s*\(/, label: "os.system()" },
-  { re: /\bsubprocess\.\w+\s*\([^)]*\bshell\s*=\s*True/i, label: "subprocess shell=True" },
-  { re: /\bshell\s*=\s*true\b/i, label: "shell: true" },
-  { re: /\bshell_exec\s*\(/, label: "shell_exec()" },
-  { re: /Runtime\.getRuntime\(\)\.exec\s*\(/, label: "Runtime.exec()" },
-  { re: /\bexecSync\s*\(/, label: "execSync()" },
+  // NOT: Tüm desenler g flag'li OLMALI — findCommandInjections while(exec) ile
+  // tüm eşleşmeleri toplar; g'siz regex aynı index'te sonsuz döngü üretir.
+  { re: /(?<!\.)\bexec\s*\(/g, label: "exec()" },
+  { re: /\beval\s*\(/g, label: "eval()" },
+  { re: /\bos\.system\s*\(/g, label: "os.system()" },
+  { re: /\bsubprocess\.\w+\s*\([^)]*\bshell\s*=\s*True/gi, label: "subprocess shell=True", staticCheck: false },
+  { re: /\bshell\s*=\s*true\b/gi, label: "shell: true", staticCheck: false, braceOnly: true },
+  { re: /\bshell_exec\s*\(/g, label: "shell_exec()" },
+  { re: /Runtime\.getRuntime\(\)\.exec\s*\(/g, label: "Runtime.exec()" },
+  { re: /\bexecSync\s*\(/g, label: "execSync()" },
   // Go: exec.Command(...) — komut çalıştırma (kullanıcı girdisi riski)
-  { re: /\bexec\.Command\s*\(/, label: "exec.Command()" },
+  { re: /\bexec\.Command\s*\(/g, label: "exec.Command()" },
   // Ruby: backtick komut çalıştırma (`cmd`) ve system()
-  { re: /(?:^|[^A-Za-z])(`[^`]*`)/, label: "Ruby backtick" },
-  { re: /\bsystem\s*\(/, label: "system()" },
-  { re: /\bIO\.popen\s*\(/, label: "IO.popen()" },
+  { re: /(?:^|[^A-Za-z])(`[^`]*`)/g, label: "Ruby backtick" },
+  // system() — os.system zaten yukarıda; bu desen Ruby/PHP/bağımsız system() içindir.
+  { re: /(?<!\.)\bsystem\s*\(/g, label: "system()" },
+  { re: /\bIO\.popen\s*\(/g, label: "IO.popen()" },
 ];
 
-function findCommandInjection(text: string, family: LanguageFamily = "brace"): { index: number; label: string } | null {
+/**
+ * Sabit-komut kontrolü: argüman yalnızca tırnaklı literal'lerden (boşluk/virgül
+ * ile ayrılmış) oluşuyorsa ve interpolasyon yoksa true — komut çalıştırma değişken
+ * girdi kullanmıyor, gerçek enjeksiyon değil.
+ * exec(cmd) → false (riskli); exec("ls -la") → true (sabit);
+ * execSync("ls " + input) → false (concat); exec.Command("sh","-c","ls") → true.
+ */
+function isStaticCommandArg(text: string, argStart: number): boolean {
+  let i = argStart;
+  let hasLiteral = false;
+  while (i < text.length) {
+    while (i < text.length && /\s/.test(text[i])) i++;
+    const quote = text[i];
+    if (quote === '"' || quote === "'" || quote === "`") {
+      let j = i + 1;
+      let closed = false;
+      while (j < text.length) {
+        if (text[j] === "\\") { j += 2; continue; }
+        if (text[j] === quote) { closed = true; break; }
+        j++;
+      }
+      if (!closed) return false;
+      const inner = text.slice(i + 1, j);
+      // Template/tırnak içi interpolasyon → dinamik girdi.
+      if (inner.includes("${") || (quote === "`" && inner.includes("#{"))) return false;
+      i = j + 1;
+      hasLiteral = true;
+      continue;
+    }
+    if (text[i] === ",") { i++; continue; }
+    if (text[i] === ")") return hasLiteral;
+    return false; // değişken / concat / ifade → riskli
+  }
+  return false;
+}
+
+/**
+ * Tüm enjeksiyon eşleşmelerini döndürür (dosyada birden çok riskli çağrı olabilir).
+ * Sabit-string komutlar (exec("ls")) elenir; Ruby backtick yalnızca interpolasyonlu
+ * (`#{cmd}`) ise bulgu üretir (`` `ls` `` sabittir).
+ */
+function findCommandInjections(text: string, family: LanguageFamily = "brace"): { index: number; label: string }[] {
   // İki geçiş:
   // 1) String korumalı maske (yalnız yorumlar maskelenir) — Ruby backtick gibi
   //    "string değil komut" desenleri tırnak içeriği korununca yakalanır.
@@ -1300,16 +1357,32 @@ function findCommandInjection(text: string, family: LanguageFamily = "brace"): {
   const isRuby = family === "ruby";
   const maskedKeep = maskCommentsAndStrings(text, false, family === "python");
   const maskedFull = maskCommentsAndStrings(text, true, family === "python");
-  let best: { index: number; label: string } | null = null;
+  const out: { index: number; label: string }[] = [];
   for (const p of INJECTION_PATTERNS) {
     if (!isRuby && p.re.source.includes("`")) continue;
+    if (p.braceOnly && family !== "brace") continue;
     const src = p.re.source.includes("`") ? maskedKeep : maskedFull;
-    const m = p.re.exec(src);
-    if (m && (!best || m.index < best.index)) {
-      best = { index: m.index, label: p.label };
+    p.re.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = p.re.exec(src)) !== null) {
+      if (p.staticCheck !== false) {
+        // Sabit-string komut → gerçek enjeksiyon değil, atla.
+        if (p.re.source.includes("`")) {
+          // Ruby backtick: `#{...}` interpolasyonu yoksa sabit komut.
+          const bt = m[0].match(/`([^`]*)`/);
+          const inner = bt ? bt[1] : "";
+          if (!/[$#]\{/.test(inner)) { if (m[0].length === 0) p.re.lastIndex++; continue; }
+        } else {
+          const argStart = m.index + m[0].length;
+          if (isStaticCommandArg(text, argStart)) { if (m[0].length === 0) p.re.lastIndex++; continue; }
+        }
+      }
+      out.push({ index: m.index, label: p.label });
+      if (m[0].length === 0) p.re.lastIndex++;
     }
   }
-  return best;
+  out.sort((a, b) => a.index - b.index);
+  return out;
 }
 
 /**
@@ -1323,41 +1396,46 @@ const WEAK_CRYPTO_PATTERNS: { re: RegExp; label: string; needsString: boolean }[
   // needsString=true → string içeriği korunan mask ile aranır (tırnaklı argümanlar).
   // Not: label metinleri desenlerle eşleşmemelidir (maskStrings=false'ta string
   // içerikleri korunur — label'lar yanlış pozitif üretebilir).
-  { re: /\bhashlib\.md5\s*\(/i, label: "MD5 (hashlib)", needsString: false },
-  { re: /\bhashlib\.sha1\s*\(/i, label: "SHA-1 (hashlib)", needsString: false },
-  { re: /\bcreateHash\s*\(\s*["']md5["']/i, label: "MD5 (createHash)", needsString: true },
-  { re: /\bcreateHash\s*\(\s*["']sha1["']/i, label: "SHA-1 (createHash)", needsString: true },
-  { re: /MessageDigest\.getInstance\s*\(\s*["']MD5["']/i, label: "MD5 (Java)", needsString: true },
-  { re: /Cipher\.getInstance\s*\(\s*["']DES/i, label: "DES (Java)", needsString: true },
-  { re: /\bDES\b/, label: "DES", needsString: false },
+  // NOT: Tüm desenler g flag'li OLMALI — findWeakCryptos while(exec) kullanır.
+  { re: /\bhashlib\.md5\s*\(/gi, label: "MD5 (hashlib)", needsString: false },
+  { re: /\bhashlib\.sha1\s*\(/gi, label: "SHA-1 (hashlib)", needsString: false },
+  { re: /\bcreateHash\s*\(\s*["']md5["']/gi, label: "MD5 (createHash)", needsString: true },
+  { re: /\bcreateHash\s*\(\s*["']sha1["']/gi, label: "SHA-1 (createHash)", needsString: true },
+  { re: /MessageDigest\.getInstance\s*\(\s*["']MD5["']/gi, label: "MD5 (Java)", needsString: true },
+  { re: /Cipher\.getInstance\s*\(\s*["']DES/gi, label: "DES (Java)", needsString: true },
+  { re: /\bDES\b/g, label: "DES", needsString: false },
   // Go: crypto/md5, crypto/sha1, md5.Sum, sha1.Sum
-  { re: /"crypto\/md5"|md5\.Sum\s*\(/, label: "MD5 (Go)", needsString: false },
-  { re: /"crypto\/sha1"|sha1\.Sum\s*\(/, label: "SHA-1 (Go)", needsString: false },
+  { re: /"crypto\/md5"|md5\.Sum\s*\(/g, label: "MD5 (Go)", needsString: false },
+  { re: /"crypto\/sha1"|sha1\.Sum\s*\(/g, label: "SHA-1 (Go)", needsString: false },
   // Ruby: Digest::MD5 / Digest::SHA1
-  { re: /Digest::MD5/, label: "MD5 (Ruby)", needsString: false },
-  { re: /Digest::SHA1/, label: "SHA-1 (Ruby)", needsString: false },
+  { re: /Digest::MD5/g, label: "MD5 (Ruby)", needsString: false },
+  { re: /Digest::SHA1/g, label: "SHA-1 (Ruby)", needsString: false },
 ];
 
-function findWeakCrypto(text: string, family: LanguageFamily = "brace"): { index: number; label: string; isChecksum: boolean } | null {
+function findWeakCryptos(text: string, family: LanguageFamily = "brace"): { index: number; label: string; isChecksum: boolean }[] {
   // İki ayrı mask: maskStrings=true (her şey maskeli — kod bağlamı) ve
   // maskStrings=false (string içerikleri korunur — tırnaklı argüman desenleri).
   // Python'da / bölme operatörüdür → noRegex.
   const noRegex = family === "python";
   const maskedCode = maskCommentsAndStrings(text, true, noRegex);
   const maskedWithStrings = maskCommentsAndStrings(text, false, noRegex);
-  let best: { index: number; label: string } | null = null;
+  const out: { index: number; label: string; isChecksum: boolean }[] = [];
   for (const p of WEAK_CRYPTO_PATTERNS) {
     const src = p.needsString ? maskedWithStrings : maskedCode;
-    const m = p.re.exec(src);
-    if (m && (!best || m.index < best.index)) {
-      best = { index: m.index, label: p.label };
+    p.re.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = p.re.exec(src)) !== null) {
+      // Bağlam: eşleşmenin 80 karakter öncesi/sonrasında checksum/hash/integrity var mı?
+      // "digest" KELİMESİ checksum sinyali değildir — Ruby Digest::MD5 sınıf adı da
+      // "digest" içerir; yalnızca .digest()/.hexdigest() METOD çağrıları sinyaldir.
+      const ctx = text.slice(Math.max(0, m.index - 80), m.index + 80).toLowerCase();
+      const isChecksum = /(checksum|file_hash|file-hash|integrity|verify_hash|hash_file|content_hash|\.digest\(|\.hexdigest\()/.test(ctx);
+      out.push({ index: m.index, label: p.label, isChecksum });
+      if (m[0].length === 0) p.re.lastIndex++;
     }
   }
-  if (!best) return null;
-  // Bağlam: eşleşmenin 80 karakter öncesi/sonrasında checksum/hash/integrity var mı?
-  const ctx = text.slice(Math.max(0, best.index - 80), best.index + 80).toLowerCase();
-  const isChecksum = /(checksum|file_hash|file-hash|integrity|digest|verify_hash|hash_file|content_hash)/.test(ctx);
-  return { index: best.index, label: best.label, isChecksum };
+  out.sort((a, b) => a.index - b.index);
+  return out;
 }
 
 /**
@@ -1367,11 +1445,12 @@ function findWeakCrypto(text: string, family: LanguageFamily = "brace"): { index
  * tırnaklı ARGÜMAN desenleri için); true → string'ler de maskelenir.
  * Desteklenen yorumlar: // , blok yorum, # (Python/Ruby/Shell).
  */
-function maskCommentsAndStrings(text: string, maskStrings = true, noRegex = false): string {
+export function maskCommentsAndStrings(text: string, maskStrings = true, noRegex = false): string {
   let out = "";
   let i = 0;
   let inString: string | null = null;
   let inRegex = false;
+  let inClass = false;
   let lineComment = false;
   let blockComment = false;
   while (i < text.length) {
@@ -1384,7 +1463,9 @@ function maskCommentsAndStrings(text: string, maskStrings = true, noRegex = fals
       continue;
     }
     if (blockComment) {
-      out += " ";
+      // Satır sonları korunmalı — aksi halde masked metin satır kaybeder ve
+      // sonraki tüm index/line hesapları kayar (yanlış konumda eşleşme).
+      out += ch === "\n" ? "\n" : " ";
       if (ch === "*" && nx === "/") { blockComment = false; out += " "; i += 2; continue; }
       i++;
       continue;
@@ -1410,9 +1491,12 @@ function maskCommentsAndStrings(text: string, maskStrings = true, noRegex = fals
     if (inRegex) {
       // Regex literal içeriği HER ZAMAN maskelenir — içindeki desenler
       // (ör. /\bhashlib\.md5\s*\(/) yanlış pozitif üretmesin.
+      // Karakter sınıfı [...] içindeki / KAPANIŞ DEĞİLDİR (örn. [A-Za-z0-9+/_]).
       out += ch === "\n" ? "\n" : " ";
       if (ch === "\\") { out += " "; i += 2; continue; }
-      if (ch === "/") inRegex = false;
+      if (ch === "[") { inClass = true; out += " "; i++; continue; }
+      if (ch === "]") { inClass = false; out += " "; i++; continue; }
+      if (!inClass && ch === "/") inRegex = false;
       i++;
       continue;
     }
@@ -1429,14 +1513,23 @@ function maskCommentsAndStrings(text: string, maskStrings = true, noRegex = fals
       continue;
     }
     if (ch === '"' || ch === "'" || ch === "`") { inString = ch; out += maskStrings ? " " : ch; i++; continue; }
-    // Regex literal: = / desen / veya ( / desen / gibi. Yanlış pozitifi önlemek için
-    // desen içeriği maskelenir (ör. /\bhashlib\.md5\s*\(/ içindeki hashlib.md5()).
-    // noRegex=true → Python/Ruby'de / bölme operatörüdür, regex literal değildir.
-    if (!noRegex && ch === "/" && (i === 0 || /[=(,:;!&|?{}\[\]\s]/.test(text[i - 1]))) {
-      inRegex = true;
-      out += " ";
-      i++;
-      continue;
+    // Regex literal tespiti: / öncesi bağlam — / BÖLME operatörü de olabilir
+    // (örn. "indent / 2"). Kural: önceki anlamlı karakter harf/rakam/) /] /$
+    // ise bölme; anahtar kelime (return/typeof/...) sonrası veya = ( , : gibi
+    // bağlamlarda regex. noRegex=true → Python/Ruby'de / her zaman bölme.
+    if (!noRegex && ch === "/") {
+      let prev = i - 1;
+      while (prev >= 0 && /\s/.test(text[prev])) prev--;
+      const prevCh = text[prev] || "";
+      const before = text.slice(Math.max(0, prev - 24), prev + 1);
+      const isKeyword = /\b(return|typeof|case|instanceof|void|delete|yield|await|throw|in|of)\s*$/i.test(before);
+      const isDivision = /[A-Za-z0-9_)\]$]/.test(prevCh) && !isKeyword;
+      if (!isDivision) {
+        inRegex = true;
+        out += " ";
+        i++;
+        continue;
+      }
     }
     out += ch;
     i++;
@@ -1845,8 +1938,8 @@ export async function analyzeLocalFiles(
     if (CODE_EXTS.has(ext)) {
       // C1: Komut enjeksiyonu — doğrudan komut çalıştırma desenleri.
       // Test dosyalarında mock/uygulama kullanımı yaygın → severity düşürülür.
-      const injection = findCommandInjection(text, languageFamilyOf(ext));
-      if (injection) {
+      const injections = findCommandInjections(text, languageFamilyOf(ext));
+      for (const injection of injections) {
         const isTestFile = TEST_FILE_RE.test(relPath);
         makeEvidence(result.evidence, {
           analyzer: "local-security-scanner",
@@ -1863,8 +1956,8 @@ export async function analyzeLocalFiles(
 
       // C2: Zayıf kriptografi — MD5/SHA-1/DES. Checksum/doğrulama bağlamındaki
       // kullanımlar (dosya bütünlüğü) daha az kritik; test dosyalarında düşük.
-      const weak = findWeakCrypto(text, languageFamilyOf(ext));
-      if (weak) {
+      const weaks = findWeakCryptos(text, languageFamilyOf(ext));
+      for (const weak of weaks) {
         const isTestFile = TEST_FILE_RE.test(relPath);
         const severity = weak.isChecksum || isTestFile ? "low" : "medium";
         makeEvidence(result.evidence, {
@@ -1936,8 +2029,8 @@ export async function analyzeLocalFiles(
       }
 
       // B3: Boş hata yakalama — catch {} / except: pass (yorum dahi olmayan boş gövde)
-      const emptyHandler = findEmptyHandler(text);
-      if (emptyHandler) {
+      const emptyHandlers = findEmptyHandlers(text);
+      for (const emptyHandler of emptyHandlers) {
         makeEvidence(result.evidence, {
           analyzer: "local-quality-scanner",
           finding_type: "code_quality",
@@ -1952,8 +2045,8 @@ export async function analyzeLocalFiles(
       }
 
       // B4: Sihirli sayılar — açıklamasız sayısal literal'ler (0/1/100/-1 hariç, düşük güven)
-      const magic = findMagicNumber(text);
-      if (magic) {
+      const magics = findMagicNumbers(text);
+      for (const magic of magics) {
         makeEvidence(result.evidence, {
           analyzer: "local-quality-scanner",
           finding_type: "code_quality",

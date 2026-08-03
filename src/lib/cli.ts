@@ -13,9 +13,10 @@
  */
 import { readFileSync, readdirSync, statSync } from "fs";
 import { join, relative } from "path";
+import { pathToFileURL } from "url";
 import { analyzeLocalFiles, buildLocalReport, shouldSkip, parseGitignore } from "./local-analysis";
 
-function collectFiles(base: string): File[] {
+export function collectFiles(base: string): File[] {
   let gi: Set<string> | undefined;
   try { gi = parseGitignore(readFileSync(join(base, ".gitignore"), "utf8")); } catch {}
   const files: File[] = [];
@@ -110,4 +111,10 @@ async function main() {
   }));
 }
 
-main().catch((e) => { console.error(e?.message || e); process.exit(1); });
+// Yalnızca doğrudan çalıştırıldığında main'i koştur (import edilirse test/audit
+// gibi ortamlarda process.exit çağrısıyla süreci öldürmesin).
+const isDirectRun =
+  typeof process !== "undefined" && !!process.argv?.[1] &&
+  pathToFileURL(process.argv[1].startsWith("/") ? process.argv[1] : process.argv[1]).href === import.meta.url;
+
+if (isDirectRun) main().catch((e) => { console.error(e?.message || e); process.exit(1); });

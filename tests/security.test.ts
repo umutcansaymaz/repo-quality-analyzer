@@ -46,10 +46,20 @@ describe("C1 — command_injection", () => {
   });
 
   it("Test dosyasındaki exec → severity medium (mock kullanımı)", async () => {
-    const scan = await scanRepo([{ path: "src/__tests__/run.test.ts", content: "exec('ls');\n" }]);
+    const scan = await scanRepo([{ path: "src/__tests__/run.test.ts", content: "exec(cmd);\n" }]);
     const ev = scan.rawEvidence.find((e) => e.category === "command_injection");
     expect(ev).toBeDefined();
     expect(ev?.severity).toBe("medium");
+  });
+
+  it("Sabit komut (exec('ls')) → bulgu ÜRETMEZ (literal, enjeksiyon değil)", async () => {
+    const scan = await scanRepo([{ path: "src/run.ts", content: "exec('ls -la');\n" }]);
+    expect(evidenceIn(scan, "command_injection")).toHaveLength(0);
+  });
+
+  it("Concat komut (exec('ls ' + x)) → bulgu ÜRETİR (dinamik girdi)", async () => {
+    const scan = await scanRepo([{ path: "src/run.ts", content: "exec('ls ' + userInput);\n" }]);
+    expect(evidenceIn(scan, "command_injection")).toHaveLength(1);
   });
 });
 

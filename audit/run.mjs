@@ -12,7 +12,7 @@
 import { spawnSync } from "child_process";
 import { mkdirSync, writeFileSync, existsSync, rmSync } from "fs";
 import { join, resolve } from "path";
-import { generateRepos } from "./generator.mjs";
+import { generateRepos, EXPECTED_SEVERITY } from "./generator.mjs";
 import { compare } from "./compare.mjs";
 
 const ROOT = resolve(process.cwd());
@@ -69,6 +69,8 @@ async function main() {
   let totalExtra = 0;
   let totalMissing = 0;
   let totalExpected = 0;
+  const knownFnrHits = [];
+  const severityMismatches = [];
 
   for (const repo of repos) {
     const report = byName.get(repo.name);
@@ -80,9 +82,26 @@ async function main() {
     const actual = (report.evidence || []).map((e) => e.category);
     const cmp = compare(repo.expected, actual);
 
+    // Severity kalibrasyonu: beklenen kategori bulunduysa severity'si doğru mu?
+    for (const cat of repo.expected) {
+      const want = EXPECTED_SEVERITY[cat];
+      if (!want) continue;
+      const found = (report.evidence || []).find((e) => e.category === cat);
+      if (found && found.severity !== want) {
+        severityMismatches.push({ repo: repo.name, category: cat, expected: want, actual: found.severity });
+      }
+    }
+
+    // Bilinen sınırlar: beklenen ama motorun bilinçli yakalayamadığı desenler
+    // (ör. parçalı/base64 secret) — FN sayılmaz, ayrı raporlanır.
+    const known = repo.known_fnr || [];
+    const knownHit = known.filter((k) => !actual.includes(k));
+    if (knownHit.length) knownFnrHits.push({ repo: repo.name, missed: knownHit });
+    const fn = cmp.missing.filter((m) => !known.includes(m));
+
     totalExpected += repo.expected.length;
     totalExtra += cmp.extra.length;
-    totalMissing += cmp.missing.length;
+    totalMissing += fn.length;
 
     results.push({
       repo: repo.name,
@@ -91,7 +110,7 @@ async function main() {
       precision: cmp.precision,
       recall: cmp.recall,
       fp: cmp.extra,
-      fn: cmp.missing,
+      fn,
     });
   }
 
@@ -139,6 +158,23 @@ async function main() {
   if (cleanFP.length > 0) {
     lines.push("TEMİZ REPOLARDA BULUNAN (kesin FP):");
     for (const c of cleanFP) lines.push(`  [${c.repo}] → ${c.fp}`);
+    lines.push("");
+  }
+  if (knownFnrHits.length > 0) {
+    lines.push("BİLİNEN SINIRLAR (kasıtlı FN — motor bu desenleri yakalayamaz):");
+    for (const k of knownFnrHits) {
+      lines.push(`  [${k.repo}] → yakalanamayan: ${k.missed.join(", ")}`);
+    }
+    lines.push("");
+  }
+  if (severityMismatches.length > 0) {
+    lines.push(`SEVERITY UYUMSUZLUKLARI (kategori doğru ama severity yanlış): ${severityMismatches.length}`);
+    for (const s of severityMismatches) {
+      lines.push(`  [${s.repo}] ${s.category}: beklenen=${s.expected}, motor=${s.actual}`);
+    }
+    lines.push("");
+  } else {
+    lines.push(`SEVERITY UYUMSUZLUĞU: 0 (tüm kategoriler doğru severity üretiyor)`);
     lines.push("");
   }
 

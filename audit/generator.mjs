@@ -75,6 +75,29 @@ function rand(n) {
 }
 
 // ---------------------------------------------------------------------------
+// Beklenen severity'ler — motorun ürettiği severity kalibrasyonu audit edilir.
+// Audit repoları test dosyası içermez, bu yüzden test/checksum düşürmeleri
+// devre dışıdır (ör. secret → critical, injection → high, crypto → medium).
+// ---------------------------------------------------------------------------
+
+export const EXPECTED_SEVERITY = {
+  hardcoded_secret: "critical",
+  command_injection: "high",
+  weak_crypto: "medium",
+  empty_handler: "medium",
+  long_function: "medium",
+  deep_nesting: "medium",
+  high_complexity: "high",
+  large_file: "medium",
+  god_class: "high",
+  tight_coupling: "medium",
+  circular_dependency: "high",
+  magic_number: "low",
+  todo_debt: "low",
+  missing_tests: "high",
+};
+
+// ---------------------------------------------------------------------------
 // Injectors — one per category × language. Each returns appended content.
 // ---------------------------------------------------------------------------
 
@@ -231,7 +254,7 @@ const injectors = {
     ts: (b) => b + `\nconst crypto = require('crypto');\ncrypto.createHash('md5').update(data);\n`,
     py: (b) => b + `\nimport hashlib\nh = hashlib.md5(data)\n`,
     go: (b) => b + `\nimport "crypto/md5"\n_ = md5.Sum([]byte(data))\n`,
-    rb: (b) => b + `\nrequire 'digest'\nDigest::MD5.hexdigest(data)\n`,
+    rb: (b) => b + `\nrequire 'digest'\nDigest::MD5.new.update(data)\n`,
     java: (b) => b + `\n  MessageDigest.getInstance("MD5");\n`,
   },
   // ---- New categories (Katman 2) ----
@@ -461,6 +484,88 @@ function trapRepos() {
 }
 
 // ---------------------------------------------------------------------------
+// Static-arg repos — fixed (literal) commands are NOT injection; dynamic are.
+// ---------------------------------------------------------------------------
+
+function staticArgRepos() {
+  const repos = [];
+  const push = (name, expected, files) => repos.push({ name, expected, files });
+
+  // Sabit komutlar: argüman tamamen literal → bulgu OLMAMALI
+  push("static-arg-fixed-ts", [], [
+    { path: "src/main.ts", content: `const { execSync } = require('child_process');\nexecSync("ls -la");\n` },
+  ]);
+  push("static-arg-fixed-py", [], [
+    { path: "src/main.py", content: `import os\nos.system("echo hi")\n` },
+  ]);
+  push("static-arg-fixed-go", [], [
+    { path: "src/main.go", content: `import "os/exec"\nexec.Command("sh", "-c", "ls").Run()\n` },
+  ]);
+  push("static-arg-fixed-rb", [], [
+    { path: "src/main.rb", content: "`ls -la`\n" },
+  ]);
+  push("static-arg-fixed-java", [], [
+    { path: "src/main.java", content: `public class Main {\n  void run() {\n    Runtime.getRuntime().exec("ls -la");\n  }\n}\n` },
+  ]);
+
+  // Dinamik komutlar: concat / interpolasyon → bulgu OLMALI
+  push("static-arg-concat-ts", ["command_injection"], [
+    { path: "src/main.ts", content: `const { execSync } = require('child_process');\nexecSync("ls " + userInput);\n` },
+  ]);
+  push("static-arg-template-ts", ["command_injection"], [
+    { path: "src/main.ts", content: `const { execSync } = require('child_process');\nexecSync(\`ls \${userInput}\`);\n` },
+  ]);
+  push("static-arg-interp-rb", ["command_injection"], [
+    { path: "src/main.rb", content: "`ls #{user_input}`\n" },
+  ]);
+
+  return repos;
+}
+
+// ---------------------------------------------------------------------------
+// Hard variants — obfuscated secrets (KNOWN limitations, engine can't catch
+// concatenated/base64 secrets by design) and multi-injection in one file.
+// known_fnr: beklenen ama MOTORUN bilinçli yakalayamayacağı desenler — audit
+// raporunda ayrı listelenir, precision/recall'ı düşürmez (bilinen sınır).
+// ---------------------------------------------------------------------------
+
+function hardVariantRepos() {
+  const repos = [];
+  const push = (name, expected, files, knownFnr = []) =>
+    repos.push({ name, expected, files, ...(knownFnr.length ? { known_fnr: knownFnr } : {}) });
+
+  for (const lang of ["ts", "py", "go", "rb", "java"]) {
+    const ext = extOf[lang];
+    // Parçalı secret: "sk-" + "abc..." — regex tek parça arar, yakalayamaz (bilinen sınır).
+    push(`secret-concat-${lang}`, [], [
+      { path: `src/main${ext}`, content: `const k = "sk-" + "x7Tq9pLm2vRz4nB6" + "cYf8HwQ1";\n` },
+    ], ["secret_concat"]);
+    // Base64 blob: uzun base64 — regex deseni yok (bilinen sınır).
+    push(`secret-base64-${lang}`, [], [
+      { path: `src/main${ext}`, content: `const token = "ZXlKaGJHY2lPaUpJVXpJMU5pSjkuZXlKcFpDSTZJbmhv" + "TW1wemR" + "2cHhWZFFpSjk=";\n` },
+    ], ["secret_base64"]);
+  }
+
+  // Aynı dosyada 3 ayrı enjeksiyon — çoklu bulgu testi (Adım 3 sonrası 3 kanıt beklenir).
+  push("injection-multi-ts", ["command_injection"], [
+    { path: "src/main.ts", content: `const { execSync } = require('child_process');\nexecSync(cmd1);\nexecSync(cmd2);\neval(cmd3);\n` },
+  ]);
+  push("injection-multi-py", ["command_injection"], [
+    { path: "src/main.py", content: `import os\nos.system(a)\nos.system(b)\nos.system(c)\n` },
+  ]);
+  push("injection-multi-rb", ["command_injection"], [
+    { path: "src/main.rb", content: "`#{a}`\n`#{b}`\n`#{c}`\n" },
+  ]);
+
+  // Dinamik kripto: createHash(env) — string argüman değil, motor yakalamaz (bilinen sınır).
+  push("crypto-dynamic-ts", [], [
+    { path: "src/main.ts", content: `const crypto = require('crypto');\ncrypto.createHash(process.env.ALGO).update(data);\n` },
+  ], ["crypto_dynamic"]);
+
+  return repos;
+}
+
+// ---------------------------------------------------------------------------
 // Scenario matrix — 13 categories × languages × 6 variants
 // ---------------------------------------------------------------------------
 
@@ -594,6 +699,12 @@ export function generateRepos() {
 
   // ---- Cross traps ----
   repos.push(...trapRepos());
+
+  // ---- Static-arg (sabit vs dinamik komut) ----
+  repos.push(...staticArgRepos());
+
+  // ---- Hard variants (known FNR + multi-injection) ----
+  repos.push(...hardVariantRepos());
 
   return repos;
 }
