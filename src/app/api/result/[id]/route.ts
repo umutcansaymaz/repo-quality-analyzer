@@ -1,19 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateDemoData, type DemoResult } from "@/lib/demo-data";
+import { existsSync, readFileSync } from "fs";
+import { join } from "path";
 import { jobStore } from "../../analyze/route";
+import { isPythonBackendConfigured, callPythonBackend } from "@/lib/backend-config";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+const RESULTS_DIR = join(process.cwd(), "db", "analysis-results");
 
 /**
- * Mock result endpoint.
+ * Result endpoint — REAL results only.
  *
- * GET /api/result/:id — returns the full analysis result for the given job id.
- * If the id isn't in the in-memory store (e.g. server restarted), we regenerate
- * a fresh demo result so the endpoint never 404s.
- *
- * Optional query params:
- *  ?repo=<url>        — regenerate using a specific repo URL.
- *  ?use_llm=true      — generate an LLM-powered review (offline: false).
- *  ?provider=<name>   — LLM provider name (e.g. "openai").
- *  ?model=<name>      — LLM model name (e.g. "gpt-4o").
+ * GET /api/result/:id — returns the analysis result for the given job id.
+ * Sources (in order):
+ *   1. In-memory jobStore
+ *   2. Disk (db/analysis-results/{id}.json) — survives server restarts
+ * Never falls back to demo/synthetic data. If no real result exists → 404.
  */
 export async function GET(
   _req: NextRequest,
@@ -21,14 +24,34 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  let result = jobStore.get(id) as DemoResult | undefined;
+  // Try Python backend first when configured (skip for local:// URLs).
+  if (isPythonBackendConfigured() && !id.startsWith("local-")) {
+    const backendResult = await callPythonBackend<unknown>(`/result/${id}`);
+    if (backendResult) {
+      return NextResponse.json(backendResult);
+    }
+  }
+
+  // 1. In-memory store
+  let result = jobStore.get(id);
   if (!result) {
-    const repoUrl = _req.nextUrl.searchParams.get("repo") || `https://github.com/example/${id}`;
-    const useLLM = _req.nextUrl.searchParams.get("use_llm") === "true";
-    const llmProvider = _req.nextUrl.searchParams.get("provider") || undefined;
-    const llmModel = _req.nextUrl.searchParams.get("model") || undefined;
-    result = generateDemoData(repoUrl, { useLLM, llmProvider, llmModel });
-    jobStore.set(id, result);
+    // 2. Disk — survives server restarts / HMR
+    try {
+      const diskPath = join(RESULTS_DIR, `${id}.json`);
+      if (existsSync(diskPath)) {
+        result = JSON.parse(readFileSync(diskPath, "utf8"));
+        jobStore.set(id, result);
+      }
+    } catch {
+      // bozuk dosya — 404 döner
+    }
+  }
+
+  if (!result) {
+    return NextResponse.json(
+      { error: "Analiz sonucu bulunamadı. Sunucu yeniden başlatılmış olabilir — lütfen analizi tekrar çalıştırın." },
+      { status: 404 }
+    );
   }
 
   return NextResponse.json(result);

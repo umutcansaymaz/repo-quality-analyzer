@@ -30,8 +30,12 @@ const translations: Record<Language, TranslationDict> = {
     "local.selectFolder": "Select Folder",
     "local.selectPrompt": "Select a local repository folder to analyze",
     "local.folderSelected": "Folder selected",
+    "local.scanning": "Scanning folder...",
+    "local.filesFound": "files found",
+    "local.clear": "Clear selection",
     "local.analyzing": "Analyzing local repository…",
     "local.notGitRepo": "Selected folder is not a Git repository.",
+    "local.tooLarge": "Folder too large for browser upload. Select up to 5000 files / 60 MB, or use a GitHub URL.",
     "local.readError": "Repository could not be read.",
     "local.noFolderSelected": "No folder selected",
     "local.dragDrop": "Drag and drop a folder here, or click to browse",
@@ -339,7 +343,6 @@ const translations: Record<Language, TranslationDict> = {
     "graph.reset": "Reset view",
     "graph.highlightConnected": "Connected nodes",
     "graph.noConnected": "No connected nodes",
-    "graph.edges": "edges",
     "graph.fit": "Fit to screen",
     "graph.legend": "Legend",
     "graph.search": "Search nodes...",
@@ -356,7 +359,6 @@ const translations: Record<Language, TranslationDict> = {
     "files.previewDesc": "Select a file to inspect its evidence, root causes, and graph connections.",
     "files.totalFiles": "Total files",
     "files.totalSize": "Total size",
-    "files.rootCauses": "Root causes",
     "files.recommendations": "Recommendations",
     "files.graphConnections": "Graph connections",
     "files.evidenceCount": "Evidence count",
@@ -652,7 +654,8 @@ const translations: Record<Language, TranslationDict> = {
     "extValidation.internalEvidence": "Internal Evidence",
     "extValidation.externalEvidence": "External Evidence",
     "extValidation.agreementScore": "Agreement Score",
-    "extValidation.provider": "GitHub (first provider)",
+    "extValidation.provider": "Offline validation (no external API)",
+    "extValidation.demoBanner": "Demo Modu — bu bölüm gerçek GitHub/API kaynaklarına bağlanmaz. Deterministik seed tabanlı örnek kanıtlar üretilir.",
 
     // Sprint 15 — Real Execution Engine
     "realExec.title": "Real Repository Analysis",
@@ -710,6 +713,9 @@ const translations: Record<Language, TranslationDict> = {
     "realExec.outputs": "Real JSON Outputs",
     "realExec.outputsDesc": "Each completed repository has its own folder under validation_results/{repo}/ with: evidence.json, root_causes.json, recommendations.json, patterns.json, smells.json, performance.json, analysis_result.json",
     "realExec.runId": "Run ID",
+    "realExec.noRealClone": "No Real Clone Succeeded",
+    "realExec.noRealCloneDesc": "git clone failed for all repos in this batch (git not available or timeout). Run locally with git installed.",
+    "realExec.failedLower": "failed",
     "realExec.lastUpdated": "Last Updated",
     "realExec.timeMs": "ms",
     "realExec.memoryMb": "MB",
@@ -738,8 +744,12 @@ const translations: Record<Language, TranslationDict> = {
     "local.selectFolder": "Klasör Seç",
     "local.selectPrompt": "Analiz etmek için yerel bir depo klasörü seçin",
     "local.folderSelected": "Klasör seçildi",
+    "local.scanning": "Klasör taranıyor...",
+    "local.filesFound": "dosya bulundu",
+    "local.clear": "Seçimi temizle",
     "local.analyzing": "Yerel depo analiz ediliyor…",
     "local.notGitRepo": "Seçilen klasör bir Git deposu değil.",
+    "local.tooLarge": "Klasör tarayıcı yüklemesi için çok büyük. En fazla 5000 dosya / 60 MB seçin veya GitHub URL'si kullanın.",
     "local.readError": "Repository okunamadı.",
     "local.noFolderSelected": "Klasör seçilmedi",
     "local.dragDrop": "Bir klasörü sürükleyip bırakın veya gözatmak için tıklayın",
@@ -1047,7 +1057,6 @@ const translations: Record<Language, TranslationDict> = {
     "graph.reset": "Sıfırla",
     "graph.highlightConnected": "Bağlı düğümler",
     "graph.noConnected": "Bağlı düğüm yok",
-    "graph.edges": "kenar",
     "graph.fit": "Ekrana sığdır",
     "graph.legend": "Lejant",
     "graph.search": "Düğüm ara...",
@@ -1064,7 +1073,6 @@ const translations: Record<Language, TranslationDict> = {
     "files.previewDesc": "Kanıt, kök neden ve graf bağlantılarını incelemek için bir dosya seçin.",
     "files.totalFiles": "Toplam dosya",
     "files.totalSize": "Toplam boyut",
-    "files.rootCauses": "Kök nedenler",
     "files.recommendations": "Öneriler",
     "files.graphConnections": "Graf bağlantıları",
     "files.evidenceCount": "Kanıt sayısı",
@@ -1360,7 +1368,7 @@ const translations: Record<Language, TranslationDict> = {
     "extValidation.internalEvidence": "İç Kanıt",
     "extValidation.externalEvidence": "Dış Kanıt",
     "extValidation.agreementScore": "Uyum Skoru",
-    "extValidation.provider": "GitHub (ilk sağlayıcı)",
+    "extValidation.demoBanner": "Demo Modu — bu bölüm gerçek GitHub/API kaynaklarına bağlanmaz. Deterministik seed tabanlı örnek kanıtlar üretilir.",
 
     // Sprint 15 — Gerçek Execution Engine
     "realExec.title": "Gerçek Repository Analizi",
@@ -1418,6 +1426,9 @@ const translations: Record<Language, TranslationDict> = {
     "realExec.outputs": "Gerçek JSON Çıktıları",
     "realExec.outputsDesc": "Tamamlanan her repo için validation_results/{repo}/ altında: evidence.json, root_causes.json, recommendations.json, patterns.json, smells.json, performance.json, analysis_result.json",
     "realExec.runId": "Run ID",
+    "realExec.noRealClone": "Gerçek Clone Başarısız",
+    "realExec.noRealCloneDesc": "git clone bu batch'teki tüm repolar için başarısız oldu (git yok veya timeout). Lütfen git kurulu yerel ortamda çalıştırın.",
+    "realExec.failedLower": "başarısız",
     "realExec.lastUpdated": "Son Güncelleme",
     "realExec.timeMs": "ms",
     "realExec.memoryMb": "MB",
@@ -1458,10 +1469,12 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [lang, setLangState] = React.useState<Language>("en");
 
   React.useEffect(() => {
-    const saved = localStorage.getItem("ra-language") as Language | null;
-    if (saved === "tr" || saved === "en") {
-      setLangState(saved);
-    }
+    queueMicrotask(() => {
+      const saved = localStorage.getItem("ra-language") as Language | null;
+      if (saved === "tr" || saved === "en") {
+        setLangState(saved);
+      }
+    });
   }, []);
 
   const setLang = React.useCallback((newLang: Language) => {

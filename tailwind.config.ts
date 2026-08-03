@@ -59,6 +59,15 @@ const config: Config = {
   		}
   	}
   },
+  safelist: [
+    "kl-paper", "kl-paper-alt", "kl-ink", "kl-muted", "kl-accent",
+    "kl-success", "kl-danger", "kl-border-soft", "kl-border-l-accent",
+    "kl-font-display", "kl-font-body", "kl-font-mono", "kl-asym-left",
+    "kl-asym-right", "kl-damga", "kl-damga-sm", "kl-damga-lg",
+    "kl-card", "kl-card-accent", "kl-card-success", "kl-card-danger",
+    "kl-card-muted", "kl-divider", "kl-focus-ring", "kl-print-hide",
+    "kl-gradient-noise",
+  ],
   plugins: [tailwindcssAnimate],
 };
 export default config;

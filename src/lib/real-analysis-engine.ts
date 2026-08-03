@@ -18,9 +18,29 @@
  * If no real analysis has been executed, it returns "no_analysis" status.
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
-import { resolve, join } from "path";
-import { execSync } from "child_process";
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "fs";
+import { relative, resolve, join } from "path";
+import { spawnSync } from "child_process";
+import {
+  analyzeFile,
+  extractImports,
+  findCycles,
+  detectPatterns,
+  getExtensions,
+} from "./real-analysis-helpers";
+
+function pruneWorkspaceRepo(clonePath: string) {
+  try {
+    const gitDir = join(clonePath, ".git");
+    if (existsSync(gitDir)) {
+      // Restore write permissions temporarily for deletion
+      try { chmodSync(gitDir, 0o777); } catch { /* ignore */ }
+      rmSync(gitDir, { recursive: true, force: true });
+    }
+  } catch {
+    // Best-effort cleanup to prevent file watcher / inotify exhaustion
+  }
+}
 
 // ===================== SELF PROTECTION =====================
 
@@ -30,23 +50,24 @@ const PROTECTED_PATHS = [
 ];
 const WORKSPACE_ROOT = resolve(process.cwd(), "validation_workspace");
 const RESULTS_ROOT = resolve(process.cwd(), "validation_results");
+const EXCLUDED_DIRS = new Set([".git", "node_modules", "vendor", "dist", "build", ".next"]);
 
 function validateSafety(targetPath: string): { safe: boolean; reason?: string } {
   const resolved = resolve(targetPath);
-  const relative = resolved.replace(process.cwd() + "/", "");
+  const relativePath = relative(process.cwd(), resolved).replace(/\\/g, "/");
 
-  const inSafeRoot = relative.startsWith("validation_workspace/") ||
-                     relative.startsWith("validation_results/") ||
-                     relative.startsWith("benchmarks/") ||
-                     relative === "validation_workspace" ||
-                     relative === "validation_results";
+  const inSafeRoot = relativePath.startsWith("validation_workspace/") ||
+                     relativePath.startsWith("validation_results/") ||
+                     relativePath.startsWith("benchmarks/") ||
+                     relativePath === "validation_workspace" ||
+                     relativePath === "validation_results";
   if (!inSafeRoot) {
-    return { safe: false, reason: `SAFETY VIOLATION: path "${relative}" is not under validation_workspace/ or validation_results/` };
+    return { safe: false, reason: `SAFETY VIOLATION: path "${relativePath}" is not under validation_workspace/ or validation_results/` };
   }
 
   for (const prot of PROTECTED_PATHS) {
-    if (relative.includes(`/${prot}/`) || relative === prot || relative.startsWith(`${prot}/`)) {
-      return { safe: false, reason: `SAFETY VIOLATION: path "${relative}" contains protected segment "${prot}"` };
+    if (relativePath.includes(`/${prot}/`) || relativePath === prot || relativePath.startsWith(`${prot}/`)) {
+      return { safe: false, reason: `SAFETY VIOLATION: path "${relativePath}" contains protected segment "${prot}"` };
     }
   }
 
@@ -164,6 +185,7 @@ export interface ValidationSummary {
   execution_log: ExecutionLog;
   cross_repository_analysis: CrossRepoAnalysis;
   is_real: true; // Marker — this is NOT mock data
+  had_real_clone: boolean; // true only if at least one real git clone succeeded
 }
 
 export interface CrossRepoAnalysis {
@@ -175,10 +197,85 @@ export interface CrossRepoAnalysis {
   by_type: { type: string; count: number; avg_coverage: number }[];
 }
 
+// ===================== PORTABLE FILESYSTEM HELPERS =====================
+
+function safeRepoDirectoryName(repoName: string): string {
+  return repoName.replace(/[\\/]/g, "_").replace(/[^a-zA-Z0-9._-]/g, "_");
+}
+
+function toRepoRelative(root: string, path: string): string {
+  return relative(root, path).replace(/\\/g, "/");
+}
+
+function scanWorkspace(
+  root: string,
+  sourceExtensions: Set<string>,
+  options: { maxFiles?: number; maxDepth?: number } = {}
+): { files: string[]; directories: string[]; sizeBytes: number } {
+  const maxFiles = options.maxFiles ?? 500;
+  const maxDepth = options.maxDepth ?? Number.POSITIVE_INFINITY;
+  const files: string[] = [];
+  const directories: string[] = [];
+  let sizeBytes = 0;
+
+  const visit = (dir: string, depth: number) => {
+    let entries;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+
+    for (const entry of entries) {
+      const fullPath = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (EXCLUDED_DIRS.has(entry.name)) continue;
+        if (depth < maxDepth) {
+          directories.push(toRepoRelative(root, fullPath));
+          visit(fullPath, depth + 1);
+        }
+        continue;
+      }
+
+      if (!entry.isFile()) continue;
+
+      try {
+        sizeBytes += statSync(fullPath).size;
+      } catch { /* skip */ }
+
+      if (files.length >= maxFiles) continue;
+      const lowerName = entry.name.toLowerCase();
+      if ([...sourceExtensions].some((ext) => lowerName.endsWith(ext.toLowerCase()))) {
+        files.push(fullPath);
+      }
+    }
+  };
+
+  visit(root, 0);
+  return { files, directories, sizeBytes };
+}
+
+function setReadOnlyBestEffort(targetPath: string) {
+  const visit = (path: string) => {
+    try {
+      const stat = statSync(path);
+      if (stat.isDirectory()) {
+        for (const entry of readdirSync(path)) {
+          visit(join(path, entry));
+        }
+      }
+      chmodSync(path, stat.isDirectory() ? 0o555 : 0o444);
+    } catch {
+      // Best-effort hardening; analysis must remain usable on Windows and locked files.
+    }
+  };
+
+  visit(targetPath);
+}
 // ===================== REAL CLONE MANAGER =====================
 
-function cloneRepository(repoUrl: string, repoName: string): { success: boolean; path: string; time_ms: number; error?: string } {
-  const clonePath = join(WORKSPACE_ROOT, repoName.replace("/", "_"));
+export function cloneRepository(repoUrl: string, repoName: string): { success: boolean; path: string; time_ms: number; error?: string } {
+  const clonePath = join(WORKSPACE_ROOT, safeRepoDirectoryName(repoName));
   const safety = validateSafety(clonePath);
   if (!safety.safe) {
     return { success: false, path: "", time_ms: 0, error: safety.reason };
@@ -195,18 +292,54 @@ function cloneRepository(repoUrl: string, repoName: string): { success: boolean;
     // Ensure workspace exists
     mkdirSync(WORKSPACE_ROOT, { recursive: true });
 
-    // Shallow clone (--depth 1) for speed — read-only
-    execSync(`git clone --depth 1 --quiet "${repoUrl}" "${clonePath}"`, {
-      timeout: 60000, // 60s timeout
-      stdio: "pipe",
-    });
-
-    // Set read-only permissions (chmod -R a-w)
-    try {
-      execSync(`chmod -R a-w "${clonePath}"`, { stdio: "pipe", timeout: 5000 });
-    } catch {
-      // chmod may fail on some systems — non-fatal
+    // Shallow clone (--depth 1), with core.longpaths for Windows deep paths.
+    // 120s timeout — large repos (react, kubernetes) need it.
+    const clone = spawnSync(
+      "git",
+      [
+        "-c", "core.longpaths=true",
+        "-c", "core.autocrlf=false",
+        "clone",
+        "--depth", "1",
+        "--no-single-branch",
+        "--quiet",
+        repoUrl,
+        clonePath,
+      ],
+      {
+        timeout: 120000,
+        stdio: "pipe",
+        encoding: "utf-8",
+        windowsHide: true,
+      }
+    );
+    if (clone.status !== 0) {
+      return {
+        success: false,
+        path: "",
+        time_ms: Date.now() - start,
+        error: clone.stderr || clone.error?.message || "git clone failed",
+      };
     }
+
+    // Checkout başarısız olabilir ("Clone succeeded, but checkout failed").
+    // Çalışma ağacında dosya yoksa başarısız say.
+    try {
+      const entries = readdirSync(clonePath);
+      if (entries.length === 0 || (entries.length === 1 && entries[0] === ".git")) {
+        return {
+          success: false,
+          path: "",
+          time_ms: Date.now() - start,
+          error: "Checkout failed — working tree is empty (likely path length limit).",
+        };
+      }
+    } catch {
+      // dizin yok — başarısız
+      return { success: false, path: "", time_ms: Date.now() - start, error: "Clone directory missing after clone." };
+    }
+
+    setReadOnlyBestEffort(clonePath);
 
     return { success: true, path: clonePath, time_ms: Date.now() - start };
   } catch (err: any) {
@@ -219,16 +352,16 @@ function cloneRepository(repoUrl: string, repoName: string): { success: boolean;
 /**
  * Runs REAL analysis on a cloned repository.
  *
- * This performs actual static analysis:
- * - File scanning (count .py, .ts, .js, .java, .go, .rs, .cs, .kt, .php, .rb, .swift, .scala files)
- * - LOC counting (actual line count)
- * - Class/function counting (regex-based)
- * - Import/dependency analysis
- * - Circular dependency detection (import graph)
- * - Complexity estimation (function length)
- * - Architecture pattern detection (directory structure analysis)
+ * Performs language-aware static analysis (no AST, but scope-aware parser):
+ * - File scanning (per-language extensions)
+ * - LOC counting (skips comments / blank lines / string bodies)
+ * - Class / function / import counting (language-specific keywords)
+ * - Import graph construction + Tarjan SCC for real circular dependency detection
+ * - Function-length analysis (scope-aware: brace / indent / keyword_end)
+ * - God Class detection (classes containing > 20 functions in scope)
+ * - Architecture pattern detection (strict directory structure scoring)
  *
- * NO generateDemoData() is called. All numbers are REAL.
+ * All numbers come from the actual cloned source. Never mocks.
  */
 function analyzeRepository(
   repoName: string,
@@ -238,197 +371,126 @@ function analyzeRepository(
 ): AnalysisResult {
   const start = Date.now();
   const errors: string[] = [];
+  const lang = catalogEntry.lang;
 
-  // 1. REAL file scanning
-  const fileExtensions: Record<string, string[]> = {
-    Python: [".py"],
-    TypeScript: [".ts", ".tsx"],
-    JavaScript: [".js", ".jsx"],
-    Java: [".java"],
-    Go: [".go"],
-    Rust: [".rs"],
-    "C#": [".cs"],
-    Kotlin: [".kt"],
-    PHP: [".php"],
-    Ruby: [".rb"],
-    Swift: [".swift"],
-    Scala: [".scala"],
-    C: [".c", ".h"],
-  };
-
-  const extensions = fileExtensions[catalogEntry.lang] || [".py"];
+  const extensions = getExtensions(lang);
   let files: string[] = [];
+
+  // Aggregated metrics from REAL per-file analysis
   let totalLoc = 0;
   let classCount = 0;
   let functionCount = 0;
   let importCount = 0;
+  let complexFunctions = 0;
+  let longFunctions = 0;
+  let largeFiles = 0;
+  let godClassCount = 0;
+  let avgFunctionLength = 0;
+  const allFunctionLengths: number[] = [];
+
+  // Import graph: normalized module id → set of imported ids
+  const importGraph = new Map<string, Set<string>>();
+  const fileToModuleId = new Map<string, string>([[clonePath.replace(/[\\/]+/g, "/"), "<root>"]]);
 
   try {
-    // Use find to list source files
-    const findCmd = `find "${clonePath}" -type f \\( ${extensions.map((e) => `-name "*${e}"`).join(" -o ")} \\) -not -path "*/node_modules/*" -not -path "*/.git/*" -not -path "*/vendor/*" -not -path "*/dist/*" -not -path "*/build/*" 2>/dev/null | head -500`;
-    const fileList = execSync(findCmd, { timeout: 10000, encoding: "utf-8" }).trim();
-    files = fileList ? fileList.split("\n") : [];
+    const scan = scanWorkspace(clonePath, new Set(extensions), { maxFiles: 500 });
+    files = scan.files;
 
-    // Count LOC, classes, functions, imports
-    for (const file of files.slice(0, 200)) { // Analyze up to 200 files
+    for (const file of files) {
       try {
         const content = readFileSync(file, "utf-8");
-        const lines = content.split("\n");
-        totalLoc += lines.length;
 
-        // Count classes (language-agnostic regex)
-        const classMatches = content.match(/\b(class|struct|interface|trait|object)\s+\w+/g);
-        if (classMatches) classCount += classMatches.length;
+        // Per-file metrics via language-aware helper
+        const m = analyzeFile(content, lang);
+        totalLoc += m.loc;
+        classCount += m.classCount;
+        functionCount += m.functionCount;
+        importCount += m.importCount;
+        complexFunctions += m.complexFunctions;
+        longFunctions += m.longFunctions;
+        if (m.largeFile) largeFiles++;
+        godClassCount += m.godClassCandidates;
+        if (m.avgFunctionLength > 0) allFunctionLengths.push(m.avgFunctionLength);
 
-        // Count functions/methods
-        const funcMatches = content.match(/\b(def|function|func|fn|method|public|private|protected|static)\s+\w+\s*[\(\{]/g);
-        if (funcMatches) functionCount += funcMatches.length;
-
-        // Count imports
-        const importMatches = content.match(/\b(import|from|require|use|include|#include)\b/g);
-        if (importMatches) importCount += importMatches.length;
+        // Imports for cycle detection
+        const rel = toRepoRelative(clonePath, file).replace(/\\/g, "/");
+        const moduleId = rel.replace(/\.[^.]+$/, "").replace(/\//g, ".");
+        fileToModuleId.set(file, moduleId);
+        const imps = extractImports(content, lang);
+        importGraph.set(
+          moduleId,
+          new Set(
+            imps
+              // Normalize "." separators and strip leading relative markers (./, ../)
+              .map((i) => i.replace(/^\.\//, "").replace(/^\.\.\//, ""))
+              .filter((i) => i.length > 0)
+          )
+        );
       } catch {
-        // Skip unreadable files
+        // Skip unreadable / encodable files
       }
     }
   } catch (err: any) {
     errors.push(`File scanning error: ${err.message}`);
   }
 
-  // 2. REAL circular dependency detection (import graph)
-  const importGraph: Record<string, Set<string>> = {};
-  let circularDependencies = 0;
-
-  try {
-    for (const file of files.slice(0, 100)) {
-      const fileName = file.replace(clonePath + "/", "").replace(/\\/g, "/");
-      try {
-        const content = readFileSync(file, "utf-8");
-        const importRegex = /\b(?:from|import|use|require)\s+['"]?([^'"\s;]+)['"]?/g;
-        let match;
-        const imports = new Set<string>();
-        while ((match = importRegex.exec(content)) !== null) {
-          imports.add(match[1]);
-        }
-        importGraph[fileName] = imports;
-      } catch { /* skip */ }
-    }
-
-    // Simple cycle detection (A imports B, B imports A)
-    for (const [file, imports] of Object.entries(importGraph)) {
-      for (const imp of imports) {
-        // Check if the imported module imports back
-        for (const [otherFile, otherImports] of Object.entries(importGraph)) {
-          if (otherFile !== file && otherFile.includes(imp.split("/").pop() || "")) {
-            if (otherImports.has(file.split("/").pop() || "")) {
-              circularDependencies++;
-            }
+  // Resolve import targets against modules present in repo:
+  // resolve `a.b.c` against actual file ids. If target has no extension and matches a known module, keep edge.
+  const resolved = new Map<string, Set<string>>();
+  for (const [src, imps] of importGraph.entries()) {
+    const out = new Set<string>();
+    for (const target of imps) {
+      // Try direct match, then prefix match (target.x.y → target)
+      if (importGraph.has(target)) {
+        out.add(target);
+      } else {
+        // Find any key ending with target segment (e.g. utils → pkg.utils)
+        for (const k of importGraph.keys()) {
+          if (k === target || k.endsWith("." + target)) {
+            if (k !== src) out.add(k);
+            break;
           }
         }
       }
     }
-    circularDependencies = Math.floor(circularDependencies / 2); // Each cycle counted twice
-  } catch (err: any) {
-    errors.push(`Import analysis error: ${err.message}`);
+    resolved.set(src, out);
   }
 
-  // 3. REAL architecture pattern detection (directory structure)
+  let circularDependencies = 0;
+  try {
+    circularDependencies = findCycles(resolved);
+  } catch (err: any) {
+    errors.push(`Cycles analysis error: ${err.message}`);
+  }
+
+  // Architecture pattern detection — DIRECTORY scan only
   const detectedPatterns: { pattern: string; compatibility: number }[] = [];
   try {
-    const dirList = execSync(`find "${clonePath}" -type d -maxdepth 3 -not -path "*/.git/*" -not -path "*/node_modules/*" 2>/dev/null`, {
-      timeout: 5000, encoding: "utf-8",
-    }).trim().split("\n").map((d) => d.replace(clonePath + "/", ""));
-
-    const hasDir = (pattern: string) => dirList.some((d) => d.toLowerCase().includes(pattern));
-
-    if (hasDir("controller") && hasDir("model") && hasDir("view")) {
-      detectedPatterns.push({ pattern: "MVC", compatibility: 80 });
-    }
-    if (hasDir("api") && hasDir("services") && hasDir("models")) {
-      detectedPatterns.push({ pattern: "Layered", compatibility: 70 });
-    }
-    if (hasDir("domain") && hasDir("application") && hasDir("infrastructure")) {
-      detectedPatterns.push({ pattern: "DDD", compatibility: 75 });
-    }
-    if (hasDir("ports") || hasDir("adapters")) {
-      detectedPatterns.push({ pattern: "Hexagonal", compatibility: 60 });
-    }
-    if (hasDir("controller") || hasDir("service")) {
-      detectedPatterns.push({ pattern: "Modular Monolith", compatibility: 50 });
-    }
+    const dirList = scanWorkspace(clonePath, new Set(extensions), { maxFiles: 0, maxDepth: 4 }).directories;
+    detectedPatterns.push(...detectPatterns(dirList));
   } catch { /* skip */ }
 
-  // 4. REAL complexity estimation (function length analysis)
-  let complexFunctions = 0;
-  let avgFunctionLength = 0;
-  let functionLengths: number[] = [];
+  // Aggregate avg function length across files
+  avgFunctionLength = allFunctionLengths.length > 0
+    ? Math.round(allFunctionLengths.reduce((a, b) => a + b, 0) / allFunctionLengths.length)
+    : 0;
 
-  try {
-    for (const file of files.slice(0, 100)) {
-      try {
-        const content = readFileSync(file, "utf-8");
-        // Split by function definitions and measure length
-        const funcBlocks = content.split(/\b(def|function|func|fn)\s+\w+/);
-        for (let i = 1; i < funcBlocks.length; i++) {
-          const block = funcBlocks[i];
-          const lines = block.split("\n").length;
-          functionLengths.push(lines);
-          if (lines > 50) complexFunctions++;
-        }
-      } catch { /* skip */ }
-    }
-    avgFunctionLength = functionLengths.length > 0
-      ? Math.round(functionLengths.reduce((a, b) => a + b, 0) / functionLengths.length)
-      : 0;
-  } catch { /* skip */ }
-
-  // 5. Build REAL evidence from actual metrics
+  // Build REAL evidence from actual metrics
   const evidenceBySeverity: Record<string, number> = { critical: 0, high: 0, medium: 0, low: 0 };
   const evidenceByAnalyzer: Record<string, number> = {};
 
-  // Real evidence: complex functions → high severity
   if (complexFunctions > 0) {
     evidenceBySeverity.high += complexFunctions;
     evidenceByAnalyzer["complexity-analyzer"] = complexFunctions;
   }
-
-  // Real evidence: circular dependencies → critical
   if (circularDependencies > 0) {
     evidenceBySeverity.critical += circularDependencies;
     evidenceByAnalyzer["import-analyzer"] = circularDependencies;
   }
-
-  // Real evidence: large files (LOC > 500) → medium
-  let largeFiles = 0;
-  try {
-    for (const file of files.slice(0, 200)) {
-      try {
-        const content = readFileSync(file, "utf-8");
-        if (content.split("\n").length > 500) largeFiles++;
-      } catch { /* skip */ }
-    }
-  } catch { /* skip */ }
   if (largeFiles > 0) {
     evidenceBySeverity.medium += largeFiles;
     evidenceByAnalyzer["metrics-engine"] = largeFiles;
   }
-
-  // Real evidence: God Class detection (class with > 20 functions)
-  let godClassCount = 0;
-  try {
-    for (const file of files.slice(0, 200)) {
-      try {
-        const content = readFileSync(file, "utf-8");
-        const classBlocks = content.match(/\bclass\s+\w+[\s\S]*?(?=\bclass\s|\Z)/g);
-        if (classBlocks) {
-          for (const block of classBlocks) {
-            const methods = block.match(/\bdef\s+\w+|function\s+\w+|func\s+\w+|fn\s+\w+/g);
-            if (methods && methods.length > 20) godClassCount++;
-          }
-        }
-      } catch { /* skip */ }
-    }
-  } catch { /* skip */ }
   if (godClassCount > 0) {
     evidenceBySeverity.high += godClassCount;
     evidenceByAnalyzer["architecture-analyzer"] = godClassCount;
@@ -436,20 +498,19 @@ function analyzeRepository(
 
   const totalEvidence = Object.values(evidenceBySeverity).reduce((a, b) => a + b, 0);
 
-  // 6. REAL root causes (from actual evidence)
+  // Root causes from real evidence
   const rootCauseCategories: string[] = [];
   if (godClassCount > 0) rootCauseCategories.push("god_class");
   if (circularDependencies > 0) rootCauseCategories.push("circular_dependency");
-  if (largeFiles > 5) rootCauseCategories.push("large_file");
-  if (avgFunctionLength > 50) rootCauseCategories.push("long_method");
+  if (largeFiles > 3) rootCauseCategories.push("large_file");
+  if (avgFunctionLength > 50 || longFunctions > 0) rootCauseCategories.push("long_method");
 
-  // 7. REAL recommendations
+  // Recommendations
   const recommendations: { count: number; by_priority: Record<string, number>; by_verified_status: Record<string, number> } = {
     count: 0,
     by_priority: { high: 0, medium: 0, low: 0 },
     by_verified_status: { verified: 0, evidence_backed: 0, partially_verified: 0, ai_opinion: 0, rejected: 0 },
   };
-
   if (godClassCount > 0) {
     recommendations.count++;
     recommendations.by_priority.high++;
@@ -460,28 +521,30 @@ function analyzeRepository(
     recommendations.by_priority.high++;
     recommendations.by_verified_status.verified++;
   }
-  if (largeFiles > 5) {
+  if (largeFiles > 3) {
     recommendations.count++;
     recommendations.by_priority.medium++;
     recommendations.by_verified_status.evidence_backed++;
   }
-  if (avgFunctionLength > 50) {
+  if (avgFunctionLength > 50 || longFunctions > 0) {
     recommendations.count++;
     recommendations.by_priority.medium++;
     recommendations.by_verified_status.evidence_backed++;
   }
 
-  // 8. REAL smells
+  // Smells
   const smells: { smell: string; severity: string; confidence: number }[] = [];
   if (godClassCount > 0) smells.push({ smell: "God Component", severity: "high", confidence: 0.85 });
   if (circularDependencies > 0) smells.push({ smell: "Cyclic Dependency", severity: "high", confidence: 0.92 });
-  if (largeFiles > 5) smells.push({ smell: "Architecture Sink", severity: "medium", confidence: 0.75 });
-  if (avgFunctionLength > 50) smells.push({ smell: "Blob Module", severity: "medium", confidence: 0.70 });
+  if (largeFiles > 3) smells.push({ smell: "Architecture Sink", severity: "medium", confidence: 0.75 });
+  if (avgFunctionLength > 50 || longFunctions > 0) smells.push({ smell: "Blob Module", severity: "medium", confidence: 0.70 });
 
-  // 9. REAL coverage
-  const coverage = totalEvidence > 0 ? Math.min(100, Math.round((totalEvidence / Math.max(1, rootCauseCategories.length * 2)) * 100)) : 100;
+  // Coverage
+  const coverage = totalEvidence > 0
+    ? Math.min(100, Math.round((totalEvidence / Math.max(1, rootCauseCategories.length * 2)) * 100))
+    : (files.length > 0 ? 100 : 0);
 
-  // 10. REAL confidence distribution
+  // Confidence distribution
   const confidenceDistribution = [
     { range: "0-20", count: 0 },
     { range: "20-40", count: 0 },
@@ -491,15 +554,13 @@ function analyzeRepository(
     { range: "90-100", count: smells.filter((s) => s.confidence >= 0.9).length },
   ];
 
-  // 11. Performance metrics
   const analysisTime = Date.now() - start;
   const peakMemory = Math.round(process.memoryUsage().heapUsed / 1024 / 1024);
 
-  // 12. Repository size
   let repoSizeMb = 0;
   try {
-    const sizeOutput = execSync(`du -sm "${clonePath}" 2>/dev/null | cut -f1`, { encoding: "utf-8" }).trim();
-    repoSizeMb = parseInt(sizeOutput) || 0;
+    const scan = scanWorkspace(clonePath, new Set(extensions), { maxFiles: 0 });
+    repoSizeMb = Math.round(scan.sizeBytes / 1024 / 1024);
   } catch { /* skip */ }
 
   return {
@@ -508,7 +569,7 @@ function analyzeRepository(
     classification: {
       name: repoName.split("/").pop() || repoName,
       org: catalogEntry.org,
-      primary_language: catalogEntry.lang,
+      primary_language: lang,
       loc: totalLoc,
       file_count: files.length,
       class_count: classCount,
@@ -525,7 +586,9 @@ function analyzeRepository(
     root_causes: {
       count: rootCauseCategories.length,
       categories: rootCauseCategories,
-      avg_confidence: smells.length > 0 ? Math.round(smells.reduce((s, sm) => s + sm.confidence, 0) / smells.length * 100) / 100 : 0,
+      avg_confidence: smells.length > 0
+        ? Math.round(smells.reduce((s, sm) => s + sm.confidence, 0) / smells.length * 100) / 100
+        : 0,
     },
     recommendations,
     patterns: detectedPatterns,
@@ -544,9 +607,9 @@ function analyzeRepository(
       rejected: 0,
     },
     performance: {
-      clone_time_ms: 0, // Set by caller
+      clone_time_ms: 0,
       analysis_time_ms: analysisTime,
-      total_time_ms: analysisTime, // Updated by caller
+      total_time_ms: analysisTime,
       peak_memory_mb: peakMemory,
     },
     execution_log: {
@@ -574,25 +637,56 @@ function loadCheckpoint(): Record<string, AnalysisResult> {
 }
 
 function saveCheckpoint(results: Record<string, AnalysisResult>) {
-  const safety = validateSafety(CHECKPOINT_PATH);
-  if (!safety.safe) return;
-  mkdirSync(RESULTS_ROOT, { recursive: true });
-  writeFileSync(CHECKPOINT_PATH, JSON.stringify(results, null, 2));
+  try {
+    const safety = validateSafety(CHECKPOINT_PATH);
+    if (!safety.safe) return;
+    mkdirSync(RESULTS_ROOT, { recursive: true });
+    writeFileSync(CHECKPOINT_PATH, JSON.stringify(results, null, 2));
+  } catch {
+    // Best-effort: checkpoint is optional; OK to skip on read-only filesystem
+  }
 }
 
 function saveResult(repoName: string, result: AnalysisResult) {
-  const resultDir = join(RESULTS_ROOT, repoName.replace("/", "_"));
-  const safety = validateSafety(resultDir);
-  if (!safety.safe) return;
-  mkdirSync(resultDir, { recursive: true });
+  try {
+    const resultDir = join(RESULTS_ROOT, repoName.replace("/", "_"));
+    const safety = validateSafety(resultDir);
+    if (!safety.safe) return;
+    mkdirSync(resultDir, { recursive: true });
 
-  writeFileSync(join(resultDir, "evidence.json"), JSON.stringify(result.evidence, null, 2));
-  writeFileSync(join(resultDir, "root_causes.json"), JSON.stringify(result.root_causes, null, 2));
-  writeFileSync(join(resultDir, "recommendations.json"), JSON.stringify(result.recommendations, null, 2));
-  writeFileSync(join(resultDir, "patterns.json"), JSON.stringify(result.patterns, null, 2));
-  writeFileSync(join(resultDir, "smells.json"), JSON.stringify(result.smells, null, 2));
-  writeFileSync(join(resultDir, "performance.json"), JSON.stringify(result.performance, null, 2));
-  writeFileSync(join(resultDir, "analysis_result.json"), JSON.stringify(result, null, 2));
+    writeFileSync(join(resultDir, "evidence.json"), JSON.stringify(result.evidence, null, 2));
+    writeFileSync(join(resultDir, "root_causes.json"), JSON.stringify(result.root_causes, null, 2));
+    writeFileSync(join(resultDir, "recommendations.json"), JSON.stringify(result.recommendations, null, 2));
+    writeFileSync(join(resultDir, "patterns.json"), JSON.stringify(result.patterns, null, 2));
+    writeFileSync(join(resultDir, "smells.json"), JSON.stringify(result.smells, null, 2));
+    writeFileSync(join(resultDir, "performance.json"), JSON.stringify(result.performance, null, 2));
+    writeFileSync(join(resultDir, "analysis_result.json"), JSON.stringify(result, null, 2));
+  } catch {
+    // Best-effort: persistence is optional; OK to skip on read-only filesystem
+  }
+}
+
+function saveExecutionLog(log: ExecutionLog) {
+  try {
+    const logSafety = validateSafety(join(RESULTS_ROOT, "execution_log.json"));
+    if (logSafety.safe) {
+      mkdirSync(RESULTS_ROOT, { recursive: true });
+      writeFileSync(join(RESULTS_ROOT, "execution_log.json"), JSON.stringify(log, null, 2));
+    }
+  } catch {
+    // Best-effort
+  }
+}
+
+function saveSummary(summary: ValidationSummary) {
+  try {
+    const summarySafety = validateSafety(join(RESULTS_ROOT, "validation_summary.json"));
+    if (summarySafety.safe) {
+      writeFileSync(join(RESULTS_ROOT, "validation_summary.json"), JSON.stringify(summary, null, 2));
+    }
+  } catch {
+    // Best-effort
+  }
 }
 
 // ===================== MAIN EXECUTION =====================
@@ -619,6 +713,7 @@ export function runRealValidation(
   const results: Record<string, AnalysisResult> = { ...checkpoint };
   const failures: { repo: string; reason: string; retry_count: number }[] = [];
   const queueEntries: QueueEntry[] = [];
+  let hadRealCloneSuccess = false;
 
   for (const entry of reposToAnalyze) {
     const repoName = `${entry.org}/${entry.name}`;
@@ -643,6 +738,7 @@ export function runRealValidation(
       queueEntry.completed_at = checkpoint[repoName].execution_log.finished;
       queueEntry.duration_ms = checkpoint[repoName].execution_log.duration_ms;
       queueEntries.push(queueEntry);
+      hadRealCloneSuccess = true;
       continue;
     }
 
@@ -653,13 +749,15 @@ export function runRealValidation(
 
     if (!cloneResult.success) {
       queueEntry.status = "failed";
-      queueEntry.error = `Clone failed: ${cloneResult.error}`;
+      queueEntry.error = `Clone failed: ${cloneResult.error || "unknown error"}`;
       queueEntry.completed_at = new Date().toISOString();
-      queueEntry.duration_ms = Date.now() - new Date(queueEntry.started_at).getTime();
-      failures.push({ repo: repoName, reason: queueEntry.error || "Clone failed", retry_count: 0 });
+      queueEntry.duration_ms = cloneResult.time_ms || 200;
+      failures.push({ repo: repoName, reason: queueEntry.error, retry_count: 0 });
       queueEntries.push(queueEntry);
       continue;
     }
+
+    hadRealCloneSuccess = true;
 
     // Phase 2: Analyze
     queueEntry.status = "analyzing";
@@ -679,6 +777,9 @@ export function runRealValidation(
       // Save result
       results[repoName] = result;
       saveResult(repoName, result);
+
+      // Prune heavy .git directory to protect file watcher and disk
+      pruneWorkspaceRepo(cloneResult.path);
 
       queueEntry.status = "completed";
       queueEntry.completed_at = new Date().toISOString();
@@ -712,13 +813,9 @@ export function runRealValidation(
   };
 
   // Save execution log
-  const logSafety = validateSafety(join(RESULTS_ROOT, "execution_log.json"));
-  if (logSafety.safe) {
-    mkdirSync(RESULTS_ROOT, { recursive: true });
-    writeFileSync(join(RESULTS_ROOT, "execution_log.json"), JSON.stringify(executionLog, null, 2));
-  }
+  saveExecutionLog(executionLog);
 
-  // Build summary from REAL results
+  // Build summary from REAL results — only repos that had a successful clone
   const allResults = Object.values(results).filter((r) => reposToAnalyze.some((e) => `${e.org}/${e.name}` === r.repository));
 
   if (allResults.length === 0) {
@@ -793,13 +890,11 @@ export function runRealValidation(
     execution_log: executionLog,
     cross_repository_analysis: crossAnalysis,
     is_real: true,
+    had_real_clone: hadRealCloneSuccess,
   };
 
   // Save summary
-  const summarySafety = validateSafety(join(RESULTS_ROOT, "validation_summary.json"));
-  if (summarySafety.safe) {
-    writeFileSync(join(RESULTS_ROOT, "validation_summary.json"), JSON.stringify(summary, null, 2));
-  }
+  saveSummary(summary);
 
   return { summary, executionLog, status: "completed" };
 }

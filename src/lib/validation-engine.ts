@@ -197,10 +197,15 @@ function validateRepository(entry: RepositoryCatalogEntry): RepositoryValidation
   const classification = classifyRepository(entry);
   const start = Date.now();
 
-  // Simulate analysis using the existing demo data generator.
-  
+  // Boş analiz iskeleti — bu modül artık demo veri üretmez.
+  const result: any = {
+    root_causes: { root_causes: [] },
+    engineering_review: { architectural_smells: [], architectural_patterns: [], coverage_engine: { overall: 0 }, hypotheses: [] },
+    engineering_plan: { steps: [] },
+    evidence: { evidence: [] },
+  };
 
-  const rootCauses = (result.root_causes as any).root_causes || [];
+  const rootCauses = result.root_causes?.root_causes || [];
   const smells = (result.engineering_review as any).architectural_smells || [];
   const patterns = (result.engineering_review as any).architectural_patterns || [];
   const steps = (result.engineering_plan as any).steps || [];

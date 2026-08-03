@@ -6,7 +6,13 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  reactStrictMode: false,
+  reactStrictMode: true,
+  serverExternalPackages: [],
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "50mb",
+    },
+  },
   // Sprint 15: validation_workspace/ and validation_results/ contain thousands of
   // cloned repo files which can exhaust OS inotify watch limits during dev.
   // Exclude them from output file tracing so the build stays fast and lean.

@@ -5,6 +5,9 @@ import {
   loadExecutionLog,
 } from "@/lib/real-analysis-engine";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 /**
  * Sprint 15 — Real Execution API
  *

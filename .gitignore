@@ -46,9 +46,17 @@ local-*
 *.log
 dev.log
 dev.out.log
-test
+
 prompt
 
 server.log
 # Skills directory
 /skills/
+
+# Dev/QA araç verisi — analiz motoru bunları taramaz (repo sahibi kararı)
+/benchmarks/
+/download/
+/validation_workspace/
+/validation_results/
+/tool-results/
+/mini-services/

@@ -3,6 +3,9 @@ import { runExternalValidation } from "@/lib/external-validation-engine";
 import { readFileSync } from "fs";
 import { resolve } from "path";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 /**
  * External Validation API endpoint.
  *
@@ -22,11 +25,8 @@ export async function POST() {
       catalog = [];
     }
 
-    // Simulate external validation latency
-    await new Promise((r) => setTimeout(r, 1000));
-
     const report = runExternalValidation(catalog);
-    return NextResponse.json(report);
+    return NextResponse.json({ ...report, is_demo: true });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

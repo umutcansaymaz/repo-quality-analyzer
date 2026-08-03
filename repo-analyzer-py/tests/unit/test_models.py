@@ -231,8 +231,12 @@ class TestHealthScore:
             test_score=60,
         )
         score.recompute_overall()
-        expected = 80 * 0.4 + 90 * 0.25 + 70 * 0.2 + 60 * 0.15
+        # Ağırlıklar JS puanlama motoruyla senkronize (0.15/0.25/0.20/0.15),
+        # normalizasyon sonrası toplam 0.75 üzerinden oransal ağırlıklar.
+        w = ScoreWeights()
+        expected = 80 * w.security + 90 * w.quality + 70 * w.architecture + 60 * w.test
         assert abs(score.overall - expected) < 0.01
+        assert abs((w.security + w.quality + w.architecture + w.test) - 1.0) < 0.001
 
     def test_grade_from_score(self) -> None:
         assert Grade.from_score(95) == Grade.A

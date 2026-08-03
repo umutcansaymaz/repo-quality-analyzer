@@ -1,27 +1,45 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateDemoData, buildReport } from "@/lib/demo-data";
+import { buildReport } from "@/lib/demo-data";
 import { jobStore } from "../analyze/route";
+import { existsSync, readFileSync } from "fs";
+import { join } from "path";
+import { RESULTS_DIR } from "@/lib/analysis-store";
 
 /**
- * Mock report endpoint.
+ * Report endpoint — real results only.
  *
  * POST /api/report with { job_id, format } — returns a downloadable report
- * in the requested format (md, json, html, text).
- *
- * If the job_id isn't found in the in-memory store, we regenerate a demo
- * result on the fly.
+ * (md, json, html, text) from the real analysis result. Never regenerates
+ * demo data.
  */
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const jobId: string = body.job_id || "latest";
+    const jobId: string = body.job_id || "";
     const format: string = (body.format || "md").toLowerCase();
+    if (!jobId) {
+      return NextResponse.json({ error: "job_id is required" }, { status: 400 });
+    }
 
-    let result = jobStore.get(jobId) as ReturnType<typeof generateDemoData> | undefined;
+    let result = jobStore.get(jobId);
     if (!result) {
-      // Regenerate — for "latest" or unknown ids, use a placeholder repo.
-      const repoUrl = body.repository_url || `https://github.com/example/${jobId}`;
-      result = generateDemoData(repoUrl);
+      // Disk yedeğinden oku (restart/HMR dayanıklı)
+      try {
+        const diskPath = join(RESULTS_DIR, `${jobId}.json`);
+        if (existsSync(diskPath)) {
+          result = JSON.parse(readFileSync(diskPath, "utf8"));
+          jobStore.set(jobId, result);
+        }
+      } catch {
+        // bozuk/eksik — aşağıda 404
+      }
+    }
+
+    if (!result) {
+      return NextResponse.json(
+        { error: "Analiz sonucu bulunamadı. Lütfen analizi tekrar çalıştırın." },
+        { status: 404 }
+      );
     }
 
     const report = buildReport(result, format);

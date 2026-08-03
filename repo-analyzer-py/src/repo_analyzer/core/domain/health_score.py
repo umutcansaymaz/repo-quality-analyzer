@@ -37,12 +37,18 @@ class Grade(str, Enum):
 class ScoreWeights(BaseModel):
     """Weights used to combine subscores into the overall health score.
 
+    Mirrors the JS scoring engine (src/lib/local-analysis.ts): the web
+    dashboard uses an 8-dimension weighted model where security=0.15,
+    architecture=0.20, quality=0.25, test=0.15, docs=0.10, performance=0.05,
+    dx=0.05, scalability=0.05. The four core weights below are normalized
+    to the same relative balance when combined with the remaining signals.
+
     Weights are normalized to sum to 1.0 during validation.
     """
 
     model_config = ConfigDict(extra="forbid")
 
-    security: float = Field(default=0.40, ge=0.0, le=1.0)
+    security: float = Field(default=0.15, ge=0.0, le=1.0)
     quality: float = Field(default=0.25, ge=0.0, le=1.0)
     architecture: float = Field(default=0.20, ge=0.0, le=1.0)
     test: float = Field(default=0.15, ge=0.0, le=1.0)

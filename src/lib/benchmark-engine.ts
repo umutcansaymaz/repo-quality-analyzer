@@ -333,8 +333,15 @@ export function runBenchmark(benchmarkName: string): BenchmarkResult | null {
  * Runs all benchmarks and generates a report.
  * Also checks for regression by comparing to previous results.
  */
+let cachedBenchmarkReport: { key: string; report: BenchmarkReport } | null = null;
+
 export function runAllBenchmarks(previousReport?: BenchmarkReport | null): BenchmarkReport {
   const benchmarks = discoverBenchmarks();
+  const cacheKey = benchmarks.join(",") + (previousReport ? `:${previousReport.overall_accuracy}` : "");
+  if (cachedBenchmarkReport && cachedBenchmarkReport.key === cacheKey) {
+    return cachedBenchmarkReport.report;
+  }
+
   const results: BenchmarkResult[] = [];
 
   for (const name of benchmarks) {
@@ -363,7 +370,7 @@ export function runAllBenchmarks(previousReport?: BenchmarkReport | null): Bench
     ? results.reduce((worst, r) => r.metrics.overall_score < worst.metrics.overall_score ? r : worst).benchmark_name
     : null;
 
-  return {
+  const report: BenchmarkReport = {
     total_benchmarks: results.length,
     passed,
     failed: results.length - passed,
@@ -376,6 +383,9 @@ export function runAllBenchmarks(previousReport?: BenchmarkReport | null): Bench
     best_benchmark: best,
     worst_benchmark: worst,
   };
+
+  cachedBenchmarkReport = { key: cacheKey, report };
+  return report;
 }
 
 // ===================== MUTATION ENGINE =====================
