@@ -68,3 +68,8 @@ server.log
 /audit/.work/
 # Runtime SQLite database (created on first run)
 db/custom.db
+
+# Audit runtime output
+audit/report.txt
+# Bun lockfile (npm kullanýlýyor)
+bun.lock
