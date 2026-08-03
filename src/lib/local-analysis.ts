@@ -143,8 +143,13 @@ export function parseGitignore(text: string): Set<string> {
 export function shouldSkip(path: string, gitignoreSegs?: Set<string>): boolean {
   const parts = path.toLowerCase().split("/");
   if (gitignoreSegs) {
-    for (const part of parts) {
-      if (gitignoreSegs.has(part)) return true;
+    // Çok parçalı desenler de eşleşmeli: gitignore'daki "audit/.work" →
+    // "audit/.work/command_injection-x/src/main.ts" yolunda önek olarak bulunur.
+    const joined = parts.join("/");
+    for (const seg of gitignoreSegs) {
+      if (seg.includes("/")) {
+        if (joined === seg || joined.startsWith(seg + "/")) return true;
+      } else if (parts.includes(seg)) return true;
     }
   }
   if (parts.some((part) => SKIP_SEGMENTS.has(part))) return true;
@@ -593,12 +598,17 @@ function maxNestingDepth(text: string, family: LanguageFamily): number {
 }
 
 function countBraceBodyLines(text: string, openIdx: number): number {
-  let depth = 0;
+  let depth = 1; // açılış { karakteri (i = openIdx'te duruyor, ilk satır sonunda)
   let inString: string | null = null;
   let lineComment = false;
   let blockComment = false;
   let lineCount = 0;
   let i = openIdx;
+  // Açılış { karakterinden sonraki satır başı gövde SATIRI DEĞİLDİR —
+  // imza satırının sonudur. İlk \n'i atlayarak satır sayısını doğru ölç:
+  // gövde = { sonrasındaki gerçek kod satırları (eşik: > 50 satır).
+  const firstNl = text.indexOf("\n", i);
+  if (firstNl !== -1) i = firstNl + 1;
   while (i < text.length) {
     const ch = text[i];
     const nx = text[i + 1];
@@ -996,7 +1006,7 @@ function validateEvidence(evidence: LocalEvidence[], fileContents: Map<string, s
         // İkinci doğrulama: ilk tespitle AYNI fonksiyonu yeniden çalıştır (deterministik
         // desen seti — findCommandInjection zaten yorum/string maskesi uygular ve
         // ".exec(" RegExp çağrısını komut sanmaz).
-        const found = findCommandInjection(content);
+        const found = findCommandInjection(content, languageFamilyOf(extensionOf(item.file_path)));
         if (found) {
           validators.push("context-validator");
           item.validation_status = "verified";
@@ -1008,7 +1018,7 @@ function validateEvidence(evidence: LocalEvidence[], fileContents: Map<string, s
       case "weak_crypto": {
         // İkinci doğrulama: ilk tespitle AYNI fonksiyonu yeniden çalıştır (deterministik
         // desen seti — findWeakCrypto zaten string/regex maskesi uygular).
-        const found = findWeakCrypto(content);
+        const found = findWeakCrypto(content, languageFamilyOf(extensionOf(item.file_path)));
         if (found) {
           validators.push("context-validator");
           item.validation_status = "verified";
@@ -1212,6 +1222,22 @@ function findEmptyHandler(text: string): { index: number } | null {
   const pyRe = /except\s+[\w.]*(?:\s+as\s+\w+)?\s*:\s*pass\b/gi;
   const pm = pyRe.exec(text);
   if (pm) return { index: pm.index };
+  // Ruby: rescue satırından sonra doğrudan "end" geliyorsa boş handler (hata yutuluyor)
+  const rubyLines = text.split(/\r?\n/);
+  for (let i = 0; i < rubyLines.length; i++) {
+    if (/^\s*rescue(?:\s+[A-Z]\w*(?:\s*=>\s*\w+)?)?\s*$/.test(rubyLines[i])) {
+      const next = rubyLines[i + 1]?.trim() || "";
+      if (!next || next === "end") {
+        let idx = 0;
+        for (let j = 0; j < i; j++) idx += rubyLines[j].length + 1;
+        return { index: idx };
+      }
+    }
+  }
+  // Go: recover() — hata yakalanıp yutuluyor (defer+recover veya _ = recover()).
+  const goRecoverRe = /\bdefer\s+[^;\n]*recover\s*\(|_ = \s*recover\s*\(/g;
+  const gr = goRecoverRe.exec(text);
+  if (gr) return { index: gr.index };
   return null;
 }
 
@@ -1245,8 +1271,8 @@ function findMagicNumber(text: string): { index: number; value: string } | null 
  * String literal ve yorum içindeki eşleşmeleri atlar (yanlış pozitif koruması).
  */
 const INJECTION_PATTERNS: { re: RegExp; label: string }[] = [
-  // exec() — yalnızca nokta öncesi YOKSA (RegExp.prototype.exec'i komut sanma):
-  // (?<!\.) lookbehind — "pattern.exec(" yakalanmaz, "exec(cmd)" yakalanır.
+  // exec() - yalnızca nokta öncesi YOKSA (RegExp.prototype.exec'i komut sanma):
+  // (?<!\.) lookbehind - "pattern.exec(" yakalanmaz, "exec(cmd)" yakalanır.
   { re: /(?<!\.)\bexec\s*\(/, label: "exec()" },
   { re: /\beval\s*\(/, label: "eval()" },
   { re: /\bos\.system\s*\(/, label: "os.system()" },
@@ -1255,14 +1281,30 @@ const INJECTION_PATTERNS: { re: RegExp; label: string }[] = [
   { re: /\bshell_exec\s*\(/, label: "shell_exec()" },
   { re: /Runtime\.getRuntime\(\)\.exec\s*\(/, label: "Runtime.exec()" },
   { re: /\bexecSync\s*\(/, label: "execSync()" },
+  // Go: exec.Command(...) — komut çalıştırma (kullanıcı girdisi riski)
+  { re: /\bexec\.Command\s*\(/, label: "exec.Command()" },
+  // Ruby: backtick komut çalıştırma (`cmd`) ve system()
+  { re: /(?:^|[^A-Za-z])(`[^`]*`)/, label: "Ruby backtick" },
+  { re: /\bsystem\s*\(/, label: "system()" },
+  { re: /\bIO\.popen\s*\(/, label: "IO.popen()" },
 ];
 
-function findCommandInjection(text: string): { index: number; label: string } | null {
-  // Önce tüm yorum/string bölgelerini belirle (basit tarayıcı)
-  const masked = maskCommentsAndStrings(text);
+function findCommandInjection(text: string, family: LanguageFamily = "brace"): { index: number; label: string } | null {
+  // İki geçiş:
+  // 1) String korumalı maske (yalnız yorumlar maskelenir) — Ruby backtick gibi
+  //    "string değil komut" desenleri tırnak içeriği korununca yakalanır.
+  // 2) Tam maske (string'ler de maskelenir) — gerçek kod desenleri.
+  // Ruby backtick YALNIZCA Ruby dosyalarında komut çalıştırmadır; JS/TS'te
+  // backtick template literal'dir → FP üretmemeli. Python'da / bölme
+  // operatörüdür (regex literal değil) → noRegex.
+  const isRuby = family === "ruby";
+  const maskedKeep = maskCommentsAndStrings(text, false, family === "python");
+  const maskedFull = maskCommentsAndStrings(text, true, family === "python");
   let best: { index: number; label: string } | null = null;
   for (const p of INJECTION_PATTERNS) {
-    const m = p.re.exec(masked);
+    if (!isRuby && p.re.source.includes("`")) continue;
+    const src = p.re.source.includes("`") ? maskedKeep : maskedFull;
+    const m = p.re.exec(src);
     if (m && (!best || m.index < best.index)) {
       best = { index: m.index, label: p.label };
     }
@@ -1288,13 +1330,21 @@ const WEAK_CRYPTO_PATTERNS: { re: RegExp; label: string; needsString: boolean }[
   { re: /MessageDigest\.getInstance\s*\(\s*["']MD5["']/i, label: "MD5 (Java)", needsString: true },
   { re: /Cipher\.getInstance\s*\(\s*["']DES/i, label: "DES (Java)", needsString: true },
   { re: /\bDES\b/, label: "DES", needsString: false },
+  // Go: crypto/md5, crypto/sha1, md5.Sum, sha1.Sum
+  { re: /"crypto\/md5"|md5\.Sum\s*\(/, label: "MD5 (Go)", needsString: false },
+  { re: /"crypto\/sha1"|sha1\.Sum\s*\(/, label: "SHA-1 (Go)", needsString: false },
+  // Ruby: Digest::MD5 / Digest::SHA1
+  { re: /Digest::MD5/, label: "MD5 (Ruby)", needsString: false },
+  { re: /Digest::SHA1/, label: "SHA-1 (Ruby)", needsString: false },
 ];
 
-function findWeakCrypto(text: string): { index: number; label: string; isChecksum: boolean } | null {
+function findWeakCrypto(text: string, family: LanguageFamily = "brace"): { index: number; label: string; isChecksum: boolean } | null {
   // İki ayrı mask: maskStrings=true (her şey maskeli — kod bağlamı) ve
   // maskStrings=false (string içerikleri korunur — tırnaklı argüman desenleri).
-  const maskedCode = maskCommentsAndStrings(text, true);
-  const maskedWithStrings = maskCommentsAndStrings(text, false);
+  // Python'da / bölme operatörüdür → noRegex.
+  const noRegex = family === "python";
+  const maskedCode = maskCommentsAndStrings(text, true, noRegex);
+  const maskedWithStrings = maskCommentsAndStrings(text, false, noRegex);
   let best: { index: number; label: string } | null = null;
   for (const p of WEAK_CRYPTO_PATTERNS) {
     const src = p.needsString ? maskedWithStrings : maskedCode;
@@ -1317,7 +1367,7 @@ function findWeakCrypto(text: string): { index: number; label: string; isChecksu
  * tırnaklı ARGÜMAN desenleri için); true → string'ler de maskelenir.
  * Desteklenen yorumlar: // , blok yorum, # (Python/Ruby/Shell).
  */
-function maskCommentsAndStrings(text: string, maskStrings = true): string {
+function maskCommentsAndStrings(text: string, maskStrings = true, noRegex = false): string {
   let out = "";
   let i = 0;
   let inString: string | null = null;
@@ -1342,6 +1392,17 @@ function maskCommentsAndStrings(text: string, maskStrings = true): string {
     if (inString) {
       out += ch === "\n" ? "\n" : (maskStrings ? " " : ch);
       if (ch === "\\") { out += maskStrings ? " " : ch; i += 2; continue; }
+      if (inString.length === 3) {
+        // Triple-quote: kapanış """ veya ''' beklenir.
+        if (ch === inString[0] && nx === inString[0] && text[i + 2] === inString[0]) {
+          inString = null;
+          out += "   ";
+          i += 3;
+          continue;
+        }
+        i++;
+        continue;
+      }
       if (ch === inString) inString = null;
       i++;
       continue;
@@ -1358,10 +1419,20 @@ function maskCommentsAndStrings(text: string, maskStrings = true): string {
     if (ch === "/" && nx === "/") { lineComment = true; out += "  "; i += 2; continue; }
     if (ch === "/" && nx === "*") { blockComment = true; out += "  "; i += 2; continue; }
     if (ch === "#" && (i === 0 || text[i - 1] === "\n" || text[i - 1] === " ")) { lineComment = true; out += " "; i++; continue; }
+    // Python/Ruby/JS triple-quote docstring: """...""" veya '''...''' — içi TAMAMEN
+    // maskelenir (docstring'deki desen örnekleri FP üretmemeli). Çift tırnak
+    // işlenirken önce üçlü olup olmadığı kontrol edilir.
+    if ((ch === '"' && nx === '"' && text[i + 2] === '"') || (ch === "'" && nx === "'" && text[i + 2] === "'")) {
+      inString = ch === '"' ? '"""' : "'''";
+      out += "   ";
+      i += 3;
+      continue;
+    }
     if (ch === '"' || ch === "'" || ch === "`") { inString = ch; out += maskStrings ? " " : ch; i++; continue; }
     // Regex literal: = / desen / veya ( / desen / gibi. Yanlış pozitifi önlemek için
     // desen içeriği maskelenir (ör. /\bhashlib\.md5\s*\(/ içindeki hashlib.md5()).
-    if (ch === "/" && (i === 0 || /[=(,:;!&|?{}\[\]\s]/.test(text[i - 1]))) {
+    // noRegex=true → Python/Ruby'de / bölme operatörüdür, regex literal değildir.
+    if (!noRegex && ch === "/" && (i === 0 || /[=(,:;!&|?{}\[\]\s]/.test(text[i - 1]))) {
       inRegex = true;
       out += " ";
       i++;
@@ -1396,7 +1467,8 @@ function countClassMethods(text: string, classOpenIdx: number, family: LanguageF
     return count;
   }
   if (family === "ruby") {
-    // Ruby: class Foo ... end — "def" satırlarını "end" kapanışına kadar say.
+    // Ruby: class Foo ... end — "def" satırlarını sınıfın kapanış "end"ine kadar say.
+    // def'ler de kendi "end"lerini üretir → def görünce depth++.
     let i = classOpenIdx;
     let depth = 0;
     let count = 0;
@@ -1411,10 +1483,27 @@ function countClassMethods(text: string, classOpenIdx: number, family: LanguageF
         depth++;
       } else if (/\bdef\s+\w+/.test(trimmed)) {
         count++;
+        depth++;
       }
       i = lineEnd === -1 ? text.length : lineEnd + 1;
     }
     return count;
+  }
+  // Go: struct bloğu kendi methodlarını içermez — metotlar "func (s *X) Name()"
+  // deseniyle TÜM dosyada tanımlanır (sınıf bloğu dışında). Go algılama:
+  if (/^\s*type\s+[A-Za-z_]\w*\s+struct\b/m.test(text.slice(classOpenIdx - 200, classOpenIdx + 100)) && !/function\b/.test(text)) {
+    // Dosyadaki type satırından sonra aynı tip adına sahip metotları say.
+    const typeMatch = /^\s*type\s+([A-Za-z_]\w*)\s+struct\b/m.exec(text);
+    if (typeMatch) {
+      const typeName = typeMatch[1];
+      // func (recv *Type) MethodName( ... ) — receiver tipinden sonra metod adı
+      const methodRe = new RegExp(`\\bfunc\\s*\\([^)]*\\b${typeName}\\b[^)]*\\)\\s+\\w+\\s*\\(`, "g");
+      let count = 0;
+      let mm: RegExpExecArray | null;
+      while ((mm = methodRe.exec(text)) !== null) count++;
+      return count;
+    }
+    return 0;
   }
   // Brace dilleri (varsayılan): mevcut mantık.
   const body = countBraceBodyLines(text, classOpenIdx);
@@ -1433,7 +1522,7 @@ function countClassMethods(text: string, classOpenIdx: number, family: LanguageF
 }
 
 /** İçe aktarma hedeflerini çıkarır (dil bağımsız basit regex). Tırnaklı/çıplak ayrımıyla döndürür. */
-function extractImportTargets(text: string): { spec: string; quoted: boolean; mayBeLocal?: boolean }[] {
+function extractImportTargets(text: string, relPath = ""): { spec: string; quoted: boolean; mayBeLocal?: boolean }[] {
   const targets: { spec: string; quoted: boolean; mayBeLocal?: boolean }[] = [];
   // TS/JS: import x from "path", import "path", import * as x from "path"
   // Python: from pkg import x, import pkg
@@ -1444,16 +1533,22 @@ function extractImportTargets(text: string): { spec: string; quoted: boolean; ma
   // import değildir (örn. "import { seed } from './seed.js';" kullanım örneği).
   // maskStrings=false → string'ler (gerçek import hedefleri) korunur, yorumlar
   // ve regex literal'leri maskelenir.
-  const masked = maskCommentsAndStrings(text, false);
-  const re = /(?:from\s+["']([^"']+)["']|import\s+["']([^"']+)["']|import\s+([A-Za-z0-9_.]+)|use\s+([A-Za-z0-9_:\\]+)|require(?:_relative)?\s*\(?\s*["']([^"']+)["']|using\s+([A-Za-z0-9_.]+)\s*;)/g;
+  const masked = maskCommentsAndStrings(text, false, relPath.endsWith(".py"));
+  // Python "from pkg.mod import x" — çıplak modül adı (m[7]).
+  // Sıra önemli: from'dan sonra tırnaklı veya çıplak hedef.
+  const re = /(?:from\s+["']([^"']+)["']|from\s+([A-Za-z0-9_.]+)\s+import\b|import\s+["']([^"']+)["']|import\s+([A-Za-z0-9_.]+)|use\s+([A-Za-z0-9_:\\]+)|require(?:_relative)?\s*\(?\s*["']([^"']+)["']|using\s+([A-Za-z0-9_.]+)\s*;)/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(masked)) !== null) {
     if (m[1]) targets.push({ spec: m[1].trim(), quoted: true });
-    else if (m[2]) targets.push({ spec: m[2].trim(), quoted: true });
-    else if (m[3]) targets.push({ spec: m[3].trim(), quoted: false });
-    else if (m[4]) targets.push({ spec: m[4].trim().replace(/\\/g, "/"), quoted: false });
-    else if (m[5]) targets.push({ spec: m[5].trim(), quoted: true, mayBeLocal: true });
-    else if (m[6]) targets.push({ spec: m[6].trim(), quoted: false });
+    else if (m[2]) targets.push({ spec: m[2].trim(), quoted: false });
+    // Go: import "pkg" — çıplak isim yerel dosya olabilir (mayBeLocal).
+    // TS "input-otp" npm paketi local değildir — TS'te mayBeLocal yalnızca
+    // require_relative/./ desenleri için.
+    else if (m[3]) targets.push({ spec: m[3].trim(), quoted: true, mayBeLocal: relPath.endsWith(".go") });
+    else if (m[4]) targets.push({ spec: m[4].trim(), quoted: false });
+    else if (m[5]) targets.push({ spec: m[5].trim().replace(/\\/g, "/"), quoted: false });
+    else if (m[6]) targets.push({ spec: m[6].trim(), quoted: true, mayBeLocal: true });
+    else if (m[7]) targets.push({ spec: m[7].trim(), quoted: false });
   }
   return targets;
 }
@@ -1712,6 +1807,14 @@ export async function analyzeLocalFiles(
       }
 
       const snippet = text.slice(secretMatch.index, secretMatch.index + 120);
+      // 3) Satır yorumu içindeki secret → gerçek kod değil (dokümantasyon/kullanım örneği).
+      //    Eşleşme satırı // veya # ile başlıyorsa atla.
+      const lineStart = text.lastIndexOf("\n", secretMatch.index) + 1;
+      const lineBefore = text.slice(lineStart, secretMatch.index);
+      if (/^\s*(\/\/|#|--|\/\*|\*)/.test(lineBefore)) {
+        if (secretMatch.index === secretRegex.lastIndex) secretRegex.lastIndex++;
+        continue;
+      }
       // Masum değerleri (test/example/demo/xxxxx/your_/your- placeholder) hariç tut.
       // Not: "YOUR_FIREBASE_API_KEY" gibi şablon değerleri alt çizgiyle yazılır —
       // hem kısa çizgi (your-) hem alt çizgi (your_) yakalanmalı.
@@ -1742,7 +1845,7 @@ export async function analyzeLocalFiles(
     if (CODE_EXTS.has(ext)) {
       // C1: Komut enjeksiyonu — doğrudan komut çalıştırma desenleri.
       // Test dosyalarında mock/uygulama kullanımı yaygın → severity düşürülür.
-      const injection = findCommandInjection(text);
+      const injection = findCommandInjection(text, languageFamilyOf(ext));
       if (injection) {
         const isTestFile = TEST_FILE_RE.test(relPath);
         makeEvidence(result.evidence, {
@@ -1760,7 +1863,7 @@ export async function analyzeLocalFiles(
 
       // C2: Zayıf kriptografi — MD5/SHA-1/DES. Checksum/doğrulama bağlamındaki
       // kullanımlar (dosya bütünlüğü) daha az kritik; test dosyalarında düşük.
-      const weak = findWeakCrypto(text);
+      const weak = findWeakCrypto(text, languageFamilyOf(ext));
       if (weak) {
         const isTestFile = TEST_FILE_RE.test(relPath);
         const severity = weak.isChecksum || isTestFile ? "low" : "medium";
@@ -1890,7 +1993,7 @@ export async function analyzeLocalFiles(
   const knownPaths = new Set(result.fileContents.keys());
   for (const [relPath, content] of result.fileContents) {
     const resolved: string[] = [];
-    for (const t of extractImportTargets(content)) {
+    for (const t of extractImportTargets(content, relPath)) {
       const r = resolveImportTarget(relPath, t, knownPaths);
       if (r) resolved.push(r);
     }
@@ -1900,9 +2003,11 @@ export async function analyzeLocalFiles(
   for (const [relPath, content] of result.fileContents) {
     const family = languageFamilyOf(extensionOf(relPath));
     // God Class
-    const classRe = /\b(class|struct|interface|trait|object)\s+([A-Za-z_][A-Za-z0-9_]*)/g;
+    // Go: type X struct { } — class/struct/interface/trait/object + Go "type X struct"
+    const classRe = /\b(class|struct|interface|trait|object)\s+([A-Za-z_][A-Za-z0-9_]*)|type\s+([A-Za-z_][A-Za-z0-9_]*)\s+struct\b/g;
     let cm: RegExpExecArray | null;
     while ((cm = classRe.exec(content)) !== null) {
+      const goTypeName = cm[3] || "";
       // Python/Ruby sınıfları { ile başlamaz: class satırının bitişini işaretçi
       // olarak kullan (Python: "class Foo:", Ruby: "class Foo").
       const openIdx = family === "python" || family === "ruby"
@@ -1911,6 +2016,7 @@ export async function analyzeLocalFiles(
       if (openIdx === -1) continue;
       const methodCount = countClassMethods(content, openIdx, family);
       if (methodCount > 20) {
+        const name = goTypeName || cm[2];
         makeEvidence(result.evidence, {
           analyzer: "local-architecture-scanner",
           finding_type: "architecture",
@@ -1918,7 +2024,7 @@ export async function analyzeLocalFiles(
           category: "god_class",
           file_path: relPath,
           line: lineNumberFor(content, cm.index),
-          message: `Tanrı Sınıf: ${cm[2]} (${methodCount} metod)`,
+          message: `Tanrı Sınıf: ${name} (${methodCount} metod)`,
           tags: ["god_class", "architecture"],
           metrics: { methods: methodCount },
           confidence: 0.85,

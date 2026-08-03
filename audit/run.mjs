@@ -20,26 +20,6 @@ const WORKDIR = process.argv.includes("--workdir")
   ? resolve(process.argv[process.argv.indexOf("--workdir") + 1])
   : join(ROOT, "audit", ".work");
 
-function runEngine(repoDir, repoName) {
-  // Use npx tsx so the CLI runs with tsx's loader (node --import tsx fails
-  // on Node 24 because tsx is a CJS package). On Windows, .cmd shims need
-  // shell: true.
-  const isWin = process.platform === "win32";
-  const res = spawnSync(
-    isWin ? "npx.cmd" : "npx",
-    ["tsx", join(ROOT, "src/lib/cli.ts"), "analyze", repoDir, "--repo", repoName],
-    { cwd: ROOT, encoding: "utf8", timeout: 60_000, shell: isWin }
-  );
-  if (res.status !== 0) {
-    return { error: res.stderr?.slice(0, 300) || `exit ${res.status}` };
-  }
-  try {
-    return JSON.parse(res.stdout);
-  } catch {
-    return { error: "parse failed: " + res.stdout.slice(0, 200) };
-  }
-}
-
 async function main() {
   const repos = generateRepos();
 
@@ -47,11 +27,8 @@ async function main() {
   if (existsSync(WORKDIR)) rmSync(WORKDIR, { recursive: true, force: true });
   mkdirSync(WORKDIR, { recursive: true });
 
-  const results = [];
-  let totalExtra = 0;
-  let totalMissing = 0;
-  let totalExpected = 0;
-
+  // Write all repos to disk, then a list file for the batch engine call.
+  const repoDirs = [];
   for (const repo of repos) {
     const repoDir = join(WORKDIR, repo.name);
     for (const f of repo.files) {
@@ -59,10 +36,44 @@ async function main() {
       mkdirSync(join(full, ".."), { recursive: true });
       writeFileSync(full, f.content, "utf8");
     }
+    repoDirs.push(repoDir);
+  }
+  const listFile = join(WORKDIR, "repos.txt");
+  writeFileSync(listFile, repoDirs.join("\n"), "utf8");
 
-    const report = runEngine(repoDir, repo.name);
-    if (report.error) {
-      results.push({ repo: repo.name, error: report.error });
+  // Run the engine ONCE for all repos (batch mode) — one process, one tsx load.
+  const isWin = process.platform === "win32";
+  const res = spawnSync(
+    isWin ? "npx.cmd" : "npx",
+    ["tsx", join(ROOT, "src/lib/cli.ts"), "batch", "--list", listFile],
+    { cwd: ROOT, encoding: "utf8", timeout: 600_000, shell: isWin, maxBuffer: 1024 * 1024 * 64 }
+  );
+
+  if (res.status !== 0) {
+    console.error("ENGINE FAILED:", res.stderr?.slice(0, 1000) || `exit ${res.status}`);
+    process.exit(1);
+  }
+
+  let batch;
+  try {
+    batch = JSON.parse(res.stdout);
+  } catch {
+    console.error("BATCH PARSE FAILED:", res.stdout.slice(0, 500));
+    process.exit(1);
+  }
+
+  // Map results back to repos by directory name
+  const byName = new Map(batch.map((b) => [b.name, b.report]));
+
+  const results = [];
+  let totalExtra = 0;
+  let totalMissing = 0;
+  let totalExpected = 0;
+
+  for (const repo of repos) {
+    const report = byName.get(repo.name);
+    if (!report) {
+      results.push({ repo: repo.name, error: "no result in batch" });
       continue;
     }
 

@@ -45,8 +45,50 @@ function collectFiles(base: string): File[] {
 async function main() {
   const args = process.argv.slice(2);
   const cmd = args[0];
+
+  // Batch mode: node cli.ts batch <dir1> <dir2> ... — analyzes each dir and
+  // prints a JSON array of { name, report } (one engine process for many repos).
+  // Or: node cli.ts batch --list <file> — reads directories from a file (one per line)
+  // to avoid Windows command-line length limits.
+  if (cmd === "batch") {
+    let dirs = args.slice(1);
+    if (dirs[0] === "--list") {
+      const listFile = dirs[1];
+      if (!listFile) {
+        console.error("Usage: node cli.ts batch --list <file>");
+        process.exit(1);
+      }
+      dirs = readFileSync(listFile, "utf8").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    }
+    if (dirs.length === 0) {
+      console.error("Usage: node cli.ts batch <dir> [dir...] | batch --list <file>");
+      process.exit(1);
+    }
+    const out = [];
+    for (const dir of dirs) {
+      const repoName = dir.split(/[\\/]/).pop() || dir;
+      const files = collectFiles(dir);
+      const scan = await analyzeLocalFiles(files);
+      const report = buildLocalReport(scan, repoName, { useLLM: false });
+      out.push({
+        name: repoName,
+        report: {
+          id: report.id,
+          repository: report.repository,
+          scan: report.repository_metadata?.scan_summary || {},
+          root_causes: report.root_causes?.root_causes || [],
+          evidence: report.evidence?.evidence || [],
+          validation_stats: report.evidence?.statistics || {},
+          health_score: report.ai_review?.health_score || {},
+        },
+      });
+    }
+    process.stdout.write(JSON.stringify(out));
+    return;
+  }
+
   if (cmd !== "analyze" || !args[1]) {
-    console.error('Usage: node cli.ts analyze <dir> [--repo <name>]');
+    console.error('Usage: node cli.ts analyze <dir> [--repo <name>] | batch <dir> [dir...]');
     process.exit(1);
   }
   const dir = args[1];

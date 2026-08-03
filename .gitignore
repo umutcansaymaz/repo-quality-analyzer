@@ -63,3 +63,4 @@ server.log
 /validation_results/
 /tool-results/
 /mini-services/
+/audit/.work/

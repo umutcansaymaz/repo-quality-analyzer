@@ -1,7 +1,7 @@
 ============================================================
-AUDIT SONUCU — 48 repo
+AUDIT SONUCU — 395 repo
 ============================================================
-  Toplam beklenen bulgu: 65
+  Toplam beklenen bulgu: 533
   FALSE POSITIVE: 0
   FALSE NEGATIVE: 0
   Ortalama precision (FP yokluğu): %100.0
@@ -9,13 +9,17 @@ AUDIT SONUCU — 48 repo
   Temiz repolarda FP: 0 (hedef: 0)
 
 KATEGORİ BAZINDA:
-  hardcoded_secret     ok=5 fp=0 fn=0
-  large_file           ok=13 fp=0 fn=0
-  todo_debt            ok=8 fp=0 fn=0
-  magic_number         ok=8 fp=0 fn=0
-  empty_handler        ok=5 fp=0 fn=0
-  long_function        ok=6 fp=0 fn=0
-  deep_nesting         ok=5 fp=0 fn=0
-  high_complexity      ok=5 fp=0 fn=0
-  command_injection    ok=5 fp=0 fn=0
-  weak_crypto          ok=5 fp=0 fn=0
+  hardcoded_secret     ok=25 fp=0 fn=0
+  large_file           ok=81 fp=0 fn=0
+  todo_debt            ok=85 fp=0 fn=0
+  magic_number         ok=85 fp=0 fn=0
+  empty_handler        ok=25 fp=0 fn=0
+  long_function        ok=41 fp=0 fn=0
+  deep_nesting         ok=26 fp=0 fn=0
+  high_complexity      ok=26 fp=0 fn=0
+  command_injection    ok=25 fp=0 fn=0
+  weak_crypto          ok=25 fp=0 fn=0
+  god_class            ok=26 fp=0 fn=0
+  tight_coupling       ok=26 fp=0 fn=0
+  missing_tests        ok=32 fp=0 fn=0
+  circular_dependency  ok=5 fp=0 fn=0
