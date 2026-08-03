@@ -206,10 +206,22 @@ deterministic explanations are the baseline.
 
 ### 1. Run it
 
+> Requirements: **Node.js 20+** and npm (or bun).
+
 ```bash
-npm install
-cp .env.example .env      # optional — only DATABASE_URL for the SQLite store
+npm ci
 npm run dev               # http://localhost:3000
+```
+
+No environment configuration is needed — `.env.example` is provided as a
+safe default and contains no secrets. Reports are persisted to
+`db/analysis-results/` automatically.
+
+Production (standalone server):
+
+```bash
+npm run build
+npm start                 # http://localhost:3000
 ```
 
 Or with Docker:

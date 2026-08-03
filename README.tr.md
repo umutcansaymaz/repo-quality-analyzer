@@ -209,10 +209,22 @@ deterministik açıklamalar temel seviyedir.
 
 ### 1. Çalıştırın
 
+> Gereksinim: **Node.js 20+** ve npm (veya bun).
+
 ```bash
-npm install
-cp .env.example .env      # isteğe bağlı — yalnızca SQLite deposu için DATABASE_URL
+npm ci
 npm run dev               # http://localhost:3000
+```
+
+Ortam yapılandırması gerekmez — `.env.example` güvenli bir varsayılan
+olarak sunulur ve hiçbir sır içermez. Raporlar `db/analysis-results/`
+klasörüne otomatik kaydedilir.
+
+Üretim (standalone sunucu):
+
+```bash
+npm run build
+npm start                 # http://localhost:3000
 ```
 
 Docker ile:
