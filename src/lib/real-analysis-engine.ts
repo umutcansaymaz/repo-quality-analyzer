@@ -21,6 +21,8 @@
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "fs";
 import { relative, resolve, join } from "path";
 import { spawnSync } from "child_process";
+import { lookup } from "dns/promises";
+import { isIP } from "net";
 import {
   analyzeFile,
   extractImports,
@@ -273,6 +275,49 @@ function setReadOnlyBestEffort(targetPath: string) {
   visit(targetPath);
 }
 // ===================== REAL CLONE MANAGER =====================
+
+/**
+ * SSRF koruması — yalnızca genel (public) HTTP(S) adreslerine izin verilir.
+ * localhost, özel IP blokları (10.x, 172.16-31.x, 192.168.x, 169.254.x) ve
+ * IPv6 loopback/link-local/ULA adresleri reddedilir. Hostname DNS ile
+ * çözümlenip sonuç adresleri de kontrol edilir (DNS-rebinding koruması).
+ * Döner: güvenli ise null, değilse kullanıcıya gösterilecek hata mesajı.
+ */
+export async function validateRepositoryUrl(raw: string): Promise<string | null> {
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    return "Geçersiz URL — yalnızca http/https adresleri kabul edilir.";
+  }
+  if (u.protocol !== "http:" && u.protocol !== "https:") {
+    return "Geçersiz protokol — yalnızca http/https desteklenir.";
+  }
+  const host = u.hostname;
+  if (host === "localhost" || isIP(host)) {
+    if (host === "localhost" || isPrivateAddress(host)) {
+      return "Yerel/özel ağ adreslerine erişim engellendi (güvenlik).";
+    }
+  }
+  try {
+    const addrs = await lookup(host, { all: true });
+    for (const a of addrs) {
+      if (isPrivateAddress(a.address)) {
+        return `Adres özel ağa çözümlendi (${a.address}) — erişim engellendi (güvenlik).`;
+      }
+    }
+  } catch {
+    return "DNS çözümlemesi başarısız — adres doğrulanamadı.";
+  }
+  return null;
+}
+
+function isPrivateAddress(ip: string): boolean {
+  if (ip === "::1" || ip === "0.0.0.0" || ip === "::") return true;
+  if (/^fc[0-9a-f]{2}:|^fd[0-9a-f]{2}:/i.test(ip)) return true; // fc00::/7 ULA
+  if (/^fe80:/i.test(ip)) return true; // link-local
+  return /^(10\.|127\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(ip);
+}
 
 export function cloneRepository(repoUrl: string, repoName: string): { success: boolean; path: string; time_ms: number; error?: string } {
   const clonePath = join(WORKSPACE_ROOT, safeRepoDirectoryName(repoName));

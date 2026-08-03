@@ -217,7 +217,7 @@ describe("D1 — assertion yoğunluğu", () => {
     const files: { path: string; content: string }[] = [];
     for (let i = 0; i < 10; i++) files.push({ path: `src/m${i}.ts`, content: `export const m${i} = ${i};\n` });
     for (let i = 0; i < 10; i++) {
-      const asserts = [];
+      const asserts: string[] = [];
       for (let j = 0; j < 5; j++) asserts.push(`expect(m0).toBe(${j});`);
       files.push({ path: `src/t${i}.test.ts`, content: `import { m0 } from "./m0";\ntest("x", () => { ${asserts.join(" ")} });\n` });
     }

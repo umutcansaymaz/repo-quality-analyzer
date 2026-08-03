@@ -155,7 +155,7 @@ const translations: Record<Language, TranslationDict> = {
 
     // AI Review
     "ai.offlineMode": "Offline mode — this review was produced without an LLM. Enable a provider for richer analysis.",
-    "ai.keySavedMode": "Your API key is saved. Run a new analysis to generate an LLM-powered review.",
+    "ai.keySavedMode": "Your API key is saved in this browser. LLM-powered review is not enabled yet - reviews are fully deterministic today.",
     "ai.supportedByEvidence": "Supported by Evidence",
     "ai.aiOpinion": "AI Opinion",
     "ai.challenges": "Planning Engine Challenges",
@@ -200,7 +200,7 @@ const translations: Record<Language, TranslationDict> = {
     "llm.estimatedTokens": "Estimated Tokens",
     "llm.analysisTime": "Analysis Time",
     "llm.ready": "Ready",
-    "llm.readyHint": "API key saved — will be used on the next analysis",
+    "llm.readyHint": "Key saved in this browser (BYOK). LLM review is not enabled yet - analyses are deterministic.",
     "llm.noKey": "No API key configured",
     "llm.configureInSettings": "Configure in Settings",
     "llm.usingSavedProvider": "Using saved provider",
@@ -885,7 +885,7 @@ const translations: Record<Language, TranslationDict> = {
 
     // AI Review
     "ai.offlineMode": "Çevrimdışı mod — bu inceleme LLM olmadan üretildi. Daha zengin analiz için bir sağlayıcı etkinleştirin.",
-    "ai.keySavedMode": "API anahtarınız kaydedildi. LLM destekli inceleme üretmek için yeni bir analiz çalıştırın.",
+    "ai.keySavedMode": "API anahtarınız bu tarayıcıda saklandı. LLM destekli inceleme henüz aktif değil - analizler tamamen deterministik.",
     "ai.supportedByEvidence": "Kanıt Destekli",
     "ai.aiOpinion": "AI Görüşü",
     "ai.challenges": "Planlama Motoru Eleştirileri",
@@ -930,7 +930,7 @@ const translations: Record<Language, TranslationDict> = {
     "llm.estimatedTokens": "Tahmini Token",
     "llm.analysisTime": "Analiz Süresi",
     "llm.ready": "Hazır",
-    "llm.readyHint": "API anahtarı kaydedildi — bir sonraki analizde kullanılacak",
+    "llm.readyHint": "Anahtar bu tarayıcıda saklandı (BYOK). LLM modu henüz aktif değil - analizler deterministik.",
     "llm.noKey": "API anahtarı yapılandırılmadı",
     "llm.configureInSettings": "Ayarlar'dan yapılandır",
     "llm.usingSavedProvider": "Kayıtlı sağlayıcı kullanılıyor",

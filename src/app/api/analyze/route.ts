@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readdirSync, statSync, readFileSync, rmSync, existsSync } from "fs";
 import { join, extname } from "path";
-import { cloneRepository } from "@/lib/real-analysis-engine";
+import { cloneRepository, validateRepositoryUrl } from "@/lib/real-analysis-engine";
 import { analyzeLocalFiles, buildLocalReport, shouldSkip, parseGitignore } from "@/lib/local-analysis";
-import { isPythonBackendConfigured, callPythonBackend } from "@/lib/backend-config";
 import { persistAnalysis } from "@/lib/analysis-store";
 
 export const runtime = "nodejs";
@@ -91,19 +90,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Use local folder upload for local:// URLs" }, { status: 400 });
     }
 
-    // Python backend yapılandırılmışsa onu kullan (gerçek analiz).
-    if (isPythonBackendConfigured()) {
-      const backendResult = await callPythonBackend<{ job_id: string; status: string }>(
-        "/analyze",
-        { method: "POST", body: { repository_url: repoUrl, use_cache: body.use_cache ?? true } }
-      );
-      if (backendResult) {
-        return NextResponse.json({
-          job_id: backendResult.job_id,
-          status: backendResult.status,
-          repository_url: repoUrl,
-        });
-      }
+    // SSRF koruması: yalnızca genel http/https adresler (localhost/özel IP yasak).
+    const urlError = await validateRepositoryUrl(repoUrl);
+    if (urlError) {
+      return NextResponse.json({ error: urlError }, { status: 400 });
     }
 
     // Gerçek analiz: repo'yu klonla + aynı motorla tara.

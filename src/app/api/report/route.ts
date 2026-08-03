@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { buildReport } from "@/lib/demo-data";
+import { buildReport, type DemoResult } from "@/lib/demo-data";
 import { jobStore } from "../analyze/route";
 import { existsSync, readFileSync } from "fs";
 import { join } from "path";
@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "job_id is required" }, { status: 400 });
     }
 
-    let result = jobStore.get(jobId);
+    let result: DemoResult | null = jobStore.get(jobId) as DemoResult | null;
     if (!result) {
       // Disk yedeğinden oku (restart/HMR dayanıklı)
       try {

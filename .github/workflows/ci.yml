@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check + unit/integration tests
+        run: npm run test
+
+      - name: Engine audit (FP/FN/severity regression guard)
+        run: npm run audit
+
+      - name: Production build
+        run: npm run build
+
+      - name: Verify CLI bridge still works
+        run: node -e "import('./audit/generator.mjs').then(m => { const r = m.generateRepos(); if (r.length < 400) throw new Error('audit repo matrix shrank'); console.log('audit matrix OK:', r.length, 'repos'); })"

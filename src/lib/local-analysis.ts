@@ -947,15 +947,16 @@ function makeEvidence(
   // TUSLA ölçeğinde bile bellek yükü KB seviyesinde kalır, kesim 300'de yapılır.
   if (evidence.length >= MAX_EVIDENCE * 10) return "";
   const id = `local-ev-${evidence.length + 1}`;
-  evidence.push({
+  const item = {
     id,
     confidence: input.confidence ?? 0.9,
     // Varsayılan: ilk tarayıcı tespiti. Gerçek ikinci-geçiş doğrulaması
     // validateEvidence ile analyzeLocalFiles sonunda uygulanır.
-    validation_status: "unverified",
+    validation_status: "unverified" as const,
     validated_by: [String(input.analyzer || "local-scanner")],
     ...input,
-  });
+  } as unknown as LocalEvidence;
+  evidence.push(item);
   return id;
 }
 

@@ -65,7 +65,7 @@ async function main() {
       console.error("Usage: node cli.ts batch <dir> [dir...] | batch --list <file>");
       process.exit(1);
     }
-    const out = [];
+    const out: { name: string; report: Record<string, unknown> }[] = [];
     for (const dir of dirs) {
       const repoName = dir.split(/[\\/]/).pop() || dir;
       const files = collectFiles(dir);

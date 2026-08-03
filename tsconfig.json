@@ -32,13 +32,27 @@
   },
   "include": [
     "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "scripts/**/*.ts",
+    "tests/**/*.ts",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",
-    "examples"
+    "examples",
+    "benchmarks",
+    "db",
+    "docs",
+    "download",
+    "mini-services",
+    "tool-results",
+    "validation_results",
+    "validation_workspace",
+    "public",
+    "repo-analyzer-py",
+    ".zscripts",
+    "audit"
   ]
 }

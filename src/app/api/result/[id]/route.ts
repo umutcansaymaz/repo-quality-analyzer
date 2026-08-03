@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 import { jobStore } from "../../analyze/route";
-import { isPythonBackendConfigured, callPythonBackend } from "@/lib/backend-config";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,14 +22,6 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-
-  // Try Python backend first when configured (skip for local:// URLs).
-  if (isPythonBackendConfigured() && !id.startsWith("local-")) {
-    const backendResult = await callPythonBackend<unknown>(`/result/${id}`);
-    if (backendResult) {
-      return NextResponse.json(backendResult);
-    }
-  }
 
   // 1. In-memory store
   let result = jobStore.get(id);

@@ -1,0 +1,22 @@
+# repo-quality-analyzer — self-hosted via Docker
+# Usage: docker compose up -d --build
+services:
+  app:
+    build: .
+    container_name: repo-quality-analyzer
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_URL=file:./db/custom.db
+    volumes:
+      - ./db:/app/db
+      - ./validation_workspace:/app/validation_workspace
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
