@@ -3974,10 +3974,9 @@ function AIReviewSection({ data }: { data: any }) {
                 <div className="text-xs text-muted-foreground">{t("claim.rate")}</div>
               </div>
             </div>
-            {/* Claim log — each claim as a row. Height adapts to content:
-                few claims → natural height, many → capped with scroll. */}
-            <ScrollArea className={review.claim_verification.claims.length > 6 ? "max-h-[300px]" : ""}>
-              <div className="space-y-1.5">
+            {/* Claim log — each claim as a row. Natural height: the card grows
+                and shrinks with its content (no fixed scroll container). */}
+            <div className="space-y-1.5">
                 {review.claim_verification.claims.map((claim: any, i: number) => {
                   const statusConfig: Record<string, { color: string; icon: React.ReactNode }> = {
                     verified: { color: "text-emerald-500", icon: <CheckCircle className="h-3.5 w-3.5" /> },
@@ -4003,8 +4002,7 @@ function AIReviewSection({ data }: { data: any }) {
                     </div>
                   );
                 })}
-              </div>
-            </ScrollArea>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -4036,9 +4034,10 @@ function AIReviewSection({ data }: { data: any }) {
             </div>
           </CardHeader>
           <CardContent>
-            {/* Height adapts to content: few entries → natural height, many → capped scroll. */}
-            <ScrollArea className={reasoningLog.length > 4 ? "max-h-[400px]" : ""}>
-              <div className="space-y-2">
+            {/* Natural height — the card grows/shrinks with its content.
+                No scroll container: rows wrap (break-words) and evidence ids
+                are summarized, so nothing overflows. */}
+            <div className="space-y-2">
                 {reasoningLog.map((entry: any, i: number) => (
                   <div key={i} className="rounded-lg border p-3">
                     <div className="mb-2 flex items-center gap-2">
@@ -4060,8 +4059,7 @@ function AIReviewSection({ data }: { data: any }) {
                     </div>
                   </div>
                 ))}
-              </div>
-            </ScrollArea>
+            </div>
           </CardContent>
         </Card>
       )}
