@@ -5,7 +5,7 @@
 If you find a security issue, **do not open a public issue**. Please report it
 privately by opening a GitHub Security Advisory at:
 
-https://github.com/USERNAME/repo-quality-analyzer/security/advisories/new
+https://github.com/umutcansaymaz/repo-quality-analyzer/security/advisories/new
 
 or contact the maintainers directly.
 
