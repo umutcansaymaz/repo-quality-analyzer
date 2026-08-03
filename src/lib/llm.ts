@@ -160,7 +160,7 @@ export async function callLLM(config: LLMRunConfig, prompt: string, systemPrompt
 function defaultModelFor(provider: string): string {
   switch (provider) {
     case "anthropic": return "claude-sonnet-4-20250514";
-    case "gemini": return "gemini-2.0-flash";
+    case "gemini": return "gemini-3.5-flash";
     case "openrouter": return "openai/gpt-4o-mini";
     case "ollama": return "llama3.2";
     default: return "gpt-4o-mini";

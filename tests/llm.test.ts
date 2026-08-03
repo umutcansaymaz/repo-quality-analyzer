@@ -143,7 +143,7 @@ describe("callLLM — model adı normalizasyonu", () => {
     mockFetchOnce(200, { candidates: [{ content: { parts: [{ text: "ok" }] } }] });
     await callLLM({ ...baseConfig, provider: "gemini", model: "" }, "p");
     const url = String(vi.mocked(fetch).mock.calls[0][0]);
-    expect(url).toContain("gemini-2.0-flash");
+    expect(url).toContain("gemini-3.5-flash");
   });
 });
 
