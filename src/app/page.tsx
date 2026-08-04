@@ -75,9 +75,7 @@ import { toast } from "sonner";
 import { LanguageProvider, useI18n, type Language } from "@/components/analyzer/i18n";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, Legend } from "recharts";
 import { analyzeLocalFiles, buildLocalReport } from "@/lib/local-analysis";
-import { Damga } from "@/components/kl/Damga";
 import { DragovZone } from "@/components/kl/DragovZone";
-import { Header as KlHeader } from "@/components/kl/Header";
 import { IlerlemeCubugu } from "@/components/kl/IlerlemeCubugu";
 import { ArchitecturalStrainMatrix } from "@/components/analyzer/architectural-strain-matrix";
 
@@ -869,13 +867,10 @@ function AppContent() {
                   <Info className="h-4 w-4" />
                 </Button>
                 <Button variant="ghost" size="icon" onClick={() => setView("settings")} title="Atölye Ayarları">
-                  <SettingsIcon className="h-4 w-4" />
-                </Button>
-                <div className="ml-1 pl-2 border-l kl-border-soft flex items-center">
-                  <Damga reportNo={1} repoName={repoUrl} />
-                </div>
-              </>
-            )}
+<SettingsIcon className="h-4 w-4" />
+</Button>
+</>
+)}
           </div>
         </div>
         {/* Global search results dropdown */}
@@ -1486,9 +1481,8 @@ function ProgressView({ steps, repoUrl, scanProgress }: { steps: PipelineStep[];
   const progress = (completedCount / steps.length) * 100;
 
   return (
-    <div className="flex min-h-[calc(100vh-3.5rem)] items-center justify-center px-4 kl-paper">
-      <Damga reportNo={2} repoName={repoUrl} />
-      <div className="w-full max-w-lg">
+<div className="flex min-h-[calc(100vh-3.5rem)] items-center justify-center px-4 kl-paper">
+<div className="w-full max-w-lg">
         <div className="mb-8 text-left">
           <h2 className="kl-font-display kl-ink text-2xl font-bold">çözümleniyor...</h2>
           <p className="kl-font-mono kl-muted mt-1 text-xs truncate">{repoUrl}</p>
@@ -1534,9 +1528,8 @@ function ResultsDashboard({ data, onReset, onExplain }: { data: any; onReset: ()
   }, []);
 
   return (
-    <div className="container mx-auto max-w-7xl px-4 py-6">
-      <Damga reportNo={3} repoName={data?.repository?.url} />
-      <div className="mb-6 flex items-center justify-between">
+<div className="container mx-auto max-w-7xl px-4 py-6">
+<div className="mb-6 flex items-center justify-between">
         <Button variant="ghost" size="sm" onClick={onReset}>
           <ArrowLeft className="mr-2 h-4 w-4" />
           {t("app.newAnalysis")}
@@ -6082,9 +6075,8 @@ function SettingsView({ onBack }: { onBack: () => void }) {
   const [settingsTab, setSettingsTab] = React.useState("general");
 
   return (
-    <div className="container mx-auto max-w-4xl px-4 py-6 font-sans">
-      <Damga reportNo={4} repoName="atöyle" />
-      <div className="mb-6">
+<div className="container mx-auto max-w-4xl px-4 py-6 font-sans">
+<div className="mb-6">
         <Button variant="ghost" size="sm" onClick={onBack} className="kl-font-body"><ArrowLeft className="mr-2 h-4 w-4" /> {t("settings.back")}</Button>
       </div>
       <h1 className="mb-6 text-3xl font-bold kl-font-display kl-ink">{t("settings.title")}</h1>
