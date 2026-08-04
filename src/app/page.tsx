@@ -1197,7 +1197,7 @@ function LandingView({ repoUrl, setRepoUrl, onAnalyze, onAnalyzeLocal }: { repoU
         </AnimatePresence>
 
       <div className="mb-5 hidden md:block opacity-90">
-        <img src="/landing-flow.svg" alt="" className="w-full h-auto" />
+        <img src="/landing-flow.svg" alt="" className="w-4/5 mx-auto h-auto" />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start relative z-10">
@@ -1213,7 +1213,7 @@ function LandingView({ repoUrl, setRepoUrl, onAnalyze, onAnalyzeLocal }: { repoU
         Kod mimarisini, Tarjan SCC dairesel bağımlılıklarını ve teknik borçları mühendislik kanıtlarıyla analiz eder.
       </p>
       <div className="mt-6 hidden md:block">
-        <img src="/landing-hero.svg" alt="" className="w-full h-auto rounded-lg border kl-border-soft" />
+        <img src="/landing-hero.svg" alt="" className="w-3/4 h-auto rounded-lg border kl-border-soft" />
       </div>
       </div>
 
@@ -1651,7 +1651,7 @@ function HealthScoreCard({ data }: { data: any }) {
 return (
 <Card className="relative overflow-hidden">
   {/* Marka damgası dekoru — soluk, arka planda */}
-  <img src="/grade-stamp.svg" alt="" aria-hidden className="pointer-events-none absolute -right-8 -top-8 h-36 w-36 opacity-[0.07]" />
+  <img src="/grade-stamp.svg" alt="" aria-hidden className="pointer-events-none absolute -right-6 -top-6 h-20 w-20 opacity-[0.07]" />
 <CardContent className="pt-6">
         <div className="flex flex-wrap items-center justify-between gap-6">
           <div className="flex items-center gap-4">
