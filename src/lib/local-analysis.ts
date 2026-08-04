@@ -22,6 +22,7 @@ const SKIP_SEGMENTS = new Set([
   "htmlcov",
   "analysis-results",
   "vendor",
+  "fixtures",
   "__pycache__",
   // Yedekler: eski kopyalar güncel kodu yansıtmaz ve aynı sorunları tekrar
   // üretir (TUSLA backups/ dersi). Yedekler evrensel olarak tarama dışıdır.
@@ -1321,7 +1322,7 @@ const INJECTION_PATTERNS: { re: RegExp; label: string; staticCheck?: boolean; br
  * exec(cmd) → false (riskli); exec("ls -la") → true (sabit);
  * execSync("ls " + input) → false (concat); exec.Command("sh","-c","ls") → true.
  */
-function isStaticCommandArg(text: string, argStart: number): boolean {
+function isStaticCommandArg(text: string, argStart: number, allowVar = true): boolean {
   let i = argStart;
   let hasLiteral = false;
   while (i < text.length) {
@@ -1368,10 +1369,58 @@ function isStaticCommandArg(text: string, argStart: number): boolean {
       continue;
     }
     if (text[i] === ",") { i++; continue; }
+    if (text[i] === "+") {
+      // Tamamen literal zincir: "a" + "b" — sonraki operand literal ise devam.
+      // Değişken/ifade gelirse alttaki identifier veya return false yakalar.
+      i++;
+      continue;
+    }
+    // Literal/ifade sonrası satır sonları ve noktalı virgül — yalnızca ayraç.
+    if (text[i] === ";" || text[i] === "\n" || text[i] === "\r") { i++; continue; }
     if (text[i] === ")") return hasLiteral;
-    return false; // değişken / concat / ifade → riskli
+    // Basit taint: identifier argüman (ör. cmd) — dosyadaki son ataması
+    // tamamen literal ise sabit sayılır (const cmd = "ls -la"; exec(cmd) → FP yok).
+    // allowVar=false → recursive çağrıda identifier tekrar izlenmez (sonsuz döngü koruması).
+    if (allowVar && /[A-Za-z_]/.test(text[i])) {
+      const nameM = text.slice(i).match(/^[A-Za-z_]\w*/);
+      if (nameM) {
+        const lastVal = lastAssignmentValue(text, nameM[0]);
+        if (lastVal !== null && isStaticLiteralChain(lastVal)) {
+          hasLiteral = true;
+          i += nameM[0].length;
+          continue;
+        }
+      }
+      return false;
+    }
+    return false; // değişken / ifade → riskli
   }
   return false;
+}
+
+/** Atama değeri yalnızca tırnaklı literal'lerden (+ boşluk +) oluşuyorsa sabittir. */
+function isStaticLiteralChain(value: string): boolean {
+  const parts = value.trim().split("+");
+  if (parts.length === 0) return false;
+  for (const part of parts) {
+    const p = part.trim();
+    if (!p) return false;
+    const q = p[0];
+    if (q !== '"' && q !== "'" && q !== "`") return false;
+    if (p.length < 2 || p[p.length - 1] !== q) return false;
+    const inner = p.slice(1, -1);
+    if (inner.includes("${") || (q === "`" && inner.includes("#{")) || /{[^}]*}/.test(inner)) return false;
+  }
+  return true;
+}
+
+/** Dosyada `NAME = ...` son atamasının değerini döndürür (yoksa null). */
+function lastAssignmentValue(text: string, name: string): string | null {
+  const re = new RegExp(`(?:^|[;\\n{])\\s*(?:const|let|var)?\\s*${name}\\s*=\\s*([^;\\n}]+)`, "g");
+  let m: RegExpExecArray | null;
+  let last: string | null = null;
+  while ((m = re.exec(text)) !== null) last = m[1].trim();
+  return last;
 }
 
 /**
@@ -2018,24 +2067,26 @@ export async function analyzeLocalFiles(
       }
     }
 
-    const longFunction = findLongFunctionBlock(text, languageFamilyOf(ext));
-    if (longFunction) {
-      makeEvidence(result.evidence, {
-        analyzer: "local-complexity-scanner",
-        finding_type: "complexity",
-        severity: "medium",
-        category: "long_function",
-        file_path: relPath,
-        line: lineNumberFor(text, longFunction.index),
-        message: `Uzun fonksiyon/metot bloğu tespit edildi (${longFunction.lines} satır)`,
-        tags: ["long_function", "complexity"],
-        confidence: 0.7,
-      });
-    }
-
     // ===================== DERİNLİK TARAYICILARI (yalnızca kaynak kod) =====================
     if (CODE_EXTS.has(ext)) {
       const family = languageFamilyOf(ext);
+
+      // B0: Uzun fonksiyon — yalnızca kod dosyaları (markdown/json'da brace
+      // blokları yanlış pozitif üretir — README.md'de 874 satır "fonksiyon").
+      const longFunction = findLongFunctionBlock(text, family);
+      if (longFunction) {
+        makeEvidence(result.evidence, {
+          analyzer: "local-complexity-scanner",
+          finding_type: "complexity",
+          severity: "medium",
+          category: "long_function",
+          file_path: relPath,
+          line: lineNumberFor(text, longFunction.index),
+          message: `Uzun fonksiyon/metot bloğu tespit edildi (${longFunction.lines} satır)`,
+          tags: ["long_function", "complexity"],
+          confidence: 0.7,
+        });
+      }
 
       // B1: Yüksek karmaşıklık — dal noktası sayısı (if/for/while/switch/&&/||/ternary)
       const branchPoints = maxBranchPoints(text, family);
@@ -2138,6 +2189,9 @@ export async function analyzeLocalFiles(
   }
 
   for (const [relPath, content] of result.fileContents) {
+    // Mimari tarayıcılar yalnızca KOD dosyalarında çalışır — markdown/json'da
+    // "class"/"interface" kelimeleri yanlış god_class üretir (README.md dersi).
+    if (!CODE_EXTS.has(extensionOf(relPath))) continue;
     const family = languageFamilyOf(extensionOf(relPath));
     // God Class
     // Go: type X struct { } — class/struct/interface/trait/object + Go "type X struct"

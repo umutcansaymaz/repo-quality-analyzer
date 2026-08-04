@@ -44,12 +44,12 @@ describe("Gerçek-dünya golden — TUSLA", () => {
 
 describe("Gerçek-dünya golden — kalite (kendi kodu)", () => {
   it.skipIf(!existsSync(KALITE + "/src/lib/local-analysis.ts"))(
-    "70.5 skor ve 0 komut enjeksiyonu FP'si (kendi motoru dahil)",
+    "71.3 skor ve 0 komut enjeksiyonu FP'si (kendi motoru dahil)",
     async () => {
       const report = await scanDir(KALITE, "kalite");
       const hs = report.ai_review.health_score;
-      expect(hs.overall).toBeGreaterThanOrEqual(69.5);
-      expect(hs.overall).toBeLessThanOrEqual(71.5);
+      expect(hs.overall).toBeGreaterThanOrEqual(70.3);
+      expect(hs.overall).toBeLessThanOrEqual(72.3);
 
       const ev = report.evidence.evidence;
       const injections = ev.filter((e: any) => e.category === "command_injection");
@@ -70,4 +70,45 @@ describe("Çoklu bulgu — aynı dosyada 3 enjeksiyon = 3 kanıt", () => {
     const injections = scan.rawEvidence.filter((e: any) => e.category === "command_injection");
     expect(injections.length).toBeGreaterThanOrEqual(3);
   });
+});
+
+// ---------------------------------------------------------------------------
+// Go + Java gerçek repo golden'ları (fixtures/repos — klonlanmış gerçek projeler)
+// ---------------------------------------------------------------------------
+const GO_REPO = process.cwd().replace(/\\/g, "/") + "/tests/fixtures/repos/go-sample";
+const JAVA_REPO = process.cwd().replace(/\\/g, "/") + "/tests/fixtures/repos/java-sample";
+
+describe("Gerçek-dünya golden — Go (gorilla/mux)", () => {
+  it.skipIf(!existsSync(GO_REPO + "/mux.go"))(
+    "74.7 skor, 0 secret, 0 komut enjeksiyonu, markdown bulgusu yok",
+    async () => {
+      const report = await scanDir(GO_REPO, "go-sample");
+      const hs = report.ai_review.health_score;
+      expect(hs.overall).toBeGreaterThanOrEqual(73.7);
+      expect(hs.overall).toBeLessThanOrEqual(75.7);
+
+      const ev = report.evidence.evidence;
+      expect(ev.filter((e: any) => e.category === "hardcoded_secret")).toHaveLength(0);
+      expect(ev.filter((e: any) => e.category === "command_injection")).toHaveLength(0);
+      // Markdown/JSON gibi kod dışı dosyalarda yapısal bulgu üretilmemeli
+      expect(ev.filter((e: any) => e.file_path.endsWith(".md"))).toHaveLength(0);
+    }
+  );
+});
+
+describe("Gerçek-dünya golden — Java (square/javapoet)", () => {
+  it.skipIf(!existsSync(JAVA_REPO + "/pom.xml"))(
+    "65.6 skor, 0 secret, 0 komut enjeksiyonu, markdown bulgusu yok",
+    async () => {
+      const report = await scanDir(JAVA_REPO, "java-sample");
+      const hs = report.ai_review.health_score;
+      expect(hs.overall).toBeGreaterThanOrEqual(64.6);
+      expect(hs.overall).toBeLessThanOrEqual(66.6);
+
+      const ev = report.evidence.evidence;
+      expect(ev.filter((e: any) => e.category === "hardcoded_secret")).toHaveLength(0);
+      expect(ev.filter((e: any) => e.category === "command_injection")).toHaveLength(0);
+      expect(ev.filter((e: any) => e.file_path.endsWith(".md"))).toHaveLength(0);
+    }
+  );
 });

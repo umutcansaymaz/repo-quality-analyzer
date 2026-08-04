@@ -519,6 +519,21 @@ function staticArgRepos() {
     { path: "src/main.rb", content: "`ls #{user_input}`\n" },
   ]);
 
+  // Basit taint: değişken türetme — sabit atamadan gelen değişken FP üretmemeli,
+  // dinamik türetme riskli kalmalı.
+  push("static-arg-var-static-ts", [], [
+    { path: "src/main.ts", content: `const { execSync } = require('child_process');\nconst cmd = "ls -la";\nexecSync(cmd);\n` },
+  ]);
+  push("static-arg-var-dynamic-ts", ["command_injection"], [
+    { path: "src/main.ts", content: `const { execSync } = require('child_process');\nconst cmd = "ls " + userInput;\nexecSync(cmd);\n` },
+  ]);
+  push("static-arg-var-concat-ts", [], [
+    { path: "src/main.ts", content: `const { execSync } = require('child_process');\nconst cmd = "ls " + "-la";\nexecSync(cmd);\n` },
+  ]);
+  push("static-arg-var-static-py", [], [
+    { path: "src/main.py", content: `import os\ncmd = "ls -la"\nos.system(cmd)\n` },
+  ]);
+
   return repos;
 }
 

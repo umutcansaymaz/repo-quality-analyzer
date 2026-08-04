@@ -32,7 +32,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
-# .env.example HER ZAMAN git'te olur (kurulum şablonu — secret içermez).
+# .env.example HER ZAMAN git'te olur (kurulum ÅŸablonu â€” secret iÃ§ermez).
 !.env.example
 
 # vercel
@@ -42,9 +42,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-# Analiz çıktıları (db/analysis-results/local-*.json) — kaynak kod değil.
-# Not: "local-*" KULLANMAYIN — src/lib/local-analysis.ts gibi kaynak dosyaları
-# da ignore eder. Yalnızca db/ altındaki çıktılar hedeflenir.
+# Analiz Ã§Ä±ktÄ±larÄ± (db/analysis-results/local-*.json) â€” kaynak kod deÄŸil.
+# Not: "local-*" KULLANMAYIN â€” src/lib/local-analysis.ts gibi kaynak dosyalarÄ±
+# da ignore eder. YalnÄ±zca db/ altÄ±ndaki Ã§Ä±ktÄ±lar hedeflenir.
 db/analysis-results/local-*
 .claude
 .z-ai-config
@@ -58,7 +58,7 @@ server.log
 # Skills directory
 /skills/
 
-# Dev/QA araç verisi — analiz motoru bunları taramaz (repo sahibi kararı)
+# Dev/QA araÃ§ verisi â€” analiz motoru bunlarÄ± taramaz (repo sahibi kararÄ±)
 /benchmarks/
 /download/
 /validation_workspace/
@@ -71,5 +71,6 @@ db/custom.db
 
 # Audit runtime output
 audit/report.txt
-# Bun lockfile (npm kullan�l�yor)
+# Bun lockfile (npm kullanılıyor)
 bun.lock
+
