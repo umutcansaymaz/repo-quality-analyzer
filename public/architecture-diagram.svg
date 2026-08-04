@@ -5,64 +5,65 @@
     </marker>
   </defs>
 
-  <!-- Browser katmanı (açık) -->
+  <!-- Browser katmanı -->
   <rect x="30" y="30" width="740" height="230" rx="14" fill="#E8E2D2" stroke="#0A0A0A" stroke-width="2"/>
-  <!-- Pencere ikonu (katman etiketi) -->
+  <!-- Pencere ikonu -->
   <rect x="55" y="50" width="34" height="26" rx="4" fill="#F2EEE3" stroke="#0A0A0A" stroke-width="2"/>
   <circle cx="63" cy="59" r="1.8" fill="#C5532F"/>
   <circle cx="71" cy="59" r="1.8" fill="#0A0A0A"/>
   <circle cx="79" cy="59" r="1.8" fill="#0A0A0A"/>
 
-  <!-- Browser kutuları (ikonografik, büyük simgeler) -->
+  <!-- Browser kutuları: her ikon kutu merkezine (kutu merkezleri 155/400/645, y=150) -->
   <g>
-    <!-- analyzeLocalFiles: sayfa -->
+    <!-- 1. Sayfa (analyze) — merkez 155,150 -->
     <rect x="55" y="100" width="200" height="100" rx="10" fill="#F2EEE3" stroke="#0A0A0A" stroke-width="2"/>
-    <rect x="92" y="126" width="28" height="46" rx="4" fill="none" stroke="#0A0A0A" stroke-width="2.5"/>
-    <line x1="130" y1="136" x2="170" y2="136" stroke="#0A0A0A" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
-    <line x1="130" y1="146" x2="158" y2="146" stroke="#0A0A0A" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
-    <line x1="130" y1="156" x2="166" y2="156" stroke="#0A0A0A" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
-    <circle cx="180" cy="138" r="5" fill="#C5532F"/>
+    <rect x="142" y="129" width="26" height="42" rx="3" fill="none" stroke="#0A0A0A" stroke-width="2.5"/>
+    <line x1="149" y1="139" x2="160" y2="139" stroke="#0A0A0A" stroke-width="2.2" stroke-linecap="round" opacity="0.55"/>
+    <line x1="149" y1="149" x2="158" y2="149" stroke="#0A0A0A" stroke-width="2.2" stroke-linecap="round" opacity="0.55"/>
+    <line x1="149" y1="159" x2="162" y2="159" stroke="#0A0A0A" stroke-width="2.2" stroke-linecap="round" opacity="0.55"/>
+    <circle cx="166" cy="131" r="4" fill="#C5532F"/>
 
-    <!-- buildLocalReport: damga -->
+    <!-- 2. Damga (score) — merkez 400,150 -->
     <rect x="300" y="100" width="200" height="100" rx="10" fill="#F2EEE3" stroke="#0A0A0A" stroke-width="2"/>
-    <circle cx="400" cy="150" r="32" fill="none" stroke="#0A0A0A" stroke-width="3"/>
-    <circle cx="400" cy="150" r="24" fill="#E8E2D2" stroke="#C5532F" stroke-width="1.8"/>
-    <text x="400" y="161" text-anchor="middle" font-family="Georgia, serif" font-size="30" font-weight="bold" fill="#0A0A0A">A</text>
+    <circle cx="400" cy="150" r="30" fill="none" stroke="#0A0A0A" stroke-width="3"/>
+    <circle cx="400" cy="150" r="22" fill="#E8E2D2" stroke="#C5532F" stroke-width="1.8"/>
+    <text x="400" y="159" text-anchor="middle" font-family="Georgia, serif" font-size="27" font-weight="bold" fill="#0A0A0A">A</text>
 
-    <!-- explainWithLLM: yıldız -->
+    <!-- 3. Yıldız (LLM) — merkez 645,150 -->
     <rect x="545" y="100" width="200" height="100" rx="10" fill="#F2EEE3" stroke="#C5532F" stroke-width="2"/>
-    <polygon points="645,118 654,137 675,140 660,155 664,176 645,166 626,176 630,155 615,140 636,137" fill="#C5532F"/>
+    <polygon points="645,120 653,139 674,143 660,158 664,180 645,170 626,180 630,158 616,143 637,139" fill="#C5532F"/>
   </g>
   <line x1="255" y1="150" x2="300" y2="150" stroke="#C5532F" stroke-width="2.5" marker-end="url(#arr)"/>
   <line x1="500" y1="150" x2="545" y2="150" stroke="#C5532F" stroke-width="2.5" marker-end="url(#arr)"/>
 
-  <!-- Browser → server oku -->
+  <!-- Browser → server -->
   <line x1="400" y1="260" x2="400" y2="300" stroke="#C5532F" stroke-width="3" marker-end="url(#arr)"/>
 
-  <!-- Server katmanı (koyu) -->
+  <!-- Server katmanı -->
   <rect x="30" y="300" width="740" height="170" rx="14" fill="#0A0A0A"/>
-  <!-- Sunucu raf ikonu (katman etiketi) -->
+  <!-- Sunucu raf ikonu -->
   <rect x="55" y="318" width="34" height="26" rx="4" fill="#1A1815" stroke="#D9785C" stroke-width="2"/>
   <line x1="60" y1="328" x2="84" y2="328" stroke="#D9785C" stroke-width="1.6"/>
   <circle cx="61" cy="337" r="1.6" fill="#D9785C"/>
 
+  <!-- Server kutuları: merkezler 160/400/640, y=402 -->
   <g>
-    <!-- API: ok -->
+    <!-- 1. API (ok) — merkez 160,402 -->
     <rect x="55" y="360" width="210" height="84" rx="10" fill="#1A1815" stroke="#D9785C" stroke-width="1.8"/>
-    <circle cx="110" cy="402" r="22" fill="none" stroke="#F2EEE3" stroke-width="3"/>
-    <polyline points="94,402 106,402 106,392 116,402 106,412 106,402" fill="#D9785C" stroke="none"/>
+    <circle cx="160" cy="402" r="22" fill="none" stroke="#F2EEE3" stroke-width="3"/>
+    <polyline points="144,402 154,402 154,394 163,402 154,410 154,402" fill="#D9785C" stroke="none"/>
 
-    <!-- Sonuç: göz -->
+    <!-- 2. Sonuç (göz) — merkez 400,402 -->
     <rect x="300" y="360" width="200" height="84" rx="10" fill="#1A1815" stroke="#D9785C" stroke-width="1.8"/>
-    <path d="M356,388 a42,20 0 1 0 0.2,0 z" fill="none" stroke="#F2EEE3" stroke-width="3"/>
-    <circle cx="356" cy="402" r="9" fill="#D9785C"/>
+    <path d="M358,388 a42,20 0 1 0 0.2,0 z" fill="none" stroke="#F2EEE3" stroke-width="3"/>
+    <circle cx="400" cy="401" r="9" fill="#D9785C"/>
 
-    <!-- DB: silindir -->
+    <!-- 3. Veritabanı (silindir) — merkez 640,402 -->
     <rect x="535" y="360" width="210" height="84" rx="10" fill="#1A1815" stroke="#7A8B6F" stroke-width="1.8"/>
-    <ellipse cx="640" cy="384" rx="34" ry="12" fill="none" stroke="#F2EEE3" stroke-width="3"/>
-    <line x1="606" y1="384" x2="606" y2="424" stroke="#F2EEE3" stroke-width="3"/>
-    <line x1="674" y1="384" x2="674" y2="424" stroke="#F2EEE3" stroke-width="3"/>
-    <path d="M606,402 a34,12 0 0 0 68,0" fill="none" stroke="#7A8B6F" stroke-width="3"/>
+    <ellipse cx="640" cy="382" rx="34" ry="12" fill="none" stroke="#F2EEE3" stroke-width="3"/>
+    <line x1="606" y1="382" x2="606" y2="422" stroke="#F2EEE3" stroke-width="3"/>
+    <line x1="674" y1="382" x2="674" y2="422" stroke="#F2EEE3" stroke-width="3"/>
+    <path d="M606,400 a34,12 0 0 0 68,0" fill="none" stroke="#7A8B6F" stroke-width="3"/>
   </g>
   <line x1="265" y1="402" x2="300" y2="402" stroke="#D9785C" stroke-width="2.5" marker-end="url(#arr)"/>
   <line x1="500" y1="402" x2="535" y2="402" stroke="#7A8B6F" stroke-width="2.5" marker-end="url(#arr)"/>
