@@ -13,26 +13,28 @@
   <circle cx="71" cy="59" r="1.8" fill="#0A0A0A"/>
   <circle cx="79" cy="59" r="1.8" fill="#0A0A0A"/>
 
-  <!-- Browser kutuları (ikonografik) -->
+  <!-- Browser kutuları (ikonografik, büyük simgeler) -->
   <g>
     <!-- analyzeLocalFiles: sayfa -->
-    <rect x="55" y="100" width="200" height="90" rx="10" fill="#F2EEE3" stroke="#0A0A0A" stroke-width="2"/>
-    <rect x="90" y="122" width="22" height="34" rx="3" fill="none" stroke="#0A0A0A" stroke-width="2"/>
-    <line x1="122" y1="130" x2="168" y2="130" stroke="#0A0A0A" stroke-width="2" stroke-linecap="round" opacity="0.55"/>
-    <line x1="122" y1="138" x2="152" y2="138" stroke="#0A0A0A" stroke-width="2" stroke-linecap="round" opacity="0.55"/>
-    <line x1="122" y1="146" x2="160" y2="146" stroke="#0A0A0A" stroke-width="2" stroke-linecap="round" opacity="0.55"/>
+    <rect x="55" y="100" width="200" height="100" rx="10" fill="#F2EEE3" stroke="#0A0A0A" stroke-width="2"/>
+    <rect x="92" y="126" width="28" height="46" rx="4" fill="none" stroke="#0A0A0A" stroke-width="2.5"/>
+    <line x1="130" y1="136" x2="170" y2="136" stroke="#0A0A0A" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+    <line x1="130" y1="146" x2="158" y2="146" stroke="#0A0A0A" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+    <line x1="130" y1="156" x2="166" y2="156" stroke="#0A0A0A" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+    <circle cx="180" cy="138" r="5" fill="#C5532F"/>
 
     <!-- buildLocalReport: damga -->
-    <rect x="300" y="100" width="200" height="90" rx="10" fill="#F2EEE3" stroke="#0A0A0A" stroke-width="2"/>
-    <circle cx="400" cy="145" r="24" fill="none" stroke="#0A0A0A" stroke-width="2.5"/>
-    <text x="400" y="153" text-anchor="middle" font-family="Georgia, serif" font-size="22" font-weight="bold" fill="#0A0A0A">A</text>
+    <rect x="300" y="100" width="200" height="100" rx="10" fill="#F2EEE3" stroke="#0A0A0A" stroke-width="2"/>
+    <circle cx="400" cy="150" r="32" fill="none" stroke="#0A0A0A" stroke-width="3"/>
+    <circle cx="400" cy="150" r="24" fill="#E8E2D2" stroke="#C5532F" stroke-width="1.8"/>
+    <text x="400" y="161" text-anchor="middle" font-family="Georgia, serif" font-size="30" font-weight="bold" fill="#0A0A0A">A</text>
 
     <!-- explainWithLLM: yıldız -->
-    <rect x="545" y="100" width="200" height="90" rx="10" fill="#F2EEE3" stroke="#C5532F" stroke-width="2"/>
-    <polygon points="645,118 652,134 670,136 657,148 660,166 645,158 630,166 633,148 620,136 638,134" fill="#C5532F"/>
+    <rect x="545" y="100" width="200" height="100" rx="10" fill="#F2EEE3" stroke="#C5532F" stroke-width="2"/>
+    <polygon points="645,118 654,137 675,140 660,155 664,176 645,166 626,176 630,155 615,140 636,137" fill="#C5532F"/>
   </g>
-  <line x1="255" y1="145" x2="300" y2="145" stroke="#C5532F" stroke-width="2.5" marker-end="url(#arr)"/>
-  <line x1="500" y1="145" x2="545" y2="145" stroke="#C5532F" stroke-width="2.5" marker-end="url(#arr)"/>
+  <line x1="255" y1="150" x2="300" y2="150" stroke="#C5532F" stroke-width="2.5" marker-end="url(#arr)"/>
+  <line x1="500" y1="150" x2="545" y2="150" stroke="#C5532F" stroke-width="2.5" marker-end="url(#arr)"/>
 
   <!-- Browser → server oku -->
   <line x1="400" y1="260" x2="400" y2="300" stroke="#C5532F" stroke-width="3" marker-end="url(#arr)"/>
@@ -46,22 +48,22 @@
 
   <g>
     <!-- API: ok -->
-    <rect x="55" y="360" width="210" height="80" rx="10" fill="#1A1815" stroke="#D9785C" stroke-width="1.8"/>
-    <circle cx="110" cy="400" r="16" fill="none" stroke="#F2EEE3" stroke-width="2.5"/>
-    <polyline points="96,400 104,400 104,392 112,400 104,408 104,400" fill="#D9785C" stroke="none"/>
+    <rect x="55" y="360" width="210" height="84" rx="10" fill="#1A1815" stroke="#D9785C" stroke-width="1.8"/>
+    <circle cx="110" cy="402" r="22" fill="none" stroke="#F2EEE3" stroke-width="3"/>
+    <polyline points="94,402 106,402 106,392 116,402 106,412 106,402" fill="#D9785C" stroke="none"/>
 
     <!-- Sonuç: göz -->
-    <rect x="300" y="360" width="200" height="80" rx="10" fill="#1A1815" stroke="#D9785C" stroke-width="1.8"/>
-    <path d="M360,386 a30,14 0 1 0 0.1,0 z" fill="none" stroke="#F2EEE3" stroke-width="2.5"/>
-    <circle cx="360" cy="394" r="6" fill="#D9785C"/>
+    <rect x="300" y="360" width="200" height="84" rx="10" fill="#1A1815" stroke="#D9785C" stroke-width="1.8"/>
+    <path d="M356,388 a42,20 0 1 0 0.2,0 z" fill="none" stroke="#F2EEE3" stroke-width="3"/>
+    <circle cx="356" cy="402" r="9" fill="#D9785C"/>
 
     <!-- DB: silindir -->
-    <rect x="535" y="360" width="210" height="80" rx="10" fill="#1A1815" stroke="#7A8B6F" stroke-width="1.8"/>
-    <ellipse cx="640" cy="382" rx="26" ry="9" fill="none" stroke="#F2EEE3" stroke-width="2.5"/>
-    <line x1="614" y1="382" x2="614" y2="414" stroke="#F2EEE3" stroke-width="2.5"/>
-    <line x1="666" y1="382" x2="666" y2="414" stroke="#F2EEE3" stroke-width="2.5"/>
-    <path d="M614,398 a26,9 0 0 0 52,0" fill="none" stroke="#7A8B6F" stroke-width="2.5"/>
+    <rect x="535" y="360" width="210" height="84" rx="10" fill="#1A1815" stroke="#7A8B6F" stroke-width="1.8"/>
+    <ellipse cx="640" cy="384" rx="34" ry="12" fill="none" stroke="#F2EEE3" stroke-width="3"/>
+    <line x1="606" y1="384" x2="606" y2="424" stroke="#F2EEE3" stroke-width="3"/>
+    <line x1="674" y1="384" x2="674" y2="424" stroke="#F2EEE3" stroke-width="3"/>
+    <path d="M606,402 a34,12 0 0 0 68,0" fill="none" stroke="#7A8B6F" stroke-width="3"/>
   </g>
-  <line x1="265" y1="400" x2="300" y2="400" stroke="#D9785C" stroke-width="2.5" marker-end="url(#arr)"/>
-  <line x1="500" y1="400" x2="535" y2="400" stroke="#7A8B6F" stroke-width="2.5" marker-end="url(#arr)"/>
+  <line x1="265" y1="402" x2="300" y2="402" stroke="#D9785C" stroke-width="2.5" marker-end="url(#arr)"/>
+  <line x1="500" y1="402" x2="535" y2="402" stroke="#7A8B6F" stroke-width="2.5" marker-end="url(#arr)"/>
 </svg>
