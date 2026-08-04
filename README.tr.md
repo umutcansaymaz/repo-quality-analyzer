@@ -281,13 +281,9 @@ raporlanır:
 - **Taint/akış analizi yok**: `const cmd = "ls"; exec(cmd)` — `cmd` sabit
   olsa bile raporlanır (yanlışlıkla gözden kaçırmak yerine işaretlemeyi
   tercih ederiz)
-- **3+ seviye içe aktarma döngüleri** (A→B→C→A) algılanmaz — yalnızca 2
-  seviye
 - **Kopya kod / ölü kod / CVE veritabanı analizi yok**
 - **`.env` dosyalarındaki sırlar** taranmaz (env dosyaları tasarım gereği
   hariç tutulur — zaten commit edilmemelidir)
-- **Stripe tarzı token'lar** (`sk_live_...`) sır regex'inde yoktur (yalnızca
-  tire ayraçlı `sk-`)
 - **AST/ayrıştırıcı yok** — motor regex + yapısal taramadır; *niyeti*
   anlayamaz (ör. bir değerin gerçekten kullanıcı girdisi olup olmadığını)
 

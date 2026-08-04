@@ -280,3 +280,36 @@ describe("evidence cap", () => {
     expect(cats.large_file).toBe(1);
   });
 });
+
+// ---------------------------------------------------------------------------
+// 3+ seviye döngüsel bağımlılık (FN kapatma)
+// ---------------------------------------------------------------------------
+describe("circular_dependency — 3+ seviye", () => {
+  it("A→B→C→A döngüsü tespit edilir", async () => {
+    const scan = await scanRepo([
+      { path: "src/a.ts", content: `import { b } from "./b";\nexport const a = b;\n` },
+      { path: "src/b.ts", content: `import { c } from "./c";\nexport const b = c;\n` },
+      { path: "src/c.ts", content: `import { a } from "./a";\nexport const c = a;\n` },
+    ]);
+    const cats = categoriesOf(scan);
+    expect(cats.circular_dependency).toBeGreaterThan(0);
+  });
+
+  it("A→B→C ayrık zincir döngü DEĞİLDİR", async () => {
+    const scan = await scanRepo([
+      { path: "src/a.ts", content: `import { b } from "./b";\nexport const a = b;\n` },
+      { path: "src/b.ts", content: `import { c } from "./c";\nexport const b = c;\n` },
+      { path: "src/c.ts", content: `export const c = 1;\n` },
+    ]);
+    const cats = categoriesOf(scan);
+    expect(cats.circular_dependency || 0).toBe(0);
+  });
+
+  it("Kendine import (A→A) döngü DEĞİLDİR", async () => {
+    const scan = await scanRepo([
+      { path: "src/a.ts", content: `import { a } from "./a";\nexport const a = 1;\n` },
+    ]);
+    const cats = categoriesOf(scan);
+    expect(cats.circular_dependency || 0).toBe(0);
+  });
+});

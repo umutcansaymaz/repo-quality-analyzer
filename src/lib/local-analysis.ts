@@ -1339,6 +1339,30 @@ function isStaticCommandArg(text: string, argStart: number): boolean {
       const inner = text.slice(i + 1, j);
       // Template/tırnak içi interpolasyon → dinamik girdi.
       if (inner.includes("${") || (quote === "`" && inner.includes("#{"))) return false;
+      // Python f-string: f"..." / F'...' — {expr} interpolasyonu dinamik girdidir.
+      // Düz string'deki { } literal olabilir, fakat f-prefix'li string'de
+      // { } her zaman ifade yeridir (os.system(f"ls {user}") riskli).
+      const prefix = text[i - 1] || "";
+      const isFString = (prefix === "f" || prefix === "F") && !/[A-Za-z0-9_]/.test(text[i - 2] || "");
+      if (isFString && /{[^}]*}/.test(inner)) return false;
+      i = j + 1;
+      hasLiteral = true;
+      continue;
+    }
+    // Python f-string prefix'i: f"..." / F'...' — tırnaktan önce f/F durur.
+    // JS/TS'te f" geçersiz sözdizimidir, bu yüzden güvenle f-prefix sayılır.
+    if ((quote === "f" || quote === "F") && (text[i + 1] === '"' || text[i + 1] === "'")) {
+      const q = text[i + 1];
+      let j = i + 2;
+      let closed = false;
+      while (j < text.length) {
+        if (text[j] === "\\") { j += 2; continue; }
+        if (text[j] === q) { closed = true; break; }
+        j++;
+      }
+      if (!closed) return false;
+      const inner = text.slice(i + 2, j);
+      if (/{[^}]*}/.test(inner)) return false;
       i = j + 1;
       hasLiteral = true;
       continue;
@@ -1753,16 +1777,23 @@ function resolveWithExtensions(path: string, knownPaths: Set<string>): string | 
   return null;
 }
 
-/** İçe aktarma grafiğinde döngü var mı? (2-seviye kontrol: A→B→A, tam yollar ile) */
+/** İçe aktarma grafiğinde döngü var mı? (DFS — 2+ seviye: A→B→A, A→B→C→A dahil, tam yollar ile) */
 function hasCircularImport(relPath: string, moduleImports: Map<string, string[]>): boolean {
-  const myTargets = moduleImports.get(relPath) || [];
-  // A → B: bu dosya hangi tam yolları import ediyor?
-  for (const target of myTargets) {
-    // Kendine import (A→A) döngüsel bağımlılık DEĞİLDİR — döngü iki ayrı
-    // modül arasındaki karşılıklı bağımlılıktır (A→B ve B→A).
-    if (target === relPath) continue;
-    const bTargets = moduleImports.get(target) || [];
-    if (bTargets.includes(relPath)) return true;
+  // Kendine import (A→A) döngüsel bağımlılık DEĞİLDİR — döngü en az iki
+  // ayrı modül arasındaki bağımlılıktır. Başlangıç düğümüne (relPath) dönüş,
+  // doğrudan (A→B→A) veya dolaylı (A→B→C→A) olsun, döngüdür.
+  const visited = new Set<string>();
+  const stack = [relPath];
+  while (stack.length > 0) {
+    const cur = stack.pop()!;
+    if (visited.has(cur)) continue;
+    visited.add(cur);
+    const targets = moduleImports.get(cur) || [];
+    for (const t of targets) {
+      if (t === cur) continue;         // düğümün kendine import'u — döngü değil
+      if (t === relPath) return true;  // başlangıca dönüş — döngü (2+ seviye)
+      stack.push(t);
+    }
   }
   return false;
 }
@@ -1883,7 +1914,7 @@ export async function analyzeLocalFiles(
     //    gömülü "sk-" yanlış pozitif üretir (task-, risk-, desk- aynı aile).
     //  - AIzaSy (Firebase Web API key) client-tarafı key'dir — güvenlik Firestore
     //    kurallarıyla sağlanır, bu yüzden severity ayrıca medium'a düşürülür.
-    const secretRegex = /(?<![A-Za-z0-9_-])sk-[A-Za-z0-9_-]{16,}|ghp_[A-Za-z0-9]{20,}|AKIA[A-Z0-9]{16}|xox[baprs]-[A-Za-z0-9-]{10,}|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}|-----BEGIN [A-Z ]+ PRIVATE KEY-----|(?:password|passwd|api[_-]?key|secret)\s*[:=]\s*["'][A-Za-z0-9+/_\-.]{20,}["']|AIzaSy[A-Za-z0-9_-]{20,}/ig;
+    const secretRegex = /(?<![A-Za-z0-9_-])sk-[A-Za-z0-9_-]{16,}|(?<![A-Za-z0-9_])sk_live_[A-Za-z0-9]{16,}|(?<![A-Za-z0-9_])pk_live_[A-Za-z0-9]{16,}|ghp_[A-Za-z0-9]{20,}|AKIA[A-Z0-9]{16}|xox[baprs]-[A-Za-z0-9-]{10,}|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}|-----BEGIN [A-Z ]+ PRIVATE KEY-----|(?:password|passwd|api[_-]?key|secret)\s*[:=]\s*["'][A-Za-z0-9+/_\-.]{20,}["']|AIzaSy[A-Za-z0-9_-]{20,}/ig;
     let secretMatch: RegExpExecArray | null;
     let secretCount = 0;
     while ((secretMatch = secretRegex.exec(text)) !== null && secretCount < 5) {
@@ -1924,18 +1955,19 @@ export async function analyzeLocalFiles(
       // Not: "YOUR_FIREBASE_API_KEY" gibi şablon değerleri alt çizgiyle yazılır —
       // hem kısa çizgi (your-) hem alt çizgi (your_) yakalanmalı.
       if (!/(test|example|demo|dummy|sample|xxxx+|your[-_]|placeholder)/i.test(snippet)) {
-        // Firebase Web API key (AIzaSy...) client-tarafı key'dir — güvenlik
-        // Firestore kurallarıyla sağlanır; gerçek backend secret değil → medium.
-        const isFirebaseWebKey = /AIzaSy[A-Za-z0-9_-]{20,}/.test(matchText);
+        // Firebase Web API key (AIzaSy...) ve Stripe publishable key (pk_live_)
+        // client-tarafı anahtarlardır — güvenlik kurallarla sağlanır; gerçek
+        // backend secret değil → medium. sk_live_ (Stripe secret) critical kalır.
+        const isClientKey = /AIzaSy[A-Za-z0-9_-]{20,}|pk_live_[A-Za-z0-9]{16,}/.test(matchText);
         makeEvidence(result.evidence, {
           analyzer: "local-security-scanner",
           finding_type: "security",
-          severity: isFirebaseWebKey ? "medium" : "critical",
+          severity: isClientKey ? "medium" : "critical",
           category: "hardcoded_secret",
           file_path: relPath,
           line: lineNumberFor(text, secretMatch.index),
-          message: isFirebaseWebKey
-            ? "Firebase Web API key kod içinde bulundu (client-tarafı key)"
+          message: isClientKey
+            ? "Client-tarafı API key kod içinde bulundu (Firebase/Stripe publishable)"
             : "Olası secret veya parola kaynak dosyada bulundu",
           tags: ["security", "secret"],
           confidence: 0.95,

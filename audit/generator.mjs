@@ -706,6 +706,69 @@ export function generateRepos() {
   // ---- Hard variants (known FNR + multi-injection) ----
   repos.push(...hardVariantRepos());
 
+  // ---- FN kapatma doğrulamaları (3+ döngü, Stripe, f-string) ----
+  repos.push(...fnFixRepos());
+
+  return repos;
+}
+
+// ---------------------------------------------------------------------------
+// FN-kapatma senaryoları — daha önce bilinen sınır olan üç açığın kapatıldığını
+// doğrular: 3+ seviye döngü, Stripe sk_live_/pk_live_, Python f-string.
+// ---------------------------------------------------------------------------
+
+function fnFixRepos() {
+  const repos = [];
+  const push = (name, expected, files) => repos.push({ name, expected, files });
+
+  // 1) 3+ seviye döngü: A → B → C → A
+  const cycles = {
+    ts: [
+      { path: "src/a.ts", content: `import { b } from "./b";\nexport const a = b;\n` },
+      { path: "src/b.ts", content: `import { c } from "./c";\nexport const b = c;\n` },
+      { path: "src/c.ts", content: `import { a } from "./a";\nexport const c = a;\n` },
+    ],
+    py: [
+      { path: "src/a.py", content: `from b import x\nx = 1\n` },
+      { path: "src/b.py", content: `from c import y\ny = 2\n` },
+      { path: "src/c.py", content: `from a import z\nz = 3\n` },
+    ],
+    go: [
+      { path: "src/a.go", content: `package a\nimport "b"\nvar A = b.B\n` },
+      { path: "src/b.go", content: `package b\nimport "c"\nvar B = c.C\n` },
+      { path: "src/c.go", content: `package c\nimport "a"\nvar C = a.A\n` },
+    ],
+    rb: [
+      { path: "src/a.rb", content: `require_relative 'b'\nA = B\n` },
+      { path: "src/b.rb", content: `require_relative 'c'\nB = C\n` },
+      { path: "src/c.rb", content: `require_relative 'a'\nC = A\n` },
+    ],
+    java: [
+      { path: "src/com/a/A.java", content: `package com.a;\nimport com.b.B;\npublic class A { B b; }\n` },
+      { path: "src/com/b/B.java", content: `package com.b;\nimport com.c.C;\npublic class B { C c; }\n` },
+      { path: "src/com/c/C.java", content: `package com.c;\nimport com.a.A;\npublic class C { A a; }\n` },
+    ],
+  };
+  for (const [lang, files] of Object.entries(cycles)) {
+    push(`circular-3level-${lang}`, ["circular_dependency"], files);
+  }
+
+  // 2) Stripe secret key (pk_live_ client key unit test'te doğrulanır — medium)
+  for (const lang of ["ts", "py", "go", "rb", "java"]) {
+    const ext = extOf[lang];
+    push(`secret-stripe-${lang}`, ["hardcoded_secret"], [
+      { path: `src/main${ext}`, content: `const stripeKey = "sk_live_51H${"a".repeat(20)}";\n` },
+    ]);
+  }
+
+  // 3) Python f-string enjeksiyonu
+  push("injection-fstring-py", ["command_injection"], [
+    { path: "src/main.py", content: `import os\nos.system(f"ls {user_input}")\n` },
+  ]);
+  push("injection-fstring-safe-py", [], [
+    { path: "src/main.py", content: `import os\nos.system(f"ls -la")\n` },
+  ]);
+
   return repos;
 }
 

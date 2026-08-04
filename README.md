@@ -276,12 +276,9 @@ are tracked as **known limitations** in the audit and reported in
 - **Dynamic crypto algorithms**: `createHash(process.env.ALGO)`
 - **No taint/flow analysis**: `const cmd = "ls"; exec(cmd)` is reported even
   though `cmd` is static (we err on the side of flagging)
-- **3+ level import cycles** (A→B→C→A) are not detected — only 2-level
 - **No duplication / dead-code / CVE database analysis**
 - **Secrets inside `.env` files** are not scanned (env files are excluded by
   design — they shouldn't be committed anyway)
-- **Stripe-style tokens** (`sk_live_...`) are not matched by the secret
-  regex (tire-delimited `sk-` is)
 - **No AST/parser** — the engine is regex + structural scanning; it cannot
   understand *intent* (e.g., whether a value is truly user-controlled)
 

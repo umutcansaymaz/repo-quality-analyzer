@@ -226,3 +226,32 @@ describe("D1 — assertion yoğunluğu", () => {
     expect(report.ai_review.health_score.testing).toBeGreaterThanOrEqual(85);
   });
 });
+
+// ---------------------------------------------------------------------------
+// C3: Stripe token'ları + Python f-string enjeksiyonu (FN kapatma)
+// ---------------------------------------------------------------------------
+describe("C3 — Stripe & f-string", () => {
+  it("sk_live_ (Stripe secret) → yakalanır, severity critical", async () => {
+    const scan = await scanRepo([{ path: "src/pay.ts", content: `const k = "sk_live_51H${"a".repeat(20)}";\n` }]);
+    const ev = scan.rawEvidence.find((e) => e.category === "hardcoded_secret");
+    expect(ev).toBeDefined();
+    expect(ev?.severity).toBe("critical");
+  });
+
+  it("pk_live_ (Stripe publishable) → yakalanır, severity medium (client key)", async () => {
+    const scan = await scanRepo([{ path: "src/pay.ts", content: `const k = "pk_live_51H${"b".repeat(20)}";\n` }]);
+    const ev = scan.rawEvidence.find((e) => e.category === "hardcoded_secret");
+    expect(ev).toBeDefined();
+    expect(ev?.severity).toBe("medium");
+  });
+
+  it("Python f-string interpolasyonu (os.system(f\"ls {x}\")) → VAR", async () => {
+    const scan = await scanRepo([{ path: "src/run.py", content: `import os\nos.system(f"ls {user_input}")\n` }]);
+    expect(evidenceIn(scan, "command_injection")).toHaveLength(1);
+  });
+
+  it("Python f-string sabit (os.system(f\"ls -la\")) → YOK", async () => {
+    const scan = await scanRepo([{ path: "src/run.py", content: `import os\nos.system(f"ls -la")\n` }]);
+    expect(evidenceIn(scan, "command_injection")).toHaveLength(0);
+  });
+});
