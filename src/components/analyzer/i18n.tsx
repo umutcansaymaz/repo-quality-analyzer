@@ -810,6 +810,17 @@ const translations: Record<Language, TranslationDict> = {  en: {
     // Language names
     "common.langTurkish": "Turkish",
     "common.langEnglish": "English",
+
+    // Architectural strain matrix
+    "arch.matrixTitle": "ARCHITECTURAL STRAIN MATRIX",
+    "arch.matrixSubtitle": "Tarjan SCC Algorithm & Evidence Matching",
+    "arch.inspectorTitle": "DIAGNOSTIC INSPECTOR",
+    "arch.astNode": "AST Node:",
+    "arch.loc": "Lines of Code (LOC):",
+    "arch.fnCount": "Function Count:",
+    "arch.independentEvidence": "Independent Evidence:",
+    "arch.dependencyLinks": "Dependency Links",
+    "arch.circularCycle": "Circular Cycle",
   },
 
   tr: {
@@ -1602,6 +1613,17 @@ const translations: Record<Language, TranslationDict> = {  en: {
     // Dil adları
     "common.langTurkish": "Türkçe",
     "common.langEnglish": "English",
+
+    // Mimari gerilim matrisi
+    "arch.matrixTitle": "MİMARİ GERİLİM MATRİSİ",
+    "arch.matrixSubtitle": "Tarjan SCC Algoritması & Kanıt Eşlemesi",
+    "arch.inspectorTitle": "TEŞHİS İNSPEKTÖRÜ",
+    "arch.astNode": "AST Düğümü:",
+    "arch.loc": "Satır Sayısı (LOC):",
+    "arch.fnCount": "Fonksiyon Sayısı:",
+    "arch.independentEvidence": "Bağımsız Kanıtlar:",
+    "arch.dependencyLinks": "Bağımlılık Bağlantıları",
+    "arch.circularCycle": "Dairesel Döngü",
   },
 };
 

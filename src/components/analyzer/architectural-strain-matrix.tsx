@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { Activity, ShieldAlert, GitCommit, AlertTriangle, CheckCircle2, Terminal } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useI18n } from "@/components/analyzer/i18n";
 
 interface MatrixNode {
   id: string;
@@ -41,6 +42,7 @@ const SAMPLE_EDGES: MatrixEdge[] = [
 ];
 
 export function ArchitecturalStrainMatrix() {
+  const { t } = useI18n();
   const [selectedNodeId, setSelectedNodeId] = useState<string>("core-domain");
   const selectedNode = SAMPLE_NODES.find((n) => n.id === selectedNodeId) || SAMPLE_NODES[0];
 
@@ -54,9 +56,9 @@ export function ArchitecturalStrainMatrix() {
       <div className="flex items-center justify-between px-4 py-3 kl-paper border-b kl-border-soft kl-font-mono text-xs kl-muted">
         <div className="flex items-center space-x-2">
           <Terminal className="h-4 w-4 kl-accent" />
-          <span className="font-semibold kl-accent">MİMARİ GERİLİM MATRİSİ</span>
+          <span className="font-semibold kl-accent">{t("arch.matrixTitle")}</span>
           <span className="opacity-40">|</span>
-          <span>Tarjan SCC Algoritması & Kanıt Eşlemesi</span>
+          <span>{t("arch.matrixSubtitle")}</span>
         </div>
         <div className="flex items-center space-x-3">
           <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] kl-font-mono kl-card-accent kl-danger">
@@ -167,32 +169,32 @@ export function ArchitecturalStrainMatrix() {
         <div className="kl-paper-alt p-5 kl-font-mono text-xs flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between border-b kl-border-soft pb-3 mb-4">
-              <span className="kl-muted uppercase tracking-wider text-[10px]">TEŞHİS İNSPEKTÖRÜ</span>
+              <span className="kl-muted uppercase tracking-wider text-[10px]">{t("arch.inspectorTitle")}</span>
               <Badge variant="outline" className="border-[#C5532F] kl-accent bg-[#C5532F]/10 text-[10px]">
                 {selectedNode.type.toUpperCase().replace("_", " ")}
               </Badge>
             </div>
 
             <h4 className="text-sm font-semibold kl-font-display kl-ink mb-1">{selectedNode.name}</h4>
-            <p className="kl-muted text-[11px] mb-4">AST Düğümü: <code className="kl-accent">src/core/{selectedNode.name}</code></p>
+            <p className="kl-muted text-[11px] mb-4">{t("arch.astNode")} <code className="kl-accent">src/core/{selectedNode.name}</code></p>
 
             <div className="space-y-3">
               <div className="kl-paper p-3 rounded border kl-border-soft flex justify-between items-center">
-                <span className="kl-muted">Satır Sayısı (LOC):</span>
+                <span className="kl-muted">{t("arch.loc")}</span>
                 <span className="kl-ink font-bold">{selectedNode.loc}</span>
               </div>
               <div className="bg-paper p-3 rounded border kl-border-soft flex justify-between items-center">
-                <span className="kl-muted">Fonksiyon Sayısı:</span>
+                <span className="kl-muted">{t("arch.fnCount")}</span>
                 <span className="kl-accent font-bold">{selectedNode.functions}</span>
               </div>
               <div className="kl-paper p-3 rounded border kl-border-soft flex justify-between items-center">
-                <span className="kl-muted">Bağımsız Kanıtlar:</span>
+                <span className="kl-muted">{t("arch.independentEvidence")}</span>
                 <span className="kl-success font-bold">{selectedNode.evidenceCount} GitHub Kaynağı</span>
               </div>
             </div>
 
             <div className="mt-5">
-              <span className="kl-muted text-[10px] uppercase block mb-2">Bağımlılık Bağlantıları</span>
+              <span className="kl-muted text-[10px] uppercase block mb-2">{t("arch.dependencyLinks")}</span>
               <div className="space-y-1.5">
                 {connectedEdges.map((e, i) => (
                   <div key={i} className="flex items-center justify-between kl-paper px-2.5 py-1.5 rounded border kl-border-soft text-[11px]">
@@ -200,7 +202,7 @@ export function ArchitecturalStrainMatrix() {
                       {e.source === selectedNodeId ? `→ ${e.target}` : `← ${e.source}`}
                     </span>
                     {e.isCycle ? (
-                      <span className="kl-danger font-semibold text-[10px]">Dairesel Döngü</span>
+                      <span className="kl-danger font-semibold text-[10px]">{t("arch.circularCycle")}</span>
                     ) : (
                       <span className="kl-muted text-[10px]">Gerilim: {e.tension}/5</span>
                     )}
