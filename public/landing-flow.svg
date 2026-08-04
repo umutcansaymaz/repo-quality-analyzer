@@ -4,15 +4,15 @@
     <!-- 1. Repo -->
     <rect x="30" y="45" width="160" height="50" rx="10" fill="#E8E2D2" stroke="#0A0A0A" stroke-width="2.5"/>
     <text x="110" y="76" text-anchor="middle">REPO</text>
-    <!-- 2. Analiz -->
+    <!-- 2. Analyze -->
     <rect x="290" y="45" width="180" height="50" rx="10" fill="#E8E2D2" stroke="#0A0A0A" stroke-width="2.5"/>
-    <text x="380" y="76" text-anchor="middle">ANALİZ</text>
+    <text x="380" y="76" text-anchor="middle">ANALYZE</text>
     <!-- 3. Puan -->
     <rect x="570" y="45" width="140" height="50" rx="25" fill="#0A0A0A"/>
     <text x="640" y="76" text-anchor="middle" fill="#F2EEE3">A–F</text>
-    <!-- 4. Rapor -->
+    <!-- 4. Report -->
     <rect x="790" y="45" width="90" height="50" rx="10" fill="#E8E2D2" stroke="#0A0A0A" stroke-width="2.5"/>
-    <text x="835" y="76" text-anchor="middle">RAPOR</text>
+    <text x="835" y="76" text-anchor="middle">REPORT</text>
   </g>
   <!-- Oklar (kil) -->
   <line x1="190" y1="70" x2="290" y2="70" stroke="#C5532F" stroke-width="4" stroke-linecap="round"/>
