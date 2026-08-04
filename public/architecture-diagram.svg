@@ -53,10 +53,10 @@
     <circle cx="160" cy="402" r="22" fill="none" stroke="#F2EEE3" stroke-width="3"/>
     <polyline points="144,402 154,402 154,394 163,402 154,410 154,402" fill="#D9785C" stroke="none"/>
 
-    <!-- 2. Sonuç (göz) — merkez 400,402 -->
+    <!-- 2. Sonuç (göz) — elips, bebek tam merkezde -->
     <rect x="300" y="360" width="200" height="84" rx="10" fill="#1A1815" stroke="#D9785C" stroke-width="1.8"/>
-    <path d="M358,388 a42,20 0 1 0 0.2,0 z" fill="none" stroke="#F2EEE3" stroke-width="3"/>
-    <circle cx="400" cy="401" r="9" fill="#D9785C"/>
+    <ellipse cx="400" cy="402" rx="42" ry="21" fill="none" stroke="#F2EEE3" stroke-width="3"/>
+    <circle cx="400" cy="402" r="8.5" fill="#D9785C"/>
 
     <!-- 3. Veritabanı (silindir) — merkez 640,402 -->
     <rect x="535" y="360" width="210" height="84" rx="10" fill="#1A1815" stroke="#7A8B6F" stroke-width="1.8"/>
