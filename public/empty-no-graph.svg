@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 130" role="img" aria-label="no graph illustration">
+  <!-- Boş durum: bağlantısız düğümler (knowledge graph yok) -->
+  <circle cx="60" cy="45" r="16" fill="#E8E2D2" stroke="#0A0A0A" stroke-width="2.5"/>
+  <circle cx="140" cy="40" r="16" fill="#E8E2D2" stroke="#0A0A0A" stroke-width="2.5"/>
+  <circle cx="100" cy="95" r="16" fill="#E8E2D2" stroke="#C5532F" stroke-width="2.5"/>
+  <!-- Kopuk kenarlar -->
+  <line x1="76" y1="47" x2="124" y2="42" stroke="#0A0A0A" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="4,6"/>
+  <line x1="74" y1="58" x2="88" y2="80" stroke="#C5532F" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="4,6"/>
+  <line x1="126" y1="55" x2="114" y2="80" stroke="#0A0A0A" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="4,6"/>
+  <!-- Merkez düğümde vurgu noktası -->
+  <circle cx="100" cy="95" r="5" fill="#C5532F"/>
+</svg>

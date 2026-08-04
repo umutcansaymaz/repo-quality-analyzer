@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 140" role="img" aria-label="analysis flow — repo to score">
+  <!-- Karşılama dekoru: Repo → Analiz → Puan → Rapor akışı -->
+  <g font-family="'Courier New', monospace" font-size="20" fill="#0A0A0A">
+    <!-- 1. Repo -->
+    <rect x="30" y="45" width="160" height="50" rx="10" fill="#E8E2D2" stroke="#0A0A0A" stroke-width="2.5"/>
+    <text x="110" y="76" text-anchor="middle">REPO</text>
+    <!-- 2. Analiz -->
+    <rect x="290" y="45" width="180" height="50" rx="10" fill="#E8E2D2" stroke="#0A0A0A" stroke-width="2.5"/>
+    <text x="380" y="76" text-anchor="middle">ANALİZ</text>
+    <!-- 3. Puan -->
+    <rect x="570" y="45" width="140" height="50" rx="25" fill="#0A0A0A"/>
+    <text x="640" y="76" text-anchor="middle" fill="#F2EEE3">A–F</text>
+    <!-- 4. Rapor -->
+    <rect x="790" y="45" width="90" height="50" rx="10" fill="#E8E2D2" stroke="#0A0A0A" stroke-width="2.5"/>
+    <text x="835" y="76" text-anchor="middle">RAPOR</text>
+  </g>
+  <!-- Oklar (kil) -->
+  <line x1="190" y1="70" x2="290" y2="70" stroke="#C5532F" stroke-width="4" stroke-linecap="round"/>
+  <polygon points="290,63 306,70 290,77" fill="#C5532F"/>
+  <line x1="470" y1="70" x2="570" y2="70" stroke="#C5532F" stroke-width="4" stroke-linecap="round"/>
+  <polygon points="570,63 586,70 570,77" fill="#C5532F"/>
+  <line x1="710" y1="70" x2="790" y2="70" stroke="#C5532F" stroke-width="4" stroke-linecap="round"/>
+  <polygon points="790,63 806,70 790,77" fill="#C5532F"/>
+  <!-- Zemin çizgisi -->
+  <line x1="30" y1="118" x2="880" y2="118" stroke="#0A0A0A" stroke-width="1.5" opacity="0.25"/>
+</svg>
