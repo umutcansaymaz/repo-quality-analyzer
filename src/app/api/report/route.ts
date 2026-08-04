@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     const jobId: string = body.job_id || "";
     const format: string = (body.format || "md").toLowerCase();
     if (!jobId) {
-      return NextResponse.json({ error: "job_id is required" }, { status: 400 });
+      return NextResponse.json({ error: "errors.jobIdRequired" }, { status: 400 });
     }
 
     let result: DemoResult | null = jobStore.get(jobId) as DemoResult | null;
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
 
     if (!result) {
       return NextResponse.json(
-        { error: "Analiz sonucu bulunamadı. Lütfen analizi tekrar çalıştırın." },
+        { error: "errors.noResult" },
         { status: 404 }
       );
     }

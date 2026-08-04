@@ -40,7 +40,7 @@ export async function GET(
 
   if (!result) {
     return NextResponse.json(
-      { error: "Analiz sonucu bulunamadı. Sunucu yeniden başlatılmış olabilir — lütfen analizi tekrar çalıştırın." },
+      { error: "errors.noResult" },
       { status: 404 }
     );
   }

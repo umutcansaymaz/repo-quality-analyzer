@@ -72,7 +72,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from "@/components/ui/sheet";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
-import { LanguageProvider, useI18n, type Language } from "@/components/analyzer/i18n";
+import { LanguageProvider, useI18n, currentLang, type Language } from "@/components/analyzer/i18n";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, Legend } from "recharts";
 import { analyzeLocalFiles, buildLocalReport } from "@/lib/local-analysis";
 import { DragovZone } from "@/components/kl/DragovZone";
@@ -402,9 +402,9 @@ function AppContent() {
   // BYOK LLM açıklamaları — tarayıcıdan provider'a doğrudan çağrı (key sunucuya gitmez).
   const handleExplainLLM = React.useCallback(async (): Promise<{ error?: string }> => {
     const result = analysisData?.result;
-    if (!result) return { error: "Analiz sonucu yok." };
+    if (!result) return { error: t("errors.noResult") };
     const config = readLLMConfig();
-    if (!config.provider) return { error: "Önce Settings'ten bir LLM sağlayıcısı seçin." };
+    if (!config.provider) return { error: t("errors.llmProviderRequired") };
     const severityRank = (s: string) => ({ critical: 4, high: 3, medium: 2, low: 1 })[s as string] || 0;
     const rcs: FindingSummary[] = (result?.root_causes?.root_causes || []).map((rc: any) => ({
       category: String(rc.category || ""),
@@ -426,7 +426,7 @@ function AppContent() {
       }));
     const out = await explainWithLLM(config as unknown as LLMRunConfig, rcs, snippets);
     if (out.error) return { error: out.error };
-    if (out.sections.length === 0) return { error: "LLM boş yanıt döndü." };
+    if (out.sections.length === 0) return { error: t("errors.llmEmptyResponse") };
     setAnalysisData((prev) =>
       prev
         ? {
@@ -582,7 +582,7 @@ function AppContent() {
         const resultRes = await apiFetch(`/api/result/${realJobId}?${params}`);
         resultData = await resultRes.json();
       } else {
-        throw new Error("Analiz API'sine ulaşılamadı.");
+        throw new Error(t("errors.analysisApi"));
       }
 
       setAnalysisData({ jobId: realJobId || "demo", status: "completed", repository: targetUrl, result: resultData });
@@ -615,7 +615,7 @@ function AppContent() {
       setView("landing");
       setAnalysisData(null);
       const msg = error?.message || t("local.readError");
-      toast.error(msg);
+      toast.error(t(msg) !== msg ? t(msg) : msg);
     }
   };
 
@@ -676,12 +676,12 @@ function AppContent() {
         body: JSON.stringify({ repo_name: folderName, report }),
       });
       const data = await apiRes.json();
-      if (!data?.job_id) throw new Error("İşlem ID'si oluşturulamadı.");
+      if (!data?.job_id) throw new Error(t("errors.jobId"));
 
       setStepStatus("review", "completed");
 
       const resultRes = await apiFetch(`/api/result/${data.job_id}`);
-      if (!resultRes.ok) throw new Error("Analiz sonuçları alınamadı.");
+      if (!resultRes.ok) throw new Error(t("errors.resultsFetch"));
       const resultData = await resultRes.json();
       const resultRepoUrl = resultData?.repository?.url || localRepoUrl;
 
@@ -717,7 +717,7 @@ function AppContent() {
     } catch (error: any) {
       console.error("handleAnalyzeLocal error:", error?.message);
       setView("landing");
-      toast.error(error?.message || t("local.readError"));
+      toast.error(t(error?.message || "") !== (error?.message || "") ? t(error?.message || "") : error?.message || t("local.readError"));
     }
   };
 
@@ -739,7 +739,7 @@ function AppContent() {
     setShowHistory(false);
     const isOldDemo = entry.id.startsWith("demo-") || entry.isDemo === true || !entry.result?.repository_metadata?.scan_summary;
     if (isOldDemo) {
-      toast.warning("Bu eski bir demo kaydı — gerçek analiz içermiyor. Yeniden analiz etmek icin 'Yeniden calistir' kullan.");
+      toast.warning(t("errors.demoRecord"));
     } else {
       toast.success(t("analysis.complete"));
     }
@@ -752,7 +752,7 @@ function AppContent() {
   const handleReanalyze = (entry: HistoryEntry) => {
     setShowHistory(false);
     if (entry.repoUrl.startsWith("local://")) {
-      toast.info("Lokal klasörler için tekrar seçim yapın");
+      toast.info(t("errors.localReselect"));
       setView("landing");
       return;
     }
@@ -866,7 +866,7 @@ function AppContent() {
                 <Button variant="ghost" size="icon" onClick={() => setShowShortcuts(true)} title={t("shortcuts.title")}>
                   <Info className="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="icon" onClick={() => setView("settings")} title="Atölye Ayarları">
+                <Button variant="ghost" size="icon" onClick={() => setView("settings")} title={t("common.settings")}>
 <SettingsIcon className="h-4 w-4" />
 </Button>
 </>
@@ -994,9 +994,9 @@ function LandingView({ repoUrl, setRepoUrl, onAnalyze, onAnalyzeLocal }: { repoU
   const scanTokenRef = React.useRef(0);
 
   const SCAN_STAGES = [
-    "Depo Telif & AST Haritası Taranıyor...",
-    "Tarjan SCC Dairesel Döngüleri Çözümleniyor...",
-    "Bağımsız Kanıtlar Eşleştiriliyor...",
+    t("scan.ast"),
+    t("scan.scc"),
+    t("scan.evidence"),
   ];
 
   const handleStartAnalysis = React.useCallback((customRepoUrl?: string) => {
@@ -1029,7 +1029,7 @@ function LandingView({ repoUrl, setRepoUrl, onAnalyze, onAnalyzeLocal }: { repoU
     console.log('[LOCAL-DEBUG] filtered.length =', filtered.length, 'from', fileArray.length);
     if (filtered.length === 0) {
       setScanning(false);
-      setLocalError("Seçilen klasörde taranabilir kaynak kod (ts, js, py, java vb.) bulunamadı.");
+      setLocalError(t("errors.noSourceFiles"));
       console.log('[LOCAL-DEBUG] all files filtered out!');
       return;
     }
@@ -1126,14 +1126,14 @@ function LandingView({ repoUrl, setRepoUrl, onAnalyze, onAnalyzeLocal }: { repoU
         processFolderSelection(files);
       } else {
         setScanning(false);
-        setLocalError("Seçilen klasörde taranabilir kaynak kod (ts, js, py, java vb.) bulunamadı.");
+        setLocalError(t("errors.noSourceFiles"));
       }
       
     } catch (err: any) {
       setScanning(false);
       // AbortError is just the user closing the picker dialog
       if (err.name !== "AbortError") {
-        setLocalError("Klasör okunamadı veya yetki verilmedi.");
+        setLocalError(t("errors.folderRead"));
       }
     }
   }, [processFolderSelection]);
@@ -1416,7 +1416,7 @@ function LandingView({ repoUrl, setRepoUrl, onAnalyze, onAnalyzeLocal }: { repoU
             </p>
           </div>
           <div className="md:col-span-2 text-left md:text-right font-mono text-xs kl-muted">
-            <span>Sistem Telif: 70 Repo Kataloğu · Bağımsız Kanıt Doğrulaması</span>
+                <span>{t("footer.systemNote")}</span>
           </div>
         </div>
 
@@ -3487,6 +3487,7 @@ function FileExplorerSection({ data }: { data: any }) {
 // Source Code Inspector — VS Code-like code viewer with evidence markers.
 // Shows mock Python code with line numbers and highlighted findings.
 function SourceCodeInspector({ filePath, evidence, rootCauses }: { filePath: string; evidence: any[]; rootCauses: any[] }) {
+  const { t } = useI18n();
   const [selectedLine, setSelectedLine] = React.useState<number | null>(null);
 
   // Generate mock code lines based on the file path.
@@ -3572,9 +3573,9 @@ function SourceCodeInspector({ filePath, evidence, rootCauses }: { filePath: str
   });
 
   const markerConfig: Record<string, { bg: string; label: string; icon: React.ReactNode }> = {
-    evidence: { bg: "bg-amber-500/15 border-l-2 border-amber-500", label: "Kanıt", icon: <Beaker className="h-3 w-3" /> },
-    rootCause: { bg: "bg-rose-500/15 border-l-2 border-rose-500", label: "Kök Neden", icon: <Bug className="h-3 w-3" /> },
-    warning: { bg: "bg-yellow-500/10 border-l-2 border-yellow-500", label: "Uyarı", icon: <AlertCircle className="h-3 w-3" /> },
+    evidence: { bg: "bg-amber-500/15 border-l-2 border-amber-500", label: t("common.evidence"), icon: <Beaker className="h-3 w-3" /> },
+    rootCause: { bg: "bg-rose-500/15 border-l-2 border-rose-500", label: t("common.rootCause"), icon: <Bug className="h-3 w-3" /> },
+    warning: { bg: "bg-yellow-500/10 border-l-2 border-yellow-500", label: t("common.warning"), icon: <AlertCircle className="h-3 w-3" /> },
   };
 
   return (
@@ -3844,7 +3845,7 @@ function AIReviewSection({ data }: { data: any }) {
                         <Badge variant={severityVariant(vc.severity)} className="text-xs">{vc.severity}</Badge>
                         <span>Güven: %{(vc.confidence * 100).toFixed(0)}</span>
                         {vc.supporting_evidence_ids?.length > 0 && (
-                          <span className="font-mono">Kanıt: {vc.supporting_evidence_ids.length} ({vc.supporting_evidence_ids.slice(0, 3).join(", ")}{vc.supporting_evidence_ids.length > 3 ? ", …" : ""})</span>
+                          <span className="font-mono">{t("common.evidence")}: {vc.supporting_evidence_ids.length} ({vc.supporting_evidence_ids.slice(0, 3).join(", ")}{vc.supporting_evidence_ids.length > 3 ? ", …" : ""})</span>
                         )}
                         {vc.planning_reference && <span className="font-mono">Plan: {vc.planning_reference}</span>}
                       </div>
@@ -4074,7 +4075,7 @@ function AIReviewSection({ data }: { data: any }) {
                         <div className="mt-0.5 text-xs text-muted-foreground">
                           {claim.reason && <span className="block">{claim.reason}</span>}
                           {claim.evidence_ids?.length > 0 && (
-                            <span className="mt-0.5 block font-mono">{claim.evidence_ids.length} kanıt ({claim.evidence_ids.slice(0, 3).join(", ")}{claim.evidence_ids.length > 3 ? ", …" : ""})</span>
+                            <span className="mt-0.5 block font-mono">{claim.evidence_ids.length} {t("common.evidence")} ({claim.evidence_ids.slice(0, 3).join(", ")}{claim.evidence_ids.length > 3 ? ", …" : ""})</span>
                           )}
                         </div>
                       </div>
@@ -4133,7 +4134,7 @@ function AIReviewSection({ data }: { data: any }) {
                     </div>
                     <div className="grid grid-cols-1 gap-x-4 gap-y-1 text-xs text-muted-foreground sm:grid-cols-2">
                       <div className="min-w-0 break-words"><span className="font-medium">{t("reasoningLog.rootCause")}:</span> {entry.root_cause}</div>
-                      <div className="min-w-0 break-words"><span className="font-medium">{t("reasoningLog.evidence")}:</span> <span className="font-mono">{entry.evidence.length} kanıt ({entry.evidence.slice(0, 3).join(", ")}{entry.evidence.length > 3 ? ", …" : ""})</span></div>
+                      <div className="min-w-0 break-words"><span className="font-medium">{t("reasoningLog.evidence")}:</span> <span className="font-mono">{entry.evidence.length} {t("common.evidence")} ({entry.evidence.slice(0, 3).join(", ")}{entry.evidence.length > 3 ? ", …" : ""})</span></div>
                       <div className="min-w-0 break-words"><span className="font-medium">{t("reasoningLog.graphPath")}:</span> {entry.graph_path.join(" → ")}</div>
                       <div className="min-w-0"><span className="font-medium">{t("coverage.score")}:</span> {entry.validation.coverage}%</div>
                       <div className="min-w-0"><span className="font-medium">{t("qualityGates.consensus")}:</span> {entry.validation.consensus}</div>
@@ -4181,7 +4182,7 @@ function ExternalValidationSection() {
       const data = await res.json();
       setReport(data);
     } catch {
-      toast.error("External validation failed");
+      toast.error(t("errors.externalValidation"));
     } finally {
       setRunning(false);
     }
@@ -4380,7 +4381,7 @@ function ExternalValidationSection() {
                                         {fm.contradictions.map((c: any, j: number) => (
                                           <div key={j} className="rounded border border-rose-500/30 bg-rose-500/5 p-2 text-xs">
                                             <p className="font-medium text-rose-600">{c.description}</p>
-                                            <p className="mt-1 text-muted-foreground">Sistem: "{c.system_says}" → Dış kaynak: "{c.external_says}"</p>
+                                            <p className="mt-1 text-muted-foreground">{t("extValidation.system")}: "{c.system_says}" → {t("extValidation.external")}: "{c.external_says}"</p>
                                           </div>
                                         ))}
                                       </div>
@@ -4414,7 +4415,7 @@ function ExternalValidationSection() {
       )}
 
       {!report && !running && (
-        <EmptyState icon={<Network className="h-12 w-12" />} title={t("extValidation.title")} description="External Evidence Connector hazır. GitHub Issues, PR'lar, ADR'ler ve Discussions'dan bağımsız kanıt toplamak için butona tıklayın." />
+        <EmptyState icon={<Network className="h-12 w-12" />} title={t("extValidation.title")} description={t("extValidation.connectorReady")} />
       )}
     </div>
   );
@@ -4494,7 +4495,7 @@ function ValidationSection() {
       }
       if (data.execution_log) setExecutionLog(data.execution_log);
     } catch {
-      toast.error("Validation failed");
+      toast.error(t("errors.validationFailed"));
     } finally {
       setRunning(false);
     }
@@ -4855,7 +4856,7 @@ function RealExecutionSection() {
         toast.success(`${batchSize} repo analiz edildi`);
       }
     } catch (e: any) {
-      toast.error("Analiz başarısız: " + (e.message || "bilinmeyen hata"));
+      toast.error(t("errors.analysisFailed") + (e.message || t("errors.unknown")));
     } finally {
       setRunning(false);
     }
@@ -5693,7 +5694,7 @@ function ExplainabilityChain({ rootCause, step, data }: { rootCause?: any; step?
 
     // Layer 3: Planning Decision
     layers.push({
-      label: "Planlama Kararı",
+      label: t("common.planningDecision"),
       value: `${step.priority?.toUpperCase() || "—"} · ROI ${step.roi?.toFixed(2) || "—"}`,
       icon: <Target className="h-4 w-4" />,
       color: "border-amber-500/30 bg-amber-500/5",
@@ -5763,7 +5764,7 @@ function ExplainabilityChain({ rootCause, step, data }: { rootCause?: any; step?
     const analyzers = Object.keys(analyzerCounts);
     if (analyzers.length > 0) {
       layers.push({
-        label: "Analizörler",
+        label: t("common.analyzers"),
         value: `${analyzers.length} analizör katkıda bulundu`,
         icon: <Activity className="h-4 w-4" />,
         color: "border-emerald-500/30 bg-emerald-500/5",
@@ -5819,7 +5820,7 @@ function ExplainabilityChain({ rootCause, step, data }: { rootCause?: any; step?
     if (relatedNodes > 0) {
       const relatedEdges = data.knowledge_graph.edges.filter((e: any) => relatedIds.has(e.source_id) && relatedIds.has(e.target_id)).length;
       layers.push({
-        label: "Bilgi Grafiği İlişkisi",
+        label: t("common.graphRelation"),
         value: `${relatedNodes} düğüm · ${relatedEdges} kenar`,
         icon: <Network className="h-4 w-4" />,
         color: "border-pink-500/30 bg-pink-500/5",
@@ -5840,7 +5841,7 @@ function ExplainabilityChain({ rootCause, step, data }: { rootCause?: any; step?
     const warning = stats.warning || 0;
     const failed = stats.failed || 0;
     layers.push({
-      label: "Kanıt Doğrulama",
+      label: t("common.evidenceValidation"),
       value: `${passed} geçti · ${warning} uyarı · ${failed} başarısız`,
       icon: <Shield className="h-4 w-4" />,
       color: "border-emerald-500/30 bg-emerald-500/5",
@@ -5862,10 +5863,10 @@ function ExplainabilityChain({ rootCause, step, data }: { rootCause?: any; step?
     const rcValidation = data.root_causes.validation[rc.id];
     if (rcValidation) {
       const statusLabel =
-        rcValidation.validation_status === "verified" ? "Doğrulandı" :
-        rcValidation.validation_status === "partially_verified" ? "Kısmen doğrulandı" : "Doğrulanamadı";
+      rcValidation.validation_status === "verified" ? t("status.verified") :
+      rcValidation.validation_status === "partially_verified" ? t("status.partiallyVerified") : t("status.unverified");
       layers.push({
-        label: "Kök Neden Doğrulama",
+        label: t("common.rootCauseValidation"),
         value: `${rcValidation.analyzer_consensus} analizör doğruladı · ${statusLabel}`,
         icon: <CheckCircle className="h-4 w-4" />,
         color: rcValidation.validation_status === "verified" ? "border-emerald-500/30 bg-emerald-500/5" : "border-amber-500/30 bg-amber-500/5",
@@ -5898,13 +5899,13 @@ function ExplainabilityChain({ rootCause, step, data }: { rootCause?: any; step?
     if (claim) {
       const evCount = claim.evidence_ids?.length || 0;
       layers.push({
-        label: "İddia Doğrulama",
-        value: `${claim.status === "verified" ? "Doğrulandı" : "Doğrulanamadı"} · ${evCount} kanıt`,
+        label: t("common.claimValidation"),
+        value: `${claim.status === "verified" ? t("status.verified") : t("status.unverified")} · ${evCount} ${t("common.evidence")}`,
         icon: <Shield className="h-4 w-4" />,
         color: claim.status === "verified" ? "border-emerald-500/30 bg-emerald-500/5" : "border-amber-500/30 bg-amber-500/5",
         detail: (
           <div className="space-y-1.5">
-            <p className="text-xs text-muted-foreground">"{claim.text}" iddiası {evCount} kanıtla {claim.status === "verified" ? "doğrulandı" : "doğrulanamadı"}.</p>
+            <p className="text-xs text-muted-foreground">"{claim.text}" {claim.status === "verified" ? t("common.verifiedClaim").replace("{count}", String(evCount)) : t("common.unverifiedClaim")}.</p>
             {claim.reason && <p className="text-xs text-muted-foreground/60">{claim.reason}</p>}
           </div>
         ),
@@ -5996,7 +5997,7 @@ function ExplainabilityChain({ rootCause, step, data }: { rootCause?: any; step?
     );
     if (rcSections.length > 0 && data?.engineering_review && !data.engineering_review.offline) {
       layers.push({
-        label: "LLM Değerlendirmesi",
+        label: t("common.llmEvaluation"),
         value: `AI tarafından değerlendirildi · ${rcSections.length} bölüm`,
         icon: <Sparkles className="h-4 w-4" />,
         color: "border-primary/30 bg-primary/5",
@@ -6007,7 +6008,7 @@ function ExplainabilityChain({ rootCause, step, data }: { rootCause?: any; step?
               <span className="text-xs">{data.engineering_review.model_info?.provider} / {data.engineering_review.model_info?.model}</span>
             </div>
             <p className="text-xs text-muted-foreground">
-              AI bu kararı kanıtlara dayanarak değerlendirdi. Her bölüm "Kanıt Destekli" veya "AI Görüşü" olarak etiketlendi.
+                {t("ai.llmEvaluationDesc")}
             </p>
           </div>
         ),
@@ -6116,7 +6117,7 @@ function SettingsView({ onBack }: { onBack: () => void }) {
                     <span className="flex items-center gap-2 text-sm font-medium"><Globe className="h-4 w-4 text-sky-500" /> {t("settings.language")}</span>
                     <ChevronRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
                   </div>
-                  <p className="text-xs text-muted-foreground">{lang === "tr" ? "Türkçe" : "English"}</p>
+                  <p className="text-xs text-muted-foreground">{lang === "tr" ? t("common.langTurkish") : t("common.langEnglish")}</p>
                 </button>
               </div>
             </CardContent>
@@ -7302,7 +7303,7 @@ const TR_CATEGORY_MAP: Record<string, string> = {
 function humanize(s: string): string {
   if (!s) return "—";
   const lower = s.toLowerCase();
-  if (TR_CATEGORY_MAP[lower]) return TR_CATEGORY_MAP[lower];
+  if (TR_CATEGORY_MAP[lower] && currentLang === "tr") return TR_CATEGORY_MAP[lower];
   return s
     .replace(/[_-]+/g, " ")
     .replace(/\s+/g, " ")

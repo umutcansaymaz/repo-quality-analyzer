@@ -84,10 +84,10 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const repoUrl: string = body.repository_url || "";
     if (!repoUrl) {
-      return NextResponse.json({ error: "repository_url is required" }, { status: 400 });
+      return NextResponse.json({ error: "errors.invalidRepoUrl" }, { status: 400 });
     }
     if (repoUrl.startsWith("local://")) {
-      return NextResponse.json({ error: "Use local folder upload for local:// URLs" }, { status: 400 });
+      return NextResponse.json({ error: "errors.localOnly" }, { status: 400 });
     }
 
     // SSRF koruması: yalnızca genel http/https adresler (localhost/özel IP yasak).
@@ -114,7 +114,7 @@ export async function POST(req: NextRequest) {
     const files = collectFilesFromDir(clone.path);
     if (files.length === 0) {
       return NextResponse.json(
-        { error: "Repoda analiz edilebilir kaynak dosya bulunamadı" },
+        { error: "errors.noSourceInRepo" },
         { status: 422 }
       );
     }

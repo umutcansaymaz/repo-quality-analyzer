@@ -8,6 +8,9 @@ import * as React from "react";
 
 export type Language = "tr" | "en";
 
+/** Hook dışındaki yardımcıların (humanize vb.) okuyabildiği güncel dil. */
+export let currentLang: Language = "en";
+
 export interface TranslationDict {
   [key: string]: string;
 }
@@ -16,8 +19,7 @@ export interface TranslationDict {
 // Translations
 // ---------------------------------------------------------------------------
 
-const translations: Record<Language, TranslationDict> = {
-  en: {
+const translations: Record<Language, TranslationDict> = {  en: {
     // App
     "app.title": "AI Software Architect",
     "app.subtitle": "Analyze repositories.\nUnderstand architecture.\nDiscover root causes.\nGenerate engineering roadmaps.",
@@ -748,6 +750,66 @@ const translations: Record<Language, TranslationDict> = {
     "realExec.fullHint": "Full validation — all 70 repositories in the catalog.",
     "realExec.durationTotal": "Total Duration",
     "realExec.refresh": "Refresh",
+
+    // Shared statuses & labels
+    "status.verified": "Verified",
+    "status.partiallyVerified": "Partially verified",
+    "status.unverified": "Unverified",
+    "common.evidence": "Evidence",
+    "common.rootCause": "Root Cause",
+    "common.warning": "Warning",
+    "common.analyzers": "Analyzers",
+    "common.planningDecision": "Planning Decision",
+    "common.graphRelation": "Knowledge Graph Relation",
+    "common.evidenceValidation": "Evidence Validation",
+    "common.rootCauseValidation": "Root Cause Validation",
+    "common.claimValidation": "Claim Validation",
+    "common.llmEvaluation": "LLM Evaluation",
+    "common.settings": "Workshop Settings",
+    "common.supportedByEvidence": "Supported by Evidence",
+    "common.aiOpinion": "AI Opinion",
+    "common.verifiedClaim": "claim verified with {count} evidence",
+    "common.unverifiedClaim": "claim could not be verified",
+
+    // User-facing errors (toasts)
+    "errors.llmProviderRequired": "Select an LLM provider in Settings first.",
+    "errors.llmEmptyResponse": "LLM returned an empty response.",
+    "errors.analysisApi": "Analysis API unreachable.",
+    "errors.jobId": "Could not create job ID.",
+    "errors.resultsFetch": "Could not fetch analysis results.",
+    "errors.demoRecord": "This is an old demo record — it contains no real analysis. Use 'Re-run' to analyze again.",
+    "errors.localReselect": "Re-select a folder for local analyses.",
+    "errors.noSourceFiles": "No analyzable source code (ts, js, py, java, etc.) found in the selected folder.",
+    "errors.folderRead": "Folder could not be read or permission denied.",
+    "errors.analysisFailed": "Analysis failed: ",
+    "errors.noResult": "Analysis result not found. Please re-run the analysis.",
+    "errors.cloneFailed": "Could not clone the repository: ",
+    "errors.noSourceInRepo": "No analyzable source files found in the repository.",
+    "errors.invalidRepoUrl": "repository_url is required",
+    "errors.localOnly": "Use local folder upload for local:// URLs",
+    "errors.jobIdRequired": "job_id is required",
+    "errors.ssrfBlocked": "Access to local/private addresses is blocked (security).",
+    "errors.unknown": "unknown error",
+    "errors.externalValidation": "External validation failed",
+    "errors.validationFailed": "Validation failed",
+
+    // Scan stages (landing page)
+    "scan.ast": "Scanning Repository Copyright & AST Map...",
+    "scan.scc": "Resolving Tarjan SCC Circular Cycles...",
+    "scan.evidence": "Matching Independent Evidence...",
+
+    // AI evaluation description
+    "ai.llmEvaluationDesc": "AI evaluated this decision based on evidence. Each section is labeled 'Supported by Evidence' or 'AI Opinion'.",
+    "footer.systemNote": "System Copyright: 70 Repo Catalog · Independent Evidence Validation",
+
+    // External validation
+    "extValidation.system": "System",
+    "extValidation.external": "External source",
+    "extValidation.connectorReady": "External Evidence Connector ready. Collects independent evidence from GitHub Issues, PRs, ADRs and Discussions for cross-validation.",
+
+    // Language names
+    "common.langTurkish": "Turkish",
+    "common.langEnglish": "English",
   },
 
   tr: {
@@ -1480,6 +1542,66 @@ const translations: Record<Language, TranslationDict> = {
     "realExec.fullHint": "Tam validasyon — katalogdaki tüm 70 repository.",
     "realExec.durationTotal": "Toplam Süre",
     "realExec.refresh": "Yenile",
+
+    // Ortak durumlar ve etiketler
+    "status.verified": "Doğrulandı",
+    "status.partiallyVerified": "Kısmen doğrulandı",
+    "status.unverified": "Doğrulanamadı",
+    "common.evidence": "Kanıt",
+    "common.rootCause": "Kök Neden",
+    "common.warning": "Uyarı",
+    "common.analyzers": "Analizörler",
+    "common.planningDecision": "Planlama Kararı",
+    "common.graphRelation": "Bilgi Grafiği İlişkisi",
+    "common.evidenceValidation": "Kanıt Doğrulama",
+    "common.rootCauseValidation": "Kök Neden Doğrulama",
+    "common.claimValidation": "İddia Doğrulama",
+    "common.llmEvaluation": "LLM Değerlendirmesi",
+    "common.settings": "Atölye Ayarları",
+    "common.supportedByEvidence": "Kanıt Destekli",
+    "common.aiOpinion": "AI Görüşü",
+    "common.verifiedClaim": "iddiası {count} kanıtla doğrulandı",
+    "common.unverifiedClaim": "iddiası doğrulanamadı",
+
+    // Kullanıcıya gösterilen hatalar (toast)
+    "errors.llmProviderRequired": "Önce Settings'ten bir LLM sağlayıcısı seçin.",
+    "errors.llmEmptyResponse": "LLM boş yanıt döndü.",
+    "errors.analysisApi": "Analiz API'sine ulaşılamadı.",
+    "errors.jobId": "İşlem ID'si oluşturulamadı.",
+    "errors.resultsFetch": "Analiz sonuçları alınamadı.",
+    "errors.demoRecord": "Bu eski bir demo kaydı — gerçek analiz içermiyor. Yeniden analiz etmek için 'Yeniden çalıştır' kullan.",
+    "errors.localReselect": "Lokal klasörler için tekrar seçim yapın",
+    "errors.noSourceFiles": "Seçilen klasörde taranabilir kaynak kod (ts, js, py, java vb.) bulunamadı.",
+    "errors.folderRead": "Klasör okunamadı veya yetki verilmedi.",
+    "errors.analysisFailed": "Analiz başarısız: ",
+    "errors.noResult": "Analiz sonucu bulunamadı. Lütfen analizi tekrar çalıştırın.",
+    "errors.cloneFailed": "Repo klonlanamadı: ",
+    "errors.noSourceInRepo": "Repoda analiz edilebilir kaynak dosya bulunamadı",
+    "errors.invalidRepoUrl": "repository_url is required",
+    "errors.localOnly": "local:// URL'leri için yerel klasör yüklemesini kullanın",
+    "errors.jobIdRequired": "job_id is required",
+    "errors.ssrfBlocked": "Yerel/özel ağ adreslerine erişim engellendi (güvenlik).",
+    "errors.unknown": "bilinmeyen hata",
+    "errors.externalValidation": "Harici doğrulama başarısız",
+    "errors.validationFailed": "Doğrulama başarısız",
+
+    // Tarama adımları (karşılama sayfası)
+    "scan.ast": "Depo Telif & AST Haritası Taranıyor...",
+    "scan.scc": "Tarjan SCC Dairesel Döngüleri Çözümleniyor...",
+    "scan.evidence": "Bağımsız Kanıtlar Eşleştiriliyor...",
+
+    // AI değerlendirme açıklaması
+    "ai.llmEvaluationDesc": "AI bu kararı kanıtlara dayanarak değerlendirdi. Her bölüm 'Kanıt Destekli' veya 'AI Görüşü' olarak etiketlendi.",
+    "footer.systemNote": "Sistem Telif: 70 Repo Kataloğu · Bağımsız Kanıt Doğrulaması",
+
+    // Harici doğrulama
+    "extValidation.system": "Sistem",
+    "extValidation.external": "Dış kaynak",
+    "extValidation.connectorReady": "External Evidence Connector hazır. GitHub Issues, PR'lar, ADR'ler ve Discussions'dan bağımsız kanıt toplar ve çapraz doğrulama yapar.",
+
+    // Dil adları
+    "common.langTurkish": "Türkçe",
+    "common.langEnglish": "English",
   },
 };
 
@@ -1519,6 +1641,13 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     setLangState(newLang);
     localStorage.setItem("ra-language", newLang);
   }, []);
+
+  // Modül seviyesi dil referansı — hook dışındaki yardımcılar (ör. humanize)
+  // güncel dili buradan okur; dil değişince t() değiştiği için consumer'lar
+  // zaten yeniden render olur ve humanize güncel dili görür.
+  React.useEffect(() => {
+    currentLang = lang;
+  }, [lang]);
 
   const t = React.useCallback(
     (key: string) => {
