@@ -2,6 +2,8 @@
 
 **[English](README.md) | [Türkçe](README.tr.md)**
 
+![Audit badge](public/audit-badge.svg)
+
 A privacy-first, local repository quality analyzer. Clone a repository (or
 scan a local folder) and get a health score across 14 static-analysis
 dimensions — all in your browser, with bring-your-own-key LLM explanations.
@@ -75,6 +77,8 @@ Every finding carries:
 ---
 
 ## Architecture
+
+![Architecture diagram](public/architecture-diagram.svg)
 
 ```
 browser (page.tsx)

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="repo-quality-analyzer favicon">
+  <!-- Tarayıcı sekmesi ikonu — logonun sadeleştirilmişi -->
+  <rect x="1.5" y="1.5" width="29" height="29" rx="7" fill="#F2EEE3" stroke="#0A0A0A" stroke-width="1.4"/>
+  <polyline points="6,24 11,18 16,20 21,13 26,8" fill="none" stroke="#0A0A0A" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="16" y1="20" x2="21" y2="13" stroke="#C5532F" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="26" cy="8" r="3.2" fill="#C5532F"/>
+  <circle cx="6" cy="24" r="2.2" fill="#0A0A0A"/>
+</svg>

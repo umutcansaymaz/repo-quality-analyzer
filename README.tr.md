@@ -2,6 +2,8 @@
 
 **[English](README.md) | [Türkçe](README.tr.md)**
 
+![Denetim rozeti](public/audit-badge.svg)
+
 Gizlilik öncelikli, yerel çalışan bir depo kalite analizörü. Bir depoyu
 klonlayın (veya yerel bir klasörü taratın) ve 14 statik-analiz boyutunda
 sağlık puanınızı alın — tamamı tarayıcınızda, kendi API anahtarınızla
@@ -75,6 +77,8 @@ Her bulgu şunları taşır:
 ---
 
 ## Mimari
+
+![Mimari diyagram](public/architecture-diagram.svg)
 
 ```
 tarayıcı (page.tsx)

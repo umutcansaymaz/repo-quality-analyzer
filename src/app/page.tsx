@@ -815,9 +815,9 @@ function AppContent() {
       <header className="sticky top-0 z-50 kl-paper kl-border-soft border-b backdrop-blur-sm">
         <div className="container mx-auto flex h-14 max-w-7xl items-center justify-between px-4">
           <button onClick={handleReset} className="flex items-center gap-2 font-bold tracking-tight kl-ink">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Brain className="h-4 w-4" />
-            </div>
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                <img src="/logo.svg" alt="" className="h-6 w-6" />
+              </div>
             <span className="hidden sm:inline kl-font-display">{t("app.title")}</span>
           </button>
           <div className="flex items-center gap-2">
@@ -1196,8 +1196,12 @@ function LandingView({ repoUrl, setRepoUrl, onAnalyze, onAnalyzeLocal }: { repoU
           )}
         </AnimatePresence>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start relative z-10">
-          {/* Left Column (1/3): Title & Description */}
+      <div className="mb-5 hidden md:block opacity-90">
+        <img src="/landing-flow.svg" alt="" className="w-full h-auto" />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start relative z-10">
+      {/* Left Column (1/3): Title & Description */}
           <div className="md:col-span-1 text-left border-l-2 border-[#C5532F] pl-4">
             <span className="kl-font-mono text-[10px] uppercase tracking-widest kl-accent block mb-1">
               ATÖLYE MASASI
@@ -1205,10 +1209,13 @@ function LandingView({ repoUrl, setRepoUrl, onAnalyze, onAnalyzeLocal }: { repoU
             <h1 className="text-3xl sm:text-4xl font-bold kl-font-display kl-ink tracking-tight leading-tight">
               Depo Analiz Masası
             </h1>
-            <p className="mt-3 text-xs kl-font-body kl-muted leading-relaxed">
-              Kod mimarisini, Tarjan SCC dairesel bağımlılıklarını ve teknik borçları mühendislik kanıtlarıyla çözümleryin.
-            </p>
-          </div>
+      <p className="mt-3 text-xs kl-font-body kl-muted leading-relaxed">
+        Kod mimarisini, Tarjan SCC dairesel bağımlılıklarını ve teknik borçları mühendislik kanıtlarıyla analiz eder.
+      </p>
+      <div className="mt-6 hidden md:block">
+        <img src="/landing-hero.svg" alt="" className="w-full h-auto rounded-lg border kl-border-soft" />
+      </div>
+      </div>
 
           {/* Right Column (2/3): Interactive Analyze Form */}
           <div className="md:col-span-2 text-left">
@@ -1463,15 +1470,15 @@ function LandingView({ repoUrl, setRepoUrl, onAnalyze, onAnalyzeLocal }: { repoU
 
 function getInitialSteps(t: (k: string) => string): PipelineStep[] {
   return [
-    { id: "detection", labelKey: "pipeline.detection", icon: <Github className="h-5 w-5" />, status: "pending" },
-    { id: "language", labelKey: "pipeline.language", icon: <FileText className="h-5 w-5" />, status: "pending" },
-    { id: "dependency", labelKey: "pipeline.dependency", icon: <Layers className="h-5 w-5" />, status: "pending" },
-    { id: "metrics", labelKey: "pipeline.metrics", icon: <Activity className="h-5 w-5" />, status: "pending" },
-    { id: "evidence", labelKey: "pipeline.evidence", icon: <Beaker className="h-5 w-5" />, status: "pending" },
-    { id: "graph", labelKey: "pipeline.graph", icon: <Network className="h-5 w-5" />, status: "pending" },
-    { id: "rootcause", labelKey: "pipeline.rootcause", icon: <Bug className="h-5 w-5" />, status: "pending" },
-    { id: "planning", labelKey: "pipeline.planning", icon: <MapIcon className="h-5 w-5" />, status: "pending" },
-    { id: "review", labelKey: "pipeline.review", icon: <Sparkles className="h-5 w-5" />, status: "pending" },
+    { id: "detection", labelKey: "pipeline.detection", icon: <img src="/pipeline-detection.svg" alt="" className="h-5 w-5" />, status: "pending" },
+    { id: "language", labelKey: "pipeline.language", icon: <img src="/pipeline-language.svg" alt="" className="h-5 w-5" />, status: "pending" },
+    { id: "dependency", labelKey: "pipeline.dependency", icon: <img src="/pipeline-dependency.svg" alt="" className="h-5 w-5" />, status: "pending" },
+    { id: "metrics", labelKey: "pipeline.metrics", icon: <img src="/pipeline-metrics.svg" alt="" className="h-5 w-5" />, status: "pending" },
+    { id: "evidence", labelKey: "pipeline.evidence", icon: <img src="/pipeline-evidence.svg" alt="" className="h-5 w-5" />, status: "pending" },
+    { id: "graph", labelKey: "pipeline.graph", icon: <img src="/pipeline-graph.svg" alt="" className="h-5 w-5" />, status: "pending" },
+    { id: "rootcause", labelKey: "pipeline.rootcause", icon: <img src="/pipeline-rootcause.svg" alt="" className="h-5 w-5" />, status: "pending" },
+    { id: "planning", labelKey: "pipeline.planning", icon: <img src="/pipeline-planning.svg" alt="" className="h-5 w-5" />, status: "pending" },
+    { id: "review", labelKey: "pipeline.review", icon: <img src="/pipeline-review.svg" alt="" className="h-5 w-5" />, status: "pending" },
   ];
 }
 
@@ -1641,9 +1648,11 @@ function HealthScoreCard({ data }: { data: any }) {
   const C = 2 * Math.PI * R;
   const dash = (overall / 100) * C;
 
-  return (
-    <Card>
-      <CardContent className="pt-6">
+return (
+<Card className="relative overflow-hidden">
+  {/* Marka damgası dekoru — soluk, arka planda */}
+  <img src="/grade-stamp.svg" alt="" aria-hidden className="pointer-events-none absolute -right-8 -top-8 h-36 w-36 opacity-[0.07]" />
+<CardContent className="pt-6">
         <div className="flex flex-wrap items-center justify-between gap-6">
           <div className="flex items-center gap-4">
             {/* Circular gradient progress ring around the grade letter */}
@@ -2382,7 +2391,7 @@ function RootCausesSection({ data }: { data: any }) {
   }, [rootCauses]);
 
   if (rootCauses.length === 0) {
-    return <EmptyState icon={<Bug className="h-12 w-12" />} title={t("rootCause.noRootCauses")} description={t("rootCause.structurallySound")} />;
+          return <EmptyState icon={<img src="/empty-no-data.svg" alt="" className="h-12 w-12" />} title={t("rootCause.noRootCauses")} description={t("rootCause.structurallySound")} />;
   }
 
   // Apply filters + sort
@@ -2468,7 +2477,7 @@ function RootCausesSection({ data }: { data: any }) {
       </Card>
 
       {filtered.length === 0 ? (
-        <EmptyState icon={<Search className="h-12 w-12" />} title={t("filter.noMatch")} />
+            <EmptyState icon={<img src="/empty-no-data.svg" alt="" className="h-12 w-12" />} title={t("filter.noMatch")} />
       ) : (
         <div className="space-y-3">
           {filtered.map((rc: any, i: number) => (
@@ -2587,7 +2596,7 @@ function RoadmapSection({ data }: { data: any }) {
   const [filterRisk, setFilterRisk] = React.useState("all");
   const [filterSprint, setFilterSprint] = React.useState("all");
 
-  if (!plan) return <EmptyState icon={<MapIcon className="h-12 w-12" />} title={t("roadmap.noPlan")} />;
+      if (!plan) return <EmptyState icon={<img src="/empty-no-data.svg" alt="" className="h-12 w-12" />} title={t("roadmap.noPlan")} />;
 
   const allSteps = plan.steps || [];
   const quickWins = plan.quick_wins || [];
@@ -2716,7 +2725,7 @@ function RoadmapSection({ data }: { data: any }) {
       </Card>
 
       {totalShown === 0 ? (
-        <EmptyState icon={<Search className="h-12 w-12" />} title={t("filter.noMatch")} />
+            <EmptyState icon={<img src="/empty-no-data.svg" alt="" className="h-12 w-12" />} title={t("filter.noMatch")} />
       ) : (
         categories.map((cat) => cat.steps.length > 0 && (
           <div key={cat.key}>
@@ -2854,7 +2863,7 @@ function EvidenceSection({ data }: { data: any }) {
     return result;
   }, [evidence, search, filterSeverity, sortCol, sortDir]);
 
-  if (evidence.length === 0) return <EmptyState icon={<Beaker className="h-12 w-12" />} title={t("evidence.noEvidence")} />;
+        if (evidence.length === 0) return <EmptyState icon={<img src="/empty-no-evidence.svg" alt="" className="h-12 w-12" />} title={t("evidence.noEvidence")} />;
 
   return (
     <div>
@@ -2978,7 +2987,7 @@ function GraphSection({ data }: { data: any }) {
     return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
   };
 
-  if (!graph || !graph.nodes?.length) return <EmptyState icon={<Network className="h-12 w-12" />} title={t("graph.noGraph")} />;
+        if (!graph || !graph.nodes?.length) return <EmptyState icon={<img src="/empty-no-graph.svg" alt="" className="h-12 w-12" />} title={t("graph.noGraph")} />;
 
   // ---------- Layout: deterministic clustered circular placement ----------
   // Group nodes by type, place each type on its own angular sector, nodes within
@@ -3314,7 +3323,7 @@ function FileExplorerSection({ data }: { data: any }) {
   const [selectedFile, setSelectedFile] = React.useState<string | null>(null);
   const [search, setSearch] = React.useState("");
 
-  if (!inventory?.files?.length) return <EmptyState icon={<FileCode2 className="h-12 w-12" />} title={t("files.noInventory")} />;
+        if (!inventory?.files?.length) return <EmptyState icon={<img src="/empty-no-data.svg" alt="" className="h-12 w-12" />} title={t("files.noInventory")} />;
 
   const allFiles = inventory.files.sort();
   const evidence = data?.evidence?.evidence || [];
@@ -3800,7 +3809,7 @@ function AIReviewSection({ data }: { data: any }) {
   const { t } = useI18n();
   const review = data?.engineering_review;
   const status = useLLMStatus(review);
-  if (!review) return <EmptyState icon={<Sparkles className="h-12 w-12" />} title={t("ai.noReview")} description={t("ai.enableProvider")} />;
+        if (!review) return <EmptyState icon={<img src="/empty-no-data.svg" alt="" className="h-12 w-12" />} title={t("ai.noReview")} description={t("ai.enableProvider")} />;
 
   const verifiedClaims = review.verified_claims || [];
   const coverageEngine = review.coverage_engine;
@@ -4415,7 +4424,7 @@ function ExternalValidationSection() {
       )}
 
       {!report && !running && (
-        <EmptyState icon={<Network className="h-12 w-12" />} title={t("extValidation.title")} description={t("extValidation.connectorReady")} />
+        <EmptyState icon={<img src="/empty-no-graph.svg" alt="" className="h-12 w-12" />} title={t("extValidation.title")} description={t("extValidation.connectorReady")} />
       )}
     </div>
   );
