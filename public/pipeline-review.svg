@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="engineering review">
+  <circle cx="24" cy="24" r="15" fill="none" stroke="#0A0A0A" stroke-width="2.5"/>
+  <polyline points="16,25 21,30 32,18" fill="none" stroke="#C5532F" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

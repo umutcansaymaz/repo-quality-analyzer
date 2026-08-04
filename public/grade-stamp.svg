@@ -1,13 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 130 130" role="img" aria-label="repository health grade stamp">
-  <!-- Sağlık puanı damgası: A–F notu için (örnek: A) -->
-  <!-- Dış halka -->
   <circle cx="65" cy="65" r="60" fill="none" stroke="#0A0A0A" stroke-width="3"/>
   <circle cx="65" cy="65" r="52" fill="#E8E2D2" stroke="#C5532F" stroke-width="1.6"/>
-  <!-- Not harfi (A örneği — kullanım yerinde dinamik doldurulabilir) -->
   <text x="65" y="86" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="58" font-weight="bold" fill="#0A0A0A">A</text>
-  <!-- Üst yay: kısa çentikler -->
   <line x1="20" y1="38" x2="35" y2="28" stroke="#C5532F" stroke-width="2.5" stroke-linecap="round"/>
   <line x1="110" y1="38" x2="95" y2="28" stroke="#C5532F" stroke-width="2.5" stroke-linecap="round"/>
-  <!-- Alt yay metni -->
-  <text x="65" y="106" text-anchor="middle" font-family="'Courier New', monospace" font-size="12" letter-spacing="2" fill="#3A3530">REPO HEALTH</text>
+  <circle cx="65" cy="118" r="3" fill="#C5532F"/>
 </svg>

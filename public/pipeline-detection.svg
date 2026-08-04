@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="repository detection">
+  <!-- Pipeline: depo algılama — kod sayfası + tarama noktası -->
+  <rect x="10" y="12" width="28" height="26" rx="5" fill="#E8E2D2" stroke="#0A0A0A" stroke-width="2.5"/>
+  <line x1="16" y1="20" x2="28" y2="20" stroke="#0A0A0A" stroke-width="2" stroke-linecap="round" opacity="0.5"/>
+  <line x1="16" y1="26" x2="24" y2="26" stroke="#0A0A0A" stroke-width="2" stroke-linecap="round" opacity="0.5"/>
+  <line x1="16" y1="32" x2="30" y2="32" stroke="#0A0A0A" stroke-width="2" stroke-linecap="round" opacity="0.5"/>
+  <!-- Tarama vurgusu: kil köşe noktası -->
+  <circle cx="32" cy="15" r="4.5" fill="#C5532F"/>
+  <circle cx="32" cy="15" r="1.8" fill="#F2EEE3"/>
+</svg>

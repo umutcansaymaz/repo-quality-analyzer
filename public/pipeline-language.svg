@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="language analysis">
+  <rect x="10" y="12" width="28" height="26" rx="5" fill="#E8E2D2" stroke="#0A0A0A" stroke-width="2.5"/>
+  <rect x="15" y="18" width="8" height="10" rx="2" fill="none" stroke="#0A0A0A" stroke-width="2"/>
+  <rect x="25" y="18" width="8" height="10" rx="2" fill="none" stroke="#C5532F" stroke-width="2"/>
+  <line x1="17" y1="33" x2="31" y2="33" stroke="#0A0A0A" stroke-width="2" stroke-linecap="round" opacity="0.5"/>
+</svg>
