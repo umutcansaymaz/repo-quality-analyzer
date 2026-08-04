@@ -1649,9 +1649,7 @@ function HealthScoreCard({ data }: { data: any }) {
   const dash = (overall / 100) * C;
 
 return (
-<Card className="relative overflow-hidden">
-  {/* Marka damgası dekoru — soluk, arka planda */}
-  <img src="/grade-stamp.svg" alt="" aria-hidden className="pointer-events-none absolute -right-6 -top-6 h-20 w-20 opacity-[0.07]" />
+<Card>
 <CardContent className="pt-6">
         <div className="flex flex-wrap items-center justify-between gap-6">
           <div className="flex items-center gap-4">
