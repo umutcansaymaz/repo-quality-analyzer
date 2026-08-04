@@ -44,12 +44,12 @@ describe("Gerçek-dünya golden — TUSLA", () => {
 
 describe("Gerçek-dünya golden — kalite (kendi kodu)", () => {
   it.skipIf(!existsSync(KALITE + "/src/lib/local-analysis.ts"))(
-    "71.3 skor ve 0 komut enjeksiyonu FP'si (kendi motoru dahil)",
+    "75.4 skor ve 0 komut enjeksiyonu FP'si (kendi motoru dahil)",
     async () => {
       const report = await scanDir(KALITE, "kalite");
       const hs = report.ai_review.health_score;
-      expect(hs.overall).toBeGreaterThanOrEqual(70.3);
-      expect(hs.overall).toBeLessThanOrEqual(72.3);
+      expect(hs.overall).toBeGreaterThanOrEqual(74.4);
+      expect(hs.overall).toBeLessThanOrEqual(76.4);
 
       const ev = report.evidence.evidence;
       const injections = ev.filter((e: any) => e.category === "command_injection");
@@ -77,6 +77,8 @@ describe("Çoklu bulgu — aynı dosyada 3 enjeksiyon = 3 kanıt", () => {
 // ---------------------------------------------------------------------------
 const GO_REPO = process.cwd().replace(/\\/g, "/") + "/tests/fixtures/repos/go-sample";
 const JAVA_REPO = process.cwd().replace(/\\/g, "/") + "/tests/fixtures/repos/java-sample";
+const PY_REPO = process.cwd().replace(/\\/g, "/") + "/tests/fixtures/repos/py-sample";
+const RB_REPO = process.cwd().replace(/\\/g, "/") + "/tests/fixtures/repos/rb-sample";
 
 describe("Gerçek-dünya golden — Go (gorilla/mux)", () => {
   it.skipIf(!existsSync(GO_REPO + "/mux.go"))(
@@ -104,6 +106,40 @@ describe("Gerçek-dünya golden — Java (square/javapoet)", () => {
       const hs = report.ai_review.health_score;
       expect(hs.overall).toBeGreaterThanOrEqual(64.6);
       expect(hs.overall).toBeLessThanOrEqual(66.6);
+
+      const ev = report.evidence.evidence;
+      expect(ev.filter((e: any) => e.category === "hardcoded_secret")).toHaveLength(0);
+      expect(ev.filter((e: any) => e.category === "command_injection")).toHaveLength(0);
+      expect(ev.filter((e: any) => e.file_path.endsWith(".md"))).toHaveLength(0);
+    }
+  );
+});
+
+describe("Gerçek-dünya golden — Python (pallets/click)", () => {
+  it.skipIf(!existsSync(PY_REPO + "/src/click/core.py"))(
+    "64.0 skor, 0 secret, 0 komut enjeksiyonu, markdown bulgusu yok",
+    async () => {
+      const report = await scanDir(PY_REPO, "py-sample");
+      const hs = report.ai_review.health_score;
+      expect(hs.overall).toBeGreaterThanOrEqual(63.0);
+      expect(hs.overall).toBeLessThanOrEqual(65.0);
+
+      const ev = report.evidence.evidence;
+      expect(ev.filter((e: any) => e.category === "hardcoded_secret")).toHaveLength(0);
+      expect(ev.filter((e: any) => e.category === "command_injection")).toHaveLength(0);
+      expect(ev.filter((e: any) => e.file_path.endsWith(".md"))).toHaveLength(0);
+    }
+  );
+});
+
+describe("Gerçek-dünya golden — Ruby (jnunemaker/httparty)", () => {
+  it.skipIf(!existsSync(RB_REPO + "/lib/httparty.rb"))(
+    "64.5 skor, 0 secret, 0 komut enjeksiyonu, markdown bulgusu yok",
+    async () => {
+      const report = await scanDir(RB_REPO, "rb-sample");
+      const hs = report.ai_review.health_score;
+      expect(hs.overall).toBeGreaterThanOrEqual(63.5);
+      expect(hs.overall).toBeLessThanOrEqual(65.5);
 
       const ev = report.evidence.evidence;
       expect(ev.filter((e: any) => e.category === "hardcoded_secret")).toHaveLength(0);

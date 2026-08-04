@@ -1385,7 +1385,7 @@ function isStaticCommandArg(text: string, argStart: number, allowVar = true): bo
       const nameM = text.slice(i).match(/^[A-Za-z_]\w*/);
       if (nameM) {
         const lastVal = lastAssignmentValue(text, nameM[0]);
-        if (lastVal !== null && isStaticLiteralChain(lastVal)) {
+        if (lastVal !== null && isStaticLiteralChain(lastVal, text)) {
           hasLiteral = true;
           i += nameM[0].length;
           continue;
@@ -1398,18 +1398,28 @@ function isStaticCommandArg(text: string, argStart: number, allowVar = true): bo
   return false;
 }
 
-/** Atama değeri yalnızca tırnaklı literal'lerden (+ boşluk +) oluşuyorsa sabittir. */
-function isStaticLiteralChain(value: string): boolean {
+/** Atama değeri yalnızca tırnaklı literal'lerden (+ boşluk +) veya başka
+ * sabit değişkenlerden oluşuyorsa sabittir. Zincir çözümleme döngü korumalı. */
+function isStaticLiteralChain(value: string, text: string, depth = 0): boolean {
+  if (depth > 4) return false; // a = b; b = a döngüsü → çözülemez → riskli
   const parts = value.trim().split("+");
   if (parts.length === 0) return false;
   for (const part of parts) {
     const p = part.trim();
     if (!p) return false;
     const q = p[0];
-    if (q !== '"' && q !== "'" && q !== "`") return false;
-    if (p.length < 2 || p[p.length - 1] !== q) return false;
-    const inner = p.slice(1, -1);
-    if (inner.includes("${") || (q === "`" && inner.includes("#{")) || /{[^}]*}/.test(inner)) return false;
+    if (q === '"' || q === "'" || q === "`") {
+      if (p.length < 2 || p[p.length - 1] !== q) return false;
+      const inner = p.slice(1, -1);
+      if (inner.includes("${") || (q === "`" && inner.includes("#{")) || /{[^}]*}/.test(inner)) return false;
+    } else if (/^[A-Za-z_]\w*$/.test(p)) {
+      // Değişken — zincirde çöz: son ataması da sabit literal zinciri mi?
+      const lastVal = lastAssignmentValue(text, p);
+      if (lastVal === null) return false;
+      if (!isStaticLiteralChain(lastVal, text, depth + 1)) return false;
+    } else {
+      return false;
+    }
   }
   return true;
 }
@@ -1556,7 +1566,11 @@ export function maskCommentsAndStrings(text: string, maskStrings = true, noRegex
       out += ch === "\n" ? "\n" : (maskStrings ? " " : ch);
       if (ch === "\\") { out += maskStrings ? " " : ch; i += 2; continue; }
       if (inString.length === 3) {
-        // Triple-quote: kapanış """ veya ''' beklenir.
+        // Triple-quote (docstring): içerik HER ZAMAN maskelenir — string
+        // koruma (maskStrings=false) yalnızca gerçek string'ler içindir;
+        // docstring'ler yorumdur (örnek secret'lar FP üretmemeli).
+        out += ch === "\n" ? "\n" : " ";
+        // Kapanış """ veya ''' beklenir.
         if (ch === inString[0] && nx === inString[0] && text[i + 2] === inString[0]) {
           inString = null;
           out += "   ";
@@ -1963,10 +1977,14 @@ export async function analyzeLocalFiles(
     //    gömülü "sk-" yanlış pozitif üretir (task-, risk-, desk- aynı aile).
     //  - AIzaSy (Firebase Web API key) client-tarafı key'dir — güvenlik Firestore
     //    kurallarıyla sağlanır, bu yüzden severity ayrıca medium'a düşürülür.
+    //  - Yorum/docstring maskeleme: maskStrings=false → string'ler korunur
+    //    (gerçek secret değerleri tespit edilir), yorumlar + triple-quote
+    //    docstring'ler maskelenir (belgelerdeki örnekler FP üretmez).
+    const secretMasked = maskCommentsAndStrings(text, false, languageFamilyOf(ext) === "python");
     const secretRegex = /(?<![A-Za-z0-9_-])sk-[A-Za-z0-9_-]{16,}|(?<![A-Za-z0-9_])sk_live_[A-Za-z0-9]{16,}|(?<![A-Za-z0-9_])pk_live_[A-Za-z0-9]{16,}|ghp_[A-Za-z0-9]{20,}|AKIA[A-Z0-9]{16}|xox[baprs]-[A-Za-z0-9-]{10,}|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}|-----BEGIN [A-Z ]+ PRIVATE KEY-----|(?:password|passwd|api[_-]?key|secret)\s*[:=]\s*["'][A-Za-z0-9+/_\-.]{20,}["']|AIzaSy[A-Za-z0-9_-]{20,}/ig;
     let secretMatch: RegExpExecArray | null;
     let secretCount = 0;
-    while ((secretMatch = secretRegex.exec(text)) !== null && secretCount < 5) {
+    while ((secretMatch = secretRegex.exec(secretMasked)) !== null && secretCount < 5) {
       const matchText = secretMatch[0];
       // Eşleşmenin 120 karakter öncesi + 200 sonrası (bağlam için)
       const ctxStart = Math.max(0, secretMatch.index - 120);

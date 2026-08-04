@@ -74,3 +74,6 @@ audit/report.txt
 # Bun lockfile (npm kullanÄ±lÄ±yor)
 bun.lock
 
+
+# Audit araçları — sentetik secret'lar içerir, ürün kodu değil
+audit/

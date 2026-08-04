@@ -534,6 +534,32 @@ function staticArgRepos() {
     { path: "src/main.py", content: `import os\ncmd = "ls -la"\nos.system(cmd)\n` },
   ]);
 
+  // Taint derinliği: yeniden atama, değişken zinciri, taint kaynakları, parametre
+  push("static-arg-reassign-dynamic-ts", ["command_injection"], [
+    { path: "src/main.ts", content: `const { execSync } = require('child_process');\nlet cmd = "ls -la";\ncmd = userInput;\nexecSync(cmd);\n` },
+  ]);
+  push("static-arg-reassign-static-ts", [], [
+    { path: "src/main.ts", content: `const { execSync } = require('child_process');\nlet cmd = "ls -la";\ncmd = "whoami";\nexecSync(cmd);\n` },
+  ]);
+  push("static-arg-chain-static-ts", [], [
+    { path: "src/main.ts", content: `const { execSync } = require('child_process');\nconst b = "ls -la";\nconst cmd = b;\nexecSync(cmd);\n` },
+  ]);
+  push("static-arg-chain-dynamic-ts", ["command_injection"], [
+    { path: "src/main.ts", content: `const { execSync } = require('child_process');\nconst b = userInput;\nconst cmd = b;\nexecSync(cmd);\n` },
+  ]);
+  push("static-arg-chain-cycle-ts", ["command_injection"], [
+    { path: "src/main.ts", content: `const { execSync } = require('child_process');\nconst a = b;\nconst b = a;\nexecSync(a);\n` },
+  ]);
+  push("static-arg-source-ts", ["command_injection"], [
+    { path: "src/main.ts", content: `const { execSync } = require('child_process');\nconst cmd = req.query.cmd;\nexecSync(cmd);\n` },
+  ]);
+  push("static-arg-source-py", ["command_injection"], [
+    { path: "src/main.py", content: `import os\ncmd = os.environ["CMD"]\nos.system(cmd)\n` },
+  ]);
+  push("static-arg-param-ts", ["command_injection"], [
+    { path: "src/main.ts", content: `const { execSync } = require('child_process');\nfunction run(cmd) { execSync(cmd); }\n` },
+  ]);
+
   return repos;
 }
 
@@ -723,6 +749,57 @@ export function generateRepos() {
 
   // ---- FN kapatma doğrulamaları (3+ döngü, Stripe, f-string) ----
   repos.push(...fnFixRepos());
+
+  // ---- Kombinasyon senaryoları (dedup, iç içe, agresif tuzaklar) ----
+  repos.push(...comboRepos());
+
+  return repos;
+}
+
+// ---------------------------------------------------------------------------
+// Kombinasyon senaryoları — çoklu-kategori aynı dosyada (dedup davranışı),
+// iç içe fonksiyonlar ve agresif maskeleme tuzakları.
+// ---------------------------------------------------------------------------
+
+function comboRepos() {
+  const repos = [];
+  const push = (name, expected, files) => repos.push({ name, expected, files });
+
+  // 1) Aynı dosyada 3 kategori — hepsi ayrı kategori, hiçbiri ezilmemeli
+  push("combo-multi-category-ts", ["hardcoded_secret", "command_injection", "god_class"], [
+    {
+      path: "src/main.ts",
+      content: `const apiKey = "sk-abcdefghijklmnopqrstuvwxyz123456";\nconst { execSync } = require('child_process');\nexecSync(cmd);\nexport class Big {\n${Array.from({ length: 25 }, (_, i) => `  m${i}() { return ${i}; }\n`).join("")}}\n`,
+    },
+  ]);
+
+  // 2) İç içe fonksiyon: iç fonksiyon uzun — dış kısa — doğru blok bulunmalı
+  push("combo-nested-fn-ts", ["long_function"], [
+    {
+      path: "src/main.ts",
+      content: `export function outer() {\n  function inner() {\n${Array.from({ length: 55 }, (_, i) => `    const v${i} = ${i};\n`).join("")}  }\n  return inner();\n}\n`,
+    },
+  ]);
+
+  // 3) Agresif tuzaklar — maskeleme kenar durumları
+  push("combo-trap-comment-fstring-py", [], [
+    { path: "src/main.py", content: `import os\n# os.system(f"ls {user_input}")\n` },
+  ]);
+  push("combo-trap-string-fstring-py", [], [
+    { path: "src/main.py", content: `import os\nmsg = "os.system(f\\"ls {x}\\")"\n` },
+  ]);
+  push("combo-trap-concat-literal-ts", [], [
+    { path: "src/main.ts", content: `const { execSync } = require('child_process');\nexecSync("ls " + "-la");\n` },
+  ]);
+  push("combo-trap-docstring-secret-py", [], [
+    { path: "src/main.py", content: `"""\napi_key = "sk-abcdefghijklmnopqrstuvwxyz123456"\n"""\n` },
+  ]);
+  push("combo-trap-regex-injection-ts", [], [
+    { path: "src/main.ts", content: `const re = /exec(cmd)/;\nconst x = 1;\n` },
+  ]);
+  push("combo-trap-comment-secret-ts", [], [
+    { path: "src/main.ts", content: `// const key = "sk-abcdefghijklmnopqrstuvwxyz123456"\nconst x = 1;\n` },
+  ]);
 
   return repos;
 }
