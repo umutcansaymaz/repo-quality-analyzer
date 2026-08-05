@@ -753,6 +753,59 @@ export function generateRepos() {
   // ---- Kombinasyon senaryoları (dedup, iç içe, agresif tuzaklar) ----
   repos.push(...comboRepos());
 
+  // ---- Üretilmiş artefakt dizinleri (playwright-report vb.) ----
+  // Hedeflerim dersi: playwright-report/index.html 391 dallık "fonksiyon"
+  // olarak high_complexity üretiyordu — refactor ne yapılırsa yapılsın bulgu
+  // asla kaybolmuyordu. Bu dizinler üretilmiş rapor içerir, gerçek kod değildir:
+  // 0 bulgu beklenir. Aynı içerik src/ altında GERÇEK HTML olarak da verilir —
+  // skip dizin adı bazlı olmalı, uzantı (.html) bazlı DEĞİL.
+  repos.push(...artifactRepos());
+
+  return repos;
+}
+
+// ---------------------------------------------------------------------------
+// Artefakt dizini senaryoları — üretilmiş test/CI raporları gerçek kod değildir.
+// ---------------------------------------------------------------------------
+
+function artifactRepos() {
+  const repos = [];
+  const push = (name, expected, files) => repos.push({ name, expected, files });
+
+  // 400+ dallık inline script içeren "rapor" HTML'i — skip yoksa high_complexity
+  // üretir (fonksiyon bloğu + 420 if dalı). Dizin adı bazlı skip'ler bunu engeller.
+  const hugeReportHtml = (() => {
+    const ifs = Array.from({ length: 420 }, (_, i) => `    if (x${i}) { y(${i}); }`).join("\n");
+    return `<!DOCTYPE html>\n<html><head><meta charset="utf-8"><title>Test Report</title></head>\n<body>\n<script>\nfunction renderReport() {\n${ifs}\n}\n</script>\n</body>\n</html>\n`;
+  })();
+
+  const dirs = [
+    "playwright-report",
+    "playwright_report",
+    "test-results",
+    "test_results",
+    "traces",
+    ".playwright-artifacts",
+    "allure-results",
+    "allure_report",
+    "cypress",
+    "screenshots",
+  ];
+  for (const dir of dirs) {
+    push(`artifact-dir-${dir}`, [], [
+      { path: "src/main.ts", content: `export const ok = 1;\n` },
+      { path: `${dir}/index.html`, content: hugeReportHtml },
+    ]);
+  }
+
+  // Skip uzantı bazlı olmamalı: gerçek .html kaynak kodu hâlâ analiz edilir
+  // (küçük inline script → bulgu yok ama dosya taranmış olur — büyük gerçek
+  // HTML kaynakları high_complexity üretebilir ve üretmelidir).
+  push("artifact-real-html-src", [], [
+    { path: "src/main.ts", content: `export const ok = 1;\n` },
+    { path: "src/views/page.html", content: `<!DOCTYPE html>\n<html><body><script>\nfunction small() { if (a) { return 1; } }\n</script></body></html>\n` },
+  ]);
+
   return repos;
 }
 

@@ -55,6 +55,23 @@ const SKIP_SEGMENTS = new Set([
   ".serverless",
   ".amplify",
   ".aws-sam",
+  // Test/CI artefaktları: üretilmiş raporlar gerçek kod değildir ve her test
+  // çalışmasında yeniden üretilir (Hedeflerim dersi: playwright-report/index.html
+  // 391 dallık "fonksiyon" olarak high_complexity üretiyordu — refactor ne
+  // yapılırsa yapılsın bulgu asla kaybolmuyordu). Dizin adı bazlı skip —
+  // gerçek kaynak .html dosyaları etkilenmez.
+  "playwright-report",
+  "playwright_report",
+  "test-results",
+  "test_results",
+  "traces",
+  ".playwright-artifacts",
+  "allure-results",
+  "allure_report",
+  "cypress",
+  "screenshots",
+  "test-results-reports",
+  "html-reports",
 ]);
 
 // Analiz çıktısı / üretim dosyaları — taramaya girmemeli (kendi çıktımızı yeniden
