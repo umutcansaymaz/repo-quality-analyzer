@@ -55,4 +55,37 @@ describe("Düzeltme döngüsü — bulgu kaybolur, skor artar", () => {
 
     expect(fixedScore).toBeGreaterThan(brokenScore);
   });
+
+  it("KADEMELİLİK: her dosya düzeltmesi codeQuality'yi anında artırır (monoton)", async () => {
+    // 30 dosyalık repo, kademeli problemli dosya sayısı:
+    //   9/30 = 0.30 → tavan ceza −45 → cq 47
+    //   6/30 = 0.20 → ceza −30 → cq 62
+    //   3/30 = 0.10 → ceza −15 → cq 77
+    //   0/30 = 0.00 → ceza 0  → cq 92
+    // Doğrusal modelin özü: band atlamaya gerek yok, her iyileştirme görünür.
+    async function cqWith(problemCount: number): Promise<number> {
+      const files: File[] = [];
+      for (let i = 0; i < 30; i++) {
+        const problematic = i < problemCount;
+        const content = problematic
+          ? `function f() {\n${Array.from({ length: 30 }, (_, j) => `  if (x${j} > ${j}) { y += ${j}; }`).join("\n")}\n  try { z(); } catch {}\n  return y;\n}\n`
+          : `export const ok${i} = ${i};\n`;
+        files.push(new File([content], `src/mod${i}.ts`, { type: "text/javascript" }));
+      }
+      const scan = await analyzeLocalFiles(files);
+      const report = buildLocalReport(scan, "demo-repo", { useLLM: false });
+      return report.ai_review?.health_score?.code_quality ?? 0;
+    }
+
+    const cq9 = await cqWith(9); // 0.30 → 47
+    const cq6 = await cqWith(6); // 0.20 → 62
+    const cq3 = await cqWith(3); // 0.10 → 77
+    const cq0 = await cqWith(0); // 0.00 → 92
+
+    expect(cq0).toBe(92);
+    expect(cq3).toBeGreaterThan(cq6);
+    expect(cq6).toBeGreaterThan(cq9);
+    // Doğrusal çözünürlük: 6 dosya düzeltmesi 3 kademe artış = her dosya görünür
+    expect(cq0 - cq9).toBeGreaterThanOrEqual(40);
+  });
 });

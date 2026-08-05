@@ -784,11 +784,13 @@ export function computeHealthScore(scan: LocalScanResult): HealthScoreResult {
     evidencePool.filter((e) => ["large_file", "long_function", "todo_debt", "high_complexity", "deep_nesting", "empty_handler"].includes(e.category)).map((e) => e.file_path)
   );
   const problemRatio = problematic.size / totalFiles;
-  let codeQuality = 92;
-  if (problemRatio >= 0.01 && problemRatio < 0.03) codeQuality -= 12;
-  else if (problemRatio >= 0.03 && problemRatio < 0.06) codeQuality -= 22;
-  else if (problemRatio >= 0.06 && problemRatio < 0.12) codeQuality -= 32;
-  else if (problemRatio >= 0.12) codeQuality -= 45;
+  // KADEMELİ (doğrusal) ceza: her %1 problemli dosya ≈ 1.5 puan; tavan −45
+  // (ratio ≥ 0.30). Band tabanlı eski model (0.01/0.03/0.06/0.12) iyileştirmeyi
+  // görmezden geliyordu: 33→12 dosyaya inmeden puan kıpırdamıyordu (Hedeflerim
+  // dersi). Doğrusal modelde her dosya düzeltmesi puanı anında artırır.
+  const codeQualityPenalty =
+    problemRatio < 0.01 ? 0 : Math.min(45, Math.round(problemRatio * 150));
+  let codeQuality = 92 - codeQualityPenalty;
   const hugeFiles = ev("large_file").filter((e) => String(e.message || "").includes("1000"));
   codeQuality -= Math.min(15, hugeFiles.length * 1.5);
   codeQuality = clampScore(codeQuality, 25, 95);

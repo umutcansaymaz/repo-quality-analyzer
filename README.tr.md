@@ -136,6 +136,24 @@ Kritik bir sabit sır −15 ceza uygular. Notlar: **A ≥ 85, B ≥ 70, C ≥ 55
 D ≥ 40, F < 40**. Puan oran tabanlı olduğu için 5 dosyalık bir depo ile
 5.000 dosyalık bir depo aynı cetvelle ölçülür.
 
+**Kalite boyutu kademeli (doğrusal) ceza kullanır** — band atlamaya gerek
+yoktur, her dosya düzeltmesi anında görünür:
+
+```
+ceza = problemRatio < 0.01 ? 0 : min(45, round(problemRatio × 150))
+```
+
+| Problemli dosya oranı | Ceza | codeQuality |
+|---|---|---|
+| %1 altı | 0 | 92 |
+| %5 | −8 | 84 |
+| %10 | −15 | 77 |
+| %20 | −30 | 62 |
+| %30 ve üstü | −45 (tavan) | 47 |
+
+Kötü-durum puanı (tavan −45) korunur; 0.30 oranın altına inen her %1,
+puanı ~1.5 artırır.
+
 ---
 
 ## Denetim — motor nasıl dürüst tutuluyor

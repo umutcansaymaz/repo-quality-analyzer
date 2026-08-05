@@ -26,11 +26,11 @@ async function scanDir(dir: string, repoName: string) {
 }
 
 describe("Gerçek-dünya golden — TUSLA", () => {
-  it.skipIf(!existsSync(TUSLA))("62.6 skor, 1 Firebase secret medium, 0 komut enjeksiyonu", async () => {
+  it.skipIf(!existsSync(TUSLA))("67.1 skor, 1 Firebase secret medium, 0 komut enjeksiyonu", async () => {
     const report = await scanDir(TUSLA, "TUSLA");
     const hs = report.ai_review.health_score;
-    expect(hs.overall).toBeGreaterThanOrEqual(61.6);
-    expect(hs.overall).toBeLessThanOrEqual(63.6);
+    expect(hs.overall).toBeGreaterThanOrEqual(66.1);
+    expect(hs.overall).toBeLessThanOrEqual(68.1);
 
     const ev = report.evidence.evidence;
     const secrets = ev.filter((e: any) => e.category === "hardcoded_secret");
@@ -44,12 +44,12 @@ describe("Gerçek-dünya golden — TUSLA", () => {
 
 describe("Gerçek-dünya golden — kalite (kendi kodu)", () => {
   it.skipIf(!existsSync(KALITE + "/src/lib/local-analysis.ts"))(
-    "75.4 skor ve 0 komut enjeksiyonu FP'si (kendi motoru dahil)",
+    "80.2 skor ve 0 komut enjeksiyonu FP'si (kendi motoru dahil)",
     async () => {
       const report = await scanDir(KALITE, "kalite");
       const hs = report.ai_review.health_score;
-      expect(hs.overall).toBeGreaterThanOrEqual(74.4);
-      expect(hs.overall).toBeLessThanOrEqual(76.4);
+      expect(hs.overall).toBeGreaterThanOrEqual(79.2);
+      expect(hs.overall).toBeLessThanOrEqual(81.2);
 
       const ev = report.evidence.evidence;
       const injections = ev.filter((e: any) => e.category === "command_injection");
@@ -117,12 +117,12 @@ describe("Gerçek-dünya golden — Java (square/javapoet)", () => {
 
 describe("Gerçek-dünya golden — Python (pallets/click)", () => {
   it.skipIf(!existsSync(PY_REPO + "/src/click/core.py"))(
-    "64.0 skor, 0 secret, 0 komut enjeksiyonu, markdown bulgusu yok",
+    "68.8 skor, 0 secret, 0 komut enjeksiyonu, markdown bulgusu yok",
     async () => {
       const report = await scanDir(PY_REPO, "py-sample");
       const hs = report.ai_review.health_score;
-      expect(hs.overall).toBeGreaterThanOrEqual(63.0);
-      expect(hs.overall).toBeLessThanOrEqual(65.0);
+      expect(hs.overall).toBeGreaterThanOrEqual(67.8);
+      expect(hs.overall).toBeLessThanOrEqual(69.8);
 
       const ev = report.evidence.evidence;
       expect(ev.filter((e: any) => e.category === "hardcoded_secret")).toHaveLength(0);
@@ -134,12 +134,12 @@ describe("Gerçek-dünya golden — Python (pallets/click)", () => {
 
 describe("Gerçek-dünya golden — Ruby (jnunemaker/httparty)", () => {
   it.skipIf(!existsSync(RB_REPO + "/lib/httparty.rb"))(
-    "64.5 skor, 0 secret, 0 komut enjeksiyonu, markdown bulgusu yok",
+    "66.8 skor, 0 secret, 0 komut enjeksiyonu, markdown bulgusu yok",
     async () => {
       const report = await scanDir(RB_REPO, "rb-sample");
       const hs = report.ai_review.health_score;
-      expect(hs.overall).toBeGreaterThanOrEqual(63.5);
-      expect(hs.overall).toBeLessThanOrEqual(65.5);
+      expect(hs.overall).toBeGreaterThanOrEqual(65.8);
+      expect(hs.overall).toBeLessThanOrEqual(67.8);
 
       const ev = report.evidence.evidence;
       expect(ev.filter((e: any) => e.category === "hardcoded_secret")).toHaveLength(0);
