@@ -854,6 +854,43 @@ function comboRepos() {
     { path: "src/main.ts", content: `// const key = "sk-abcdefghijklmnopqrstuvwxyz123456"\nconst x = 1;\n` },
   ]);
 
+  // 4) Bilinçli best-effort catch'ler (/* ignore */ vb.) — hata yutma DEĞİL,
+  // temizlik/teardown işaretleri. Bulgu üretmemelidir (Hedeflerim dersi:
+  // focus-engine.js'teki 4 adet `catch { /* ignore */ }` yanlışlıkla
+  // empty_handler sayılıyordu).
+  push("combo-trap-ignore-comment-ts", [], [
+    { path: "src/main.ts", content: `try { osc.disconnect(); } catch { /* ignore */ }\ntry { gain.disconnect(); } catch { /* ignore */ }\n` },
+  ]);
+  push("combo-trap-ignore-comment-cleanup-ts", [], [
+    { path: "src/main.ts", content: `try { cleanup(); } catch { /* cleanup: teardown hataları sessiz */ }\n` },
+  ]);
+  push("combo-trap-ignore-comment-py", [], [
+    { path: "src/main.py", content: `try:\n    cleanup()\nexcept Exception:\n    pass  # best-effort: teardown\n` },
+  ]);
+  push("combo-trap-ignore-comment-rb", [], [
+    { path: "src/main.rb", content: `def cleanup\n  begin\n    cleanup!\n  rescue # ignore\n  end\nend\n` },
+  ]);
+  push("combo-trap-ignore-comment-java", [], [
+    { path: "src/Main.java", content: `public class Main {\n  void m() {\n    try { cleanup(); } catch (Exception e) { /* ignore */ }\n  }\n}\n` },
+  ]);
+  push("combo-trap-ignore-comment-go", [], [
+    { path: "src/main.go", content: `package main\nfunc m() {\n\tdefer func() { _ = recover() }() // ignore\n}\n` },
+  ]);
+
+  // 5) Borç işaretli boş catch (TODO/FIXME yorumlu) — bilinçli DEĞİL, hâlâ bulgu.
+  //    TODO yorumu aynı zamanda todo_debt üretir (beklenen davranış).
+  push("combo-trap-todo-comment-ts", ["empty_handler", "todo_debt"], [
+    { path: "src/main.ts", content: `try { risky(); } catch { // TODO: hata işleme eklenecek\n}\n` },
+  ]);
+  push("combo-trap-todo-comment-py", ["empty_handler", "todo_debt"], [
+    { path: "src/main.py", content: `try:\n    risky()\nexcept Exception:\n    pass  # TODO: log eklenecek\n` },
+  ]);
+
+  // 6) Gerçek boş catch hâlâ bulgu üretmeli (kontrol)
+  push("combo-trap-plain-empty-ts", ["empty_handler"], [
+    { path: "src/main.ts", content: `try { risky(); } catch {}\n` },
+  ]);
+
   return repos;
 }
 

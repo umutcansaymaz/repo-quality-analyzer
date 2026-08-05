@@ -1236,8 +1236,27 @@ export interface LocalScanResult {
  * B3: Boş hata yakalama bloğu bulur — catch { }, catch (e) { }, except: pass.
  * Gövde yorum içeriyorsa "boş" sayılmaz (gerçekten sessizce yutma sinyali).
  */
-function findEmptyHandlers(text: string): { index: number }[] {
-  const out: { index: number }[] = [];
+/**
+ * Bilinçli best-effort işaretleri — gövdesi boş ama kasıtlı hata yutma DEĞİL:
+ * cleanup/teardown (osc.disconnect), autoplay reddi, localStorage best-effort
+ * yazmalar vb. Yorum içinde bu işaretlerden biri varsa ve TODO/FIXME/HACK borç
+ * işareti yoksa bulgu üretilmez. TODO/FIXME yorumlu boş catch gerçek borç
+ * sinyalidir → raporlanır (Hedeflerim dersi: focus-engine.js'teki 4 adet
+ * catch-ignore-cleanup'i yanlışlıkla "hata yutma" sayılıyordu).
+ */
+const INTENTIONAL_HANDLER_RE = /\b(ignore|ignored|best[- ]?effort|best_effort|cleanup|intentional|intentionally|noop|no-op|swallow|swallowed|fallback|expected|benign|non[- ]?fatal|non_fatal|deliberate)\b/i;
+const HANDLER_DEBT_RE = /\b(todo|fixme|hack)\b/i;
+
+function isIntentionalHandlerComment(commentText: string): boolean {
+  if (!INTENTIONAL_HANDLER_RE.test(commentText)) return false;
+  if (HANDLER_DEBT_RE.test(commentText)) return false;
+  return true;
+}
+
+function findEmptyHandlers(text: string): { index: number; snippet?: string }[] {
+  const out: { index: number; snippet?: string }[] = [];
+  const pushWithSnippet = (index: number, snippet?: string) =>
+    out.push({ index, snippet: snippet ? (snippet.length > 300 ? snippet.slice(0, 300) + "…" : snippet) : undefined });
   // JS/TS/C#/Java: catch (...) { } — gövde yalnızca boşluk/yorum olabilir.
   const braceRe = /catch\s*(?:\([^)]*\))?\s*\{/g;
   let m: RegExpExecArray | null;
@@ -1246,31 +1265,55 @@ function findEmptyHandlers(text: string): { index: number }[] {
     const closeIdx = text.indexOf("}", openIdx);
     if (closeIdx === -1) continue;
     const body = text.slice(openIdx, closeIdx);
-    if (!body.trim()) { out.push({ index: m.index }); continue; }
+    const snippet = text.slice(m.index, closeIdx + 1);
+    if (!body.trim()) { pushWithSnippet(m.index, snippet); continue; }
     // Yorum varsa handled sayılır — boş sayılmaz.
     const stripped = body.replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "").trim();
-    if (!stripped) out.push({ index: m.index });
+    if (!stripped) {
+      // Yalnızca yorum var: bilinçli best-effort işaretiyse atla, borç işaretiyse raporla.
+      if (isIntentionalHandlerComment(body)) continue;
+      pushWithSnippet(m.index, snippet);
+    }
   }
-  // Python: except ...: pass
+  // Python: except ...: pass (+ satır sonu yorumu: "# ignore" bilinçli sayılır)
   const pyRe = /except\s+[\w.]*(?:\s+as\s+\w+)?\s*:\s*pass\b/gi;
   let pm: RegExpExecArray | null;
-  while ((pm = pyRe.exec(text)) !== null) out.push({ index: pm.index });
-  // Ruby: rescue satırından sonra doğrudan "end" geliyorsa boş handler (hata yutuluyor)
+  while ((pm = pyRe.exec(text)) !== null) {
+    // Yorum "pass"ın bitişinde olabilir: `except Exception:` yeni satırda,
+    // `pass  # ignore` onun altında. Eşleşme SONUNUN bulunduğu satırı al.
+    const matchEnd = pm.index + pm[0].length;
+    const lineStart = text.lastIndexOf("\n", matchEnd) + 1;
+    const lineEnd = text.indexOf("\n", matchEnd);
+    const line = text.slice(lineStart, lineEnd === -1 ? undefined : lineEnd);
+    if (isIntentionalHandlerComment(line)) continue;
+    pushWithSnippet(pm.index, line.trim());
+  }
+  // Ruby: rescue satırından sonra doğrudan "end" geliyorsa boş handler (hata yutuluyor);
+  // satır sonu "# ignore" yorumu bilinçli sayılır.
   const rubyLines = text.split(/\r?\n/);
   for (let i = 0; i < rubyLines.length; i++) {
-    if (/^\s*rescue(?:\s+[A-Z]\w*(?:\s*=>\s*\w+)?)?\s*$/.test(rubyLines[i])) {
+    const rm = /^\s*rescue(?:\s+[A-Z]\w*(?:\s*=>\s*\w+)?)?\s*(#.*)?$/.exec(rubyLines[i]);
+    if (rm) {
       const next = rubyLines[i + 1]?.trim() || "";
       if (!next || next === "end") {
+        if (isIntentionalHandlerComment(rubyLines[i])) continue;
         let idx = 0;
         for (let j = 0; j < i; j++) idx += rubyLines[j].length + 1;
-        out.push({ index: idx });
+        pushWithSnippet(idx, rubyLines[i].trim());
       }
     }
   }
   // Go: recover() — hata yakalanıp yutuluyor (defer+recover veya _ = recover()).
+  // Satır sonu bilinçli işareti ("// ignore" vb.) varsa atlanır.
   const goRecoverRe = /\bdefer\s+[^;\n]*recover\s*\(|_ = \s*recover\s*\(/g;
   let gr: RegExpExecArray | null;
-  while ((gr = goRecoverRe.exec(text)) !== null) out.push({ index: gr.index });
+  while ((gr = goRecoverRe.exec(text)) !== null) {
+    const lineStart = text.lastIndexOf("\n", gr.index) + 1;
+    const lineEnd = text.indexOf("\n", gr.index);
+    const line = text.slice(lineStart, lineEnd === -1 ? undefined : lineEnd);
+    if (isIntentionalHandlerComment(line)) continue;
+    out.push({ index: gr.index });
+  }
   out.sort((a, b) => a.index - b.index);
   return out;
 }
@@ -2159,6 +2202,8 @@ export async function analyzeLocalFiles(
       }
 
       // B3: Boş hata yakalama — catch {} / except: pass (yorum dahi olmayan boş gövde)
+      // Bilinçli best-effort işaretleri (/* ignore */ vb.) hariç tutulur; kanıt
+      // snippet'i catch gövdesinin TAMAMINI içerir (kullanıcı kendi gözüyle doğrular).
       const emptyHandlers = findEmptyHandlers(text);
       for (const emptyHandler of emptyHandlers) {
         makeEvidence(result.evidence, {
@@ -2168,6 +2213,7 @@ export async function analyzeLocalFiles(
           category: "empty_handler",
           file_path: relPath,
           line: lineNumberFor(text, emptyHandler.index),
+          evidence_snippet: emptyHandler.snippet,
           message: "Boş hata yakalama bloğu (hata sessizce yutuluyor)",
           tags: ["empty_handler", "code_quality"],
           confidence: 0.8,
