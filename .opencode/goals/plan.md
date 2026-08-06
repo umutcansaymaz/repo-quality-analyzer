@@ -2,7 +2,7 @@
 Kademeli (Doğrusal) Kalite Puanı — "Her Refactor Görünür Olsun"
 
 ## STATUS
-active
+done
 
 ## DONE_WHEN
 - codeQuality formülü: `92 − min(45, round(problemRatio × 150))`, ratio < 0.01 → 0 ceza ✓
@@ -33,14 +33,7 @@ active
 8. Commit + push
 
 ## NEXT
-1. [in_progress] Formül değişimi: doğrusal ceza (eğim 150)
-2. Golden yeniden kalibrasyon (6 gerçek repo ölçümü)
-3. scoring.test.ts doğrulama/güçlendirme
-4. fix-loop.test.ts monotonluk testi
-5. README güncellemesi
-6. Tam doğrulama (test + audit + build + lint)
-7. Hedeflerim simülasyonu kanıtı
-8. Commit + push + final rapor
+(tamamlandı)
 
 ## PROGRESS
 DONE 2026-08-05 — Formül: codeQuality = 92 − (ratio<0.01 ? 0 : min(45, round(ratio×150))); tavan −45 ve 0.01 eşiği korundu; hugeFiles ek cezası korundu

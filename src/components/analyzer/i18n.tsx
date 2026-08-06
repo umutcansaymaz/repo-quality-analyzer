@@ -260,6 +260,9 @@ const translations: Record<Language, TranslationDict> = {  en: {
 
     // Onboarding Wizard
     "onboarding.title": "Welcome to AI Software Architect",
+    "onboarding.bannerTitle": "Welcome! Configure your workspace",
+    "onboarding.bannerDesc": "Set your language, theme, and AI provider in settings — or start analyzing right away.",
+    "onboarding.configure": "Open Settings",
     "onboarding.subtitle": "Let's get you set up in a few quick steps.",
     "onboarding.skip": "Skip setup",
     "onboarding.next": "Next",
@@ -794,9 +797,7 @@ const translations: Record<Language, TranslationDict> = {  en: {
     "errors.validationFailed": "Validation failed",
 
     // Scan stages (landing page)
-    "scan.ast": "Scanning Repository Copyright & AST Map...",
-    "scan.scc": "Resolving Tarjan SCC Circular Cycles...",
-    "scan.evidence": "Matching Independent Evidence...",
+    "scan.running": "Analysis in progress",
 
     // AI evaluation description
     "ai.llmEvaluationDesc": "AI evaluated this decision based on evidence. Each section is labeled 'Supported by Evidence' or 'AI Opinion'.",
@@ -821,6 +822,24 @@ const translations: Record<Language, TranslationDict> = {  en: {
     "arch.independentEvidence": "Independent Evidence:",
     "arch.dependencyLinks": "Dependency Links",
     "arch.circularCycle": "Circular Cycle",
+
+    // Landing — workbench (fixed TR strings moved to i18n)
+    "landing.workshopLabel": "WORKBENCH",
+    "landing.heroTitle": "Repository Analysis Workbench",
+    "landing.heroDesc": "Analyzes code architecture, Tarjan SCC circular dependencies, and technical debt with engineering evidence.",
+    "landing.analyzing": "Analyzing...",
+    "landing.analyze": "Start Analysis",
+    "landing.exampleReposLabel": "Example Repositories:",
+    "landing.exampleAnalysis": "Example Analysis",
+    "landing.dragDropFolder": "Drag a folder here or browse",
+    "landing.uploading": "Uploading files...",
+    "landing.telemetry.catalog": "Catalog Scan",
+    "landing.telemetry.catalogValue": "70 Production Repos",
+    "landing.telemetry.patterns": "Anti-Pattern Detection",
+    "landing.telemetry.patternsValue": "God Class & Shotgun",
+    "landing.telemetry.validation": "Independent Validation",
+    "landing.telemetry.validationValue": "GitHub Issue/PR/ADR",
+    "landing.scanningFiles": "files scanned",
   },
 
   tr: {
@@ -1064,6 +1083,9 @@ const translations: Record<Language, TranslationDict> = {  en: {
 
     // Kurulum Sihirbazı
     "onboarding.title": "AI Yazılım Mimarı'na Hoş Geldiniz",
+    "onboarding.bannerTitle": "Hoş geldiniz! Çalışma alanınızı yapılandırın",
+    "onboarding.bannerDesc": "Dil, tema ve AI sağlayıcınızı ayarlardan seçin — ya da hemen analiz etmeye başlayın.",
+    "onboarding.configure": "Ayarları Aç",
     "onboarding.subtitle": "Birkaç hızlı adımla sizi hazırlayalım.",
     "onboarding.skip": "Kurulumu atla",
     "onboarding.next": "İleri",
@@ -1597,9 +1619,7 @@ const translations: Record<Language, TranslationDict> = {  en: {
     "errors.validationFailed": "Doğrulama başarısız",
 
     // Tarama adımları (karşılama sayfası)
-    "scan.ast": "Depo Telif & AST Haritası Taranıyor...",
-    "scan.scc": "Tarjan SCC Dairesel Döngüleri Çözümleniyor...",
-    "scan.evidence": "Bağımsız Kanıtlar Eşleştiriliyor...",
+    "scan.running": "Analiz sürüyor...",
 
     // AI değerlendirme açıklaması
     "ai.llmEvaluationDesc": "AI bu kararı kanıtlara dayanarak değerlendirdi. Her bölüm 'Kanıt Destekli' veya 'AI Görüşü' olarak etiketlendi.",
@@ -1624,6 +1644,24 @@ const translations: Record<Language, TranslationDict> = {  en: {
     "arch.independentEvidence": "Bağımsız Kanıtlar:",
     "arch.dependencyLinks": "Bağımlılık Bağlantıları",
     "arch.circularCycle": "Dairesel Döngü",
+
+    // Landing — workbench (fixed TR strings moved to i18n)
+    "landing.workshopLabel": "ATÖLYE MASASI",
+    "landing.heroTitle": "Depo Analiz Masası",
+    "landing.heroDesc": "Kod mimarisini, Tarjan SCC dairesel bağımlılıklarını ve teknik borçları mühendislik kanıtlarıyla analiz eder.",
+    "landing.analyzing": "Taranıyor...",
+    "landing.analyze": "Analizi Başlat",
+    "landing.exampleReposLabel": "Örnek Depolar:",
+    "landing.exampleAnalysis": "Örnek Analiz",
+    "landing.dragDropFolder": "Bir klasör sürükleyin veya göz atın",
+    "landing.uploading": "Dosyalar Yükleniyor...",
+    "landing.telemetry.catalog": "Katalog Taraması",
+    "landing.telemetry.catalogValue": "70 Üretim Reposu",
+    "landing.telemetry.patterns": "Anti-Pattern Teşhisi",
+    "landing.telemetry.patternsValue": "God Class & Shotgun",
+    "landing.telemetry.validation": "Bağımsız Doğrulama",
+    "landing.telemetry.validationValue": "GitHub Issue/PR/ADR",
+    "landing.scanningFiles": "dosya taranıyor",
   },
 };
 
