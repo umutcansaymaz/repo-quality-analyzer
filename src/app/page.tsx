@@ -1192,7 +1192,7 @@ function LandingView({ repoUrl, setRepoUrl, onAnalyze, onAnalyzeLocal }: { repoU
         {t("landing.heroDesc")}
       </p>
       <div className="mt-6 hidden md:block">
-        <img src="/landing-hero.svg" alt="" className="w-3/4 h-auto rounded-lg border kl-border-soft" />
+        <img src="/landing-hero.svg" alt="" className="w-1/3 h-auto rounded-lg border kl-border-soft" />
       </div>
       </div>
 
