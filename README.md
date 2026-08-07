@@ -305,6 +305,19 @@ npm run build       # TypeScript errors fail the build
 - The CI pipeline (GitHub Actions) runs lint, tests, the audit, the
   production build and a Docker image build on every push.
 
+## Release notes modal
+
+The app shows a release-notes modal on first visit or when a new release
+lands. The version lives in a single source of truth — `src/lib/version.ts`
+(`CURRENT_RELEASE`) — and **must stay aligned with `package.json`'s
+`version`**. To release:
+
+1. Bump `version` in `package.json` and `CURRENT_RELEASE` in `src/lib/version.ts`
+2. Update the changelog text in `src/components/analyzer/i18n.tsx`
+   (`changelog.*` keys, both EN and TR)
+3. Users who already dismissed the modal (`ra-changelog-seen`) see it again
+   only when the version differs; first-time visitors always see it.
+
 ---
 
 ## FAQ

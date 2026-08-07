@@ -840,6 +840,12 @@ const translations: Record<Language, TranslationDict> = {  en: {
     "landing.telemetry.validation": "Independent Validation",
     "landing.telemetry.validationValue": "GitHub Issue/PR/ADR",
     "landing.scanningFiles": "files scanned",
+
+    // Changelog modal
+    "changelog.title": "What's new in v{version}",
+    "changelog.description": "Repository quality analyzer has been updated.",
+    "changelog.feature": "Improved consistency and trust verification across analysis phases.",
+    "changelog.close": "Got it",
   },
 
   tr: {
@@ -1662,6 +1668,12 @@ const translations: Record<Language, TranslationDict> = {  en: {
     "landing.telemetry.validation": "Bağımsız Doğrulama",
     "landing.telemetry.validationValue": "GitHub Issue/PR/ADR",
     "landing.scanningFiles": "dosya taranıyor",
+
+    // Changelog modal
+    "changelog.title": "v{version} sürümünde yeni neler var",
+    "changelog.description": "Depo kalite analizörü güncellendi.",
+    "changelog.feature": "Analiz fazlarında tutarlılık ve güven doğrulaması iyileştirildi.",
+    "changelog.close": "Anladım",
   },
 };
 

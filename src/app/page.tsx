@@ -78,6 +78,8 @@ import { analyzeLocalFiles, buildLocalReport } from "@/lib/local-analysis";
 import { DragovZone } from "@/components/kl/DragovZone";
 import { IlerlemeCubugu } from "@/components/kl/IlerlemeCubugu";
 import { ArchitecturalStrainMatrix } from "@/components/analyzer/architectural-strain-matrix";
+import { CURRENT_RELEASE } from "@/lib/version";
+import { showChangelog, markChangelogSeen, readChangelogSeen } from "@/lib/changelog";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -396,6 +398,7 @@ function AppContent() {
   const [showHistory, setShowHistory] = React.useState(false);
   const [showCompare, setShowCompare] = React.useState(false);
   const [showOnboarding, setShowOnboarding] = React.useState(false);
+  const [showChangelogModal, setShowChangelogModal] = React.useState(false);
   const searchInputRef = React.useRef<HTMLInputElement>(null);
   const historyEntries = useHistoryEntries();
 
@@ -464,6 +467,14 @@ function AppContent() {
       const done = localStorage.getItem("ra-onboarding-complete");
       if (!done) queueMicrotask(() => setShowOnboarding(true));
     } catch { /* ignore */ }
+  }, [mounted]);
+
+  // Sürüm notları modalı: ilk ziyaret (bayrak yok) veya yeni sürüm → göster.
+  React.useEffect(() => {
+    if (!mounted) return;
+    if (showChangelog(readChangelogSeen(), CURRENT_RELEASE)) {
+      queueMicrotask(() => setShowChangelogModal(true));
+    }
   }, [mounted]);
 
   // Keyboard shortcuts:
@@ -956,6 +967,46 @@ function AppContent() {
           setView("settings");
         }}
       />
+
+      {/* Sürüm notları modalı — ilk ziyaret/yeni sürümde gösterilir */}
+      <Dialog
+        open={showChangelogModal}
+        onOpenChange={(v) => {
+          // Esc/backdrop ile kapatma da bayrağı yazar — aksi halde modal her
+          // reload'da yeniden görünür (tester bulgusu — kapatma yolları tutarlı).
+          if (!v && showChangelogModal) markChangelogSeen();
+          setShowChangelogModal(v);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              {t("changelog.title").replace("{version}", CURRENT_RELEASE)}
+            </DialogTitle>
+            <DialogDescription>
+              {t("changelog.description")}
+            </DialogDescription>
+          </DialogHeader>
+          <ul className="space-y-2 text-sm">
+            <li className="flex items-start gap-2">
+              <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+              <span>{t("changelog.feature")}</span>
+            </li>
+          </ul>
+          <div className="flex justify-end pt-2">
+            <Button
+              onClick={() => {
+                markChangelogSeen();
+                setShowChangelogModal(false);
+              }}
+              className="kl-font-body text-xs"
+            >
+              {t("changelog.close")}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Analysis history drawer */}
       <HistorySheet
