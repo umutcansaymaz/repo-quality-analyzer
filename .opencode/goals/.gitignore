@@ -1,0 +1,4 @@
+# Hedef dosyaları ve audit log git'e girmez (sızıntı koruması)
+audit.log
+*.md
+!.gitignore
