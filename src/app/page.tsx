@@ -78,6 +78,8 @@ import { analyzeLocalFiles, buildLocalReport } from "@/lib/local-analysis";
 import { DragovZone } from "@/components/kl/DragovZone";
 import { IlerlemeCubugu } from "@/components/kl/IlerlemeCubugu";
 import { ArchitecturalStrainMatrix } from "@/components/analyzer/architectural-strain-matrix";
+import { CURRENT_RELEASE } from "@/lib/version";
+import { showChangelog, markChangelogSeen, readChangelogSeen } from "@/lib/changelog";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -396,6 +398,7 @@ function AppContent() {
   const [showHistory, setShowHistory] = React.useState(false);
   const [showCompare, setShowCompare] = React.useState(false);
   const [showOnboarding, setShowOnboarding] = React.useState(false);
+  const [showChangelogModal, setShowChangelogModal] = React.useState(false);
   const searchInputRef = React.useRef<HTMLInputElement>(null);
   const historyEntries = useHistoryEntries();
 
@@ -464,6 +467,14 @@ function AppContent() {
       const done = localStorage.getItem("ra-onboarding-complete");
       if (!done) queueMicrotask(() => setShowOnboarding(true));
     } catch { /* ignore */ }
+  }, [mounted]);
+
+  // Sürüm notları modalı: ilk ziyaret (bayrak yok) veya yeni sürüm → göster.
+  React.useEffect(() => {
+    if (!mounted) return;
+    if (showChangelog(readChangelogSeen(), CURRENT_RELEASE)) {
+      queueMicrotask(() => setShowChangelogModal(true));
+    }
   }, [mounted]);
 
   // Keyboard shortcuts:
@@ -943,20 +954,59 @@ function AppContent() {
       {/* Keyboard shortcuts help dialog */}
       <ShortcutsHelpDialog open={showShortcuts} onOpenChange={setShowShortcuts} />
 
-      {/* Onboarding wizard — shown on first launch */}
-      <OnboardingWizard
+      {/* First-launch inline banner — analiz formunu kapatmaz, ayarlara yönlendirir */}
+      <OnboardingBanner
         open={showOnboarding}
-        onOpenChange={(v) => {
-          setShowOnboarding(v);
-          if (!v) {
-            try { localStorage.setItem("ra-onboarding-complete", "true"); } catch { /* ignore */ }
-          }
-        }}
-        onComplete={() => {
-          try { localStorage.setItem("ra-onboarding-complete", "true"); } catch { /* ignore */ }
+        onClose={() => {
           setShowOnboarding(false);
+          try { localStorage.setItem("ra-onboarding-complete", "true"); } catch { /* ignore */ }
+        }}
+        onOpenSettings={() => {
+          setShowOnboarding(false);
+          try { localStorage.setItem("ra-onboarding-complete", "true"); } catch { /* ignore */ }
+          setView("settings");
         }}
       />
+
+      {/* Sürüm notları modalı — ilk ziyaret/yeni sürümde gösterilir */}
+      <Dialog
+        open={showChangelogModal}
+        onOpenChange={(v) => {
+          // Esc/backdrop ile kapatma da bayrağı yazar — aksi halde modal her
+          // reload'da yeniden görünür (tester bulgusu — kapatma yolları tutarlı).
+          if (!v && showChangelogModal) markChangelogSeen();
+          setShowChangelogModal(v);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              {t("changelog.title").replace("{version}", CURRENT_RELEASE)}
+            </DialogTitle>
+            <DialogDescription>
+              {t("changelog.description")}
+            </DialogDescription>
+          </DialogHeader>
+          <ul className="space-y-2 text-sm">
+            <li className="flex items-start gap-2">
+              <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+              <span>{t("changelog.feature")}</span>
+            </li>
+          </ul>
+          <div className="flex justify-end pt-2">
+            <Button
+              onClick={() => {
+                markChangelogSeen();
+                setShowChangelogModal(false);
+              }}
+              className="kl-font-body text-xs"
+            >
+              {t("changelog.close")}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Analysis history drawer */}
       <HistorySheet
@@ -989,15 +1039,8 @@ function LandingView({ repoUrl, setRepoUrl, onAnalyze, onAnalyzeLocal }: { repoU
   const [localStats, setLocalStats] = React.useState<{ topExts: string[]; total: number } | null>(null);
   const [isDragOver, setIsDragOver] = React.useState(false);
   const [isAnalyzing, setIsAnalyzing] = React.useState(false);
-  const [scanStage, setScanStage] = React.useState(0);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const scanTokenRef = React.useRef(0);
-
-  const SCAN_STAGES = [
-    t("scan.ast"),
-    t("scan.scc"),
-    t("scan.evidence"),
-  ];
 
   const handleStartAnalysis = React.useCallback((customRepoUrl?: string) => {
     const targetUrl = (customRepoUrl || repoUrl).trim();
@@ -1007,30 +1050,23 @@ function LandingView({ repoUrl, setRepoUrl, onAnalyze, onAnalyzeLocal }: { repoU
     }
     if (customRepoUrl) setRepoUrl(customRepoUrl);
 
+    // Dürüst akış: gerçek analiz çağrısına kadar yalnızca spinner gösterilir.
+    // Sahte stage/ilerleme animasyonu yok — motor gerçekten ne yapıyorsa UI onu yansıtır.
     setIsAnalyzing(true);
-    setScanStage(0);
-
-    setTimeout(() => setScanStage(1), 350);
-    setTimeout(() => setScanStage(2), 750);
-    setTimeout(() => {
-      onAnalyze(targetUrl);
-    }, 1150);
+    onAnalyze(targetUrl);
   }, [repoUrl, setRepoUrl, onAnalyze, t]);
 
   const processFolderSelection = React.useCallback((fileArray: File[]) => {
-    console.log('[LOCAL-DEBUG] processFolderSelection called, fileArray.length =', fileArray?.length);
     setLocalError("");
-    if (!fileArray || fileArray.length === 0) { console.log('[LOCAL-DEBUG] fileArray empty, returning'); return; }
+    if (!fileArray || fileArray.length === 0) return;
 
     setScanning(true);
 
     // Filter out non-analyzable files (node_modules, .git, binaries, etc.)
     const filtered = fileArray.filter(isAnalyzableFile);
-    console.log('[LOCAL-DEBUG] filtered.length =', filtered.length, 'from', fileArray.length);
     if (filtered.length === 0) {
       setScanning(false);
       setLocalError(t("errors.noSourceFiles"));
-      console.log('[LOCAL-DEBUG] all files filtered out!');
       return;
     }
 
@@ -1063,24 +1099,18 @@ function LandingView({ repoUrl, setRepoUrl, onAnalyze, onAnalyzeLocal }: { repoU
     setLocalStats({ topExts: sorted.slice(0, 5).map((e) => `.${e[0]}`), total });
 
     // Auto-start local analysis
-    console.log('[LOCAL-DEBUG] auto-start: calling onAnalyzeLocal with', slicedFiles.length, 'files, folder:', folderName);
     setIsAnalyzing(true);
     setTimeout(() => {
-      console.log('[LOCAL-DEBUG] setTimeout fired: calling onAnalyzeLocal NOW');
       onAnalyzeLocal(slicedFiles, folderName);
     }, 600);
   }, [setRepoUrl, onAnalyzeLocal, t]);
 
   const handleFolderSelect = React.useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    console.log('[LOCAL-DEBUG] handleFolderSelect fired, files:', e.target.files?.length);
     const inputFiles = e.target.files;
     if (inputFiles && inputFiles.length > 0) {
       const snapshot = Array.from(inputFiles);
-      console.log('[LOCAL-DEBUG] snapshot created:', snapshot.length, 'files, first:', (snapshot[0] as any)?.webkitRelativePath || snapshot[0]?.name);
       e.target.value = "";
       processFolderSelection(snapshot);
-    } else {
-      console.log('[LOCAL-DEBUG] handleFolderSelect: NO FILES in input');
     }
   }, [processFolderSelection]);
 
@@ -1204,16 +1234,16 @@ function LandingView({ repoUrl, setRepoUrl, onAnalyze, onAnalyzeLocal }: { repoU
       {/* Left Column (1/3): Title & Description */}
           <div className="md:col-span-1 text-left border-l-2 border-[#C5532F] pl-4">
             <span className="kl-font-mono text-[10px] uppercase tracking-widest kl-accent block mb-1">
-              ATÖLYE MASASI
+              {t("landing.workshopLabel")}
             </span>
             <h1 className="text-3xl sm:text-4xl font-bold kl-font-display kl-ink tracking-tight leading-tight">
-              Depo Analiz Masası
+              {t("landing.heroTitle")}
             </h1>
       <p className="mt-3 text-xs kl-font-body kl-muted leading-relaxed">
-        Kod mimarisini, Tarjan SCC dairesel bağımlılıklarını ve teknik borçları mühendislik kanıtlarıyla analiz eder.
+        {t("landing.heroDesc")}
       </p>
       <div className="mt-6 hidden md:block">
-        <img src="/landing-hero.svg" alt="" className="w-3/4 h-auto rounded-lg border kl-border-soft" />
+        <img src="/landing-hero.svg" alt="" className="w-1/3 h-auto rounded-lg border kl-border-soft" />
       </div>
       </div>
 
@@ -1248,18 +1278,18 @@ function LandingView({ repoUrl, setRepoUrl, onAnalyze, onAnalyzeLocal }: { repoU
                     {isAnalyzing ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin text-[#F2EEE3]" />
-                        <span>Taranıyor...</span>
+                        <span>{t("landing.analyzing")}</span>
                       </>
                     ) : (
                       <>
                         <Sparkles className="mr-2 h-4 w-4" />
-                        Analizi Başlat
+                        {t("landing.analyze")}
                       </>
                     )}
                   </Button>
                 </div>
 
-                {/* Chic Live Telemetry Radar Banner when analyzing */}
+                {/* Dürüst analiz durumu — gerçek iş sürerken gösterilir, sahte aşama yok */}
                 {isAnalyzing && (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
@@ -1268,11 +1298,11 @@ function LandingView({ repoUrl, setRepoUrl, onAnalyze, onAnalyzeLocal }: { repoU
                   >
                     <div className="flex items-center space-x-2">
                       <Terminal className="h-4 w-4 animate-spin text-[#C5532F]" />
-                      <span className="font-semibold text-[11px]">{SCAN_STAGES[scanStage]}</span>
+                      <span className="font-semibold text-[11px]">{t("landing.analyzing")}</span>
                     </div>
                     <div className="flex items-center space-x-1">
                       <span className="w-2 h-2 rounded-full bg-[#C5532F] animate-ping inline-block" />
-                      <span className="text-[10px] kl-muted">Radar Active</span>
+                      <span className="text-[10px] kl-muted">{t("scan.running")}</span>
                     </div>
                   </motion.div>
                 )}
@@ -1280,7 +1310,7 @@ function LandingView({ repoUrl, setRepoUrl, onAnalyze, onAnalyzeLocal }: { repoU
                 {/* Example repo chips */}
                 {!isAnalyzing && (
                   <div className="flex flex-wrap items-center gap-2 pt-1 font-mono text-xs">
-                    <span className="kl-muted text-[11px] font-sans">Örnek Depolar:</span>
+                    <span className="kl-muted text-[11px] font-sans">{t("landing.exampleReposLabel")}</span>
                     {examples.map((ex) => {
                       const short = ex.replace("https://github.com/", "");
                       return (
@@ -1297,7 +1327,7 @@ function LandingView({ repoUrl, setRepoUrl, onAnalyze, onAnalyzeLocal }: { repoU
                       onClick={() => handleStartAnalysis("https://github.com/demo/sample-project")}
                       className="rounded border border-[#C5532F]/40 bg-[#C5532F]/10 px-3 py-1 text-[11px] font-medium kl-accent hover:bg-[#C5532F]/20 transition-all"
                     >
-                      <Sparkles className="mr-1 inline h-3 w-3" /> Örnek Analiz
+                      <Sparkles className="mr-1 inline h-3 w-3" /> {t("landing.exampleAnalysis")}
                     </button>
                   </div>
                 )}
@@ -1320,7 +1350,7 @@ function LandingView({ repoUrl, setRepoUrl, onAnalyze, onAnalyzeLocal }: { repoU
                   className={`flex flex-col items-center gap-3 rounded-lg border-2 border-dashed p-6 text-center transition-all cursor-pointer kl-paper ${
                     isDragOver ? "border-[#C5532F] bg-[#C5532F]/5" : "kl-border-soft hover:border-[#C5532F]/50"
                   }`}
-                  onClick={() => { console.log('[LOCAL-DEBUG] drag zone clicked'); if (!scanning && !isAnalyzing) { handleFileSystemAccess(); } }}
+                  onClick={() => { if (!scanning && !isAnalyzing) { handleFileSystemAccess(); } }}
                   onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragOver(true); }}
                   onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragOver(true); }}
                   onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragOver(false); }}
@@ -1346,7 +1376,7 @@ function LandingView({ repoUrl, setRepoUrl, onAnalyze, onAnalyzeLocal }: { repoU
                   ) : isAnalyzing ? (
                     <>
                       <Loader2 className="h-8 w-8 kl-accent animate-spin" />
-                      <p className="text-xs font-semibold kl-accent">Dosyalar Yükleniyor...</p>
+                      <p className="text-xs font-semibold kl-accent">{t("landing.uploading")}</p>
                       <p className="text-[11px] kl-muted font-mono">Lütfen bekleyin (Büyük repolar için zaman alabilir)</p>
                       <div className="w-full max-w-[200px] h-1.5 bg-[#C5532F]/10 rounded-full overflow-hidden mt-2">
                         <div className="h-full bg-[#C5532F] rounded-full w-full animate-pulse"></div>
@@ -1367,7 +1397,7 @@ function LandingView({ repoUrl, setRepoUrl, onAnalyze, onAnalyzeLocal }: { repoU
                   ) : (
                     <>
                       <FolderOpen className="h-8 w-8 kl-muted" />
-                      <p className="text-xs kl-muted font-mono">Bir klasör sürükleyin veya göz atın</p>
+                      <p className="text-xs kl-muted font-mono">{t("landing.dragDropFolder")}</p>
                     </>
                   )}
                   {localPath && !scanning && (
@@ -1383,8 +1413,8 @@ function LandingView({ repoUrl, setRepoUrl, onAnalyze, onAnalyzeLocal }: { repoU
                       </button>
                     </div>
                   )}
-                  <Button variant="outline" size="sm" disabled={scanning || isAnalyzing} onClick={(e) => { e.stopPropagation(); handleFileSystemAccess(); }} className="mt-1 kl-font-body text-xs">
-                    <FolderOpen className="mr-1.5 h-3.5 w-3.5" /> Göz At
+                    <Button variant="outline" size="sm" disabled={scanning || isAnalyzing} onClick={(e) => { e.stopPropagation(); handleFileSystemAccess(); }} className="mt-1 kl-font-body text-xs">
+                    <FolderOpen className="mr-1.5 h-3.5 w-3.5" /> {t("local.browse")}
                   </Button>
                 </div>
                 {localError && (
@@ -1397,7 +1427,7 @@ function LandingView({ repoUrl, setRepoUrl, onAnalyze, onAnalyzeLocal }: { repoU
                   <div className="mt-3 flex justify-end">
                     <Button size="lg" disabled={isAnalyzing} className="h-11 px-6 bg-[#C5532F] hover:bg-[#C5532F]/90 text-[#F2EEE3] kl-font-body font-semibold text-xs rounded flex items-center" onClick={handleLocalAnalyze}>
                       {isAnalyzing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                      Analizi Başlat
+                      {t("landing.analyze")}
                     </Button>
                   </div>
                 )}
@@ -1437,8 +1467,8 @@ function LandingView({ repoUrl, setRepoUrl, onAnalyze, onAnalyzeLocal }: { repoU
             <Network className="h-5 w-5" />
           </div>
           <div>
-            <div className="kl-muted text-[11px]">Katalog Taraması</div>
-            <div className="kl-ink font-bold text-sm">70 Üretim Reposu</div>
+            <div className="kl-muted text-[11px]">{t("landing.telemetry.catalog")}</div>
+            <div className="kl-ink font-bold text-sm">{t("landing.telemetry.catalogValue")}</div>
           </div>
         </div>
         <div className="kl-card kl-card-accent rounded-lg flex items-center space-x-3">
@@ -1446,8 +1476,8 @@ function LandingView({ repoUrl, setRepoUrl, onAnalyze, onAnalyzeLocal }: { repoU
             <Bug className="h-5 w-5" />
           </div>
           <div>
-            <div className="kl-muted text-[11px]">Anti-Pattern Teşhisi</div>
-            <div className="kl-ink font-bold text-sm">God Class & Shotgun</div>
+            <div className="kl-muted text-[11px]">{t("landing.telemetry.patterns")}</div>
+            <div className="kl-ink font-bold text-sm">{t("landing.telemetry.patternsValue")}</div>
           </div>
         </div>
         <div className="kl-card kl-card-success rounded-lg flex items-center space-x-3">
@@ -1455,8 +1485,8 @@ function LandingView({ repoUrl, setRepoUrl, onAnalyze, onAnalyzeLocal }: { repoU
             <Shield className="h-5 w-5" />
           </div>
           <div>
-            <div className="kl-muted text-[11px]">Bağımsız Doğrulama</div>
-            <div className="kl-ink font-bold text-sm">GitHub Issue/PR/ADR</div>
+            <div className="kl-muted text-[11px]">{t("landing.telemetry.validation")}</div>
+            <div className="kl-ink font-bold text-sm">{t("landing.telemetry.validationValue")}</div>
           </div>
         </div>
       </div>
@@ -1502,7 +1532,7 @@ function ProgressView({ steps, repoUrl, scanProgress }: { steps: PipelineStep[];
                 />
               </div>
               <p className="kl-font-body kl-muted mt-1 text-xs">
-                {scanProgress.done.toLocaleString()} / {scanProgress.total.toLocaleString()} dosya taranıyor...
+                                  {scanProgress.done.toLocaleString()} / {scanProgress.total.toLocaleString()} {t("landing.scanningFiles")}...
               </p>
             </div>
           )}
@@ -6978,258 +7008,36 @@ function CompareDialog({
 // Onboarding wizard — shown on first launch.
 // Steps: Language → Theme → LLM Provider → API Key → Connection Test → Ready.
 // Uses existing useI18n, useTheme, LLM_PROVIDERS, writeLLMConfig.
-function OnboardingWizard({
-  open, onOpenChange, onComplete,
+function OnboardingBanner({
+  open, onClose, onOpenSettings,
 }: {
   open: boolean;
-  onOpenChange: (v: boolean) => void;
-  onComplete: () => void;
+  onClose: () => void;
+  onOpenSettings: () => void;
 }) {
-  const { t, lang, setLang } = useI18n();
-  const { theme, setTheme } = useTheme();
-  const [step, setStep] = React.useState(0);
-  // Local state for LLM config (mirrors LLMSettingsSection but simplified).
-  const [provider, setProvider] = React.useState("");
-  const [apiKey, setApiKey] = React.useState("");
-  const [model, setModel] = React.useState("");
-  const [testStatus, setTestStatus] = React.useState<"idle" | "testing" | "success" | "failed">("idle");
-
-  const steps = [
-    t("onboarding.stepLanguage"),
-    t("onboarding.stepTheme"),
-    t("onboarding.stepProvider"),
-    t("onboarding.stepApiKey"),
-    t("onboarding.stepTest"),
-    t("onboarding.stepAnalysis"),
-  ];
-  const total = steps.length;
-
-  const handleSkip = () => {
-    onOpenChange(false);
-  };
-
-  const handleNext = () => {
-    if (step < total - 1) {
-      setStep(step + 1);
-    } else {
-      onComplete();
-    }
-  };
-
-  const handleBack = () => {
-    if (step > 0) setStep(step - 1);
-  };
-
-  // Save LLM config when moving past the API key step.
-  const handleSaveAndTest = async () => {
-    if (provider && (provider === "ollama" || apiKey)) {
-      try {
-        writeLLMConfig({ provider, apiKey, model });
-      } catch { /* ignore */ }
-    }
-    // Simulate connection test.
-    setTestStatus("testing");
-    await sleep(1500);
-    const ok = provider === "ollama" || !!apiKey.trim();
-    setTestStatus(ok ? "success" : "failed");
-  };
-
-  const canSkipProvider = step === 2 || step === 3 || step === 4;
+  const { t } = useI18n();
+  if (!open) return null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Brain className="h-5 w-5 text-primary" />
-            {step === 0 ? t("onboarding.title") : steps[step]}
-          </DialogTitle>
-          <DialogDescription>
-            {step === 0 ? t("onboarding.subtitle") : t("onboarding.step").replace("{current}", String(step + 1)).replace("{total}", String(total))}
-          </DialogDescription>
-        </DialogHeader>
-
-        {/* Progress bar */}
-        <div className="mb-4 flex gap-1.5">
-          {steps.map((_, i) => (
-            <div
-              key={i}
-              className={`h-1.5 flex-1 rounded-full transition-colors ${i <= step ? "bg-primary" : "bg-muted"}`}
-            />
-          ))}
+    <div className="mb-4 flex w-full max-w-5xl flex-wrap items-center justify-between gap-3 rounded-lg border kl-border-soft kl-paper px-4 py-3">
+      <div className="flex items-center gap-3">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+          <Brain className="h-4 w-4 text-primary" />
         </div>
-
-        {/* Step content */}
-        <div className="min-h-[180px]">
-          {step === 0 && (
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">{t("onboarding.stepLanguage")}</p>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => setLang("en")}
-                  className={`rounded-lg border p-4 text-center transition-all hover:border-primary/40 hover:shadow-sm ${lang === "en" ? "border-primary ring-1 ring-primary" : ""}`}
-                >
-                  <Globe className="mx-auto mb-2 h-6 w-6 text-primary" />
-                  <span className="text-sm font-medium">English</span>
-                </button>
-                <button
-                  onClick={() => setLang("tr")}
-                  className={`rounded-lg border p-4 text-center transition-all hover:border-primary/40 hover:shadow-sm ${lang === "tr" ? "border-primary ring-1 ring-primary" : ""}`}
-                >
-                  <Globe className="mx-auto mb-2 h-6 w-6 text-primary" />
-                  <span className="text-sm font-medium">Türkçe</span>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {step === 1 && (
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">{t("onboarding.stepTheme")}</p>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => setTheme("dark")}
-                  className={`rounded-lg border p-4 text-center transition-all hover:border-primary/40 hover:shadow-sm ${theme === "dark" ? "border-primary ring-1 ring-primary" : ""}`}
-                >
-                  <Moon className="mx-auto mb-2 h-6 w-6 text-primary" />
-                  <span className="text-sm font-medium">{t("settings.appearance.darkMode")}</span>
-                </button>
-                <button
-                  onClick={() => setTheme("light")}
-                  className={`rounded-lg border p-4 text-center transition-all hover:border-primary/40 hover:shadow-sm ${theme === "light" ? "border-primary ring-1 ring-primary" : ""}`}
-                >
-                  <Sun className="mx-auto mb-2 h-6 w-6 text-primary" />
-                  <span className="text-sm font-medium">{t("settings.appearance.lightMode")}</span>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {step === 2 && (
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">{t("onboarding.stepProvider")}</p>
-              <div className="grid grid-cols-2 gap-2">
-                {LLM_PROVIDERS.map((p) => (
-                  <button
-                    key={p.value}
-                    onClick={() => { setProvider(p.value); setModel(""); setApiKey(""); }}
-                    className={`rounded-lg border p-3 text-left transition-all hover:border-primary/40 hover:shadow-sm ${provider === p.value ? "border-primary ring-1 ring-primary" : ""}`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Key className="h-4 w-4 text-primary" />
-                      <span className="text-sm font-medium">{p.label}</span>
-                    </div>
-                    <span className="mt-0.5 block text-xs text-muted-foreground">
-                      {p.fields.includes("apiKey") ? "API Key" : "Local"}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {step === 3 && (
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">{t("onboarding.stepApiKey")}</p>
-              {provider === "ollama" ? (
-                <div className="space-y-3">
-                  <div>
-                    <Label className="mb-1.5 block text-xs text-muted-foreground">{t("settings.llm.host")}</Label>
-                    <Input value={model ? "" : "http://localhost"} disabled className="h-9 text-sm" />
-                    <p className="mt-1 text-xs text-muted-foreground">{t("settings.llm.host")}: http://localhost:{model ? "" : "11434"}</p>
-                  </div>
-                  <div>
-                    <Label className="mb-1.5 block text-xs text-muted-foreground">{t("settings.llm.model")}</Label>
-                    <Input value={model} onChange={(e) => setModel(e.target.value)} placeholder="llama3, mistral..." className="h-9 text-sm" />
-                  </div>
-                </div>
-              ) : provider ? (
-                <div className="space-y-3">
-                  <div>
-                    <Label className="mb-1.5 block text-xs text-muted-foreground">{t("settings.llm.apiKey")}</Label>
-                    <Input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="sk-..." className="h-9 text-sm" />
-                  </div>
-                  <div>
-                    <Label className="mb-1.5 block text-xs text-muted-foreground">{t("settings.llm.model")}</Label>
-                    <Input value={model} onChange={(e) => setModel(e.target.value)} placeholder="gpt-4o, claude-3-opus..." className="h-9 text-sm" />
-                  </div>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">{t("onboarding.skipProvider")}</p>
-              )}
-            </div>
-          )}
-
-          {step === 4 && (
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">{t("onboarding.stepTest")}</p>
-              {provider ? (
-                <>
-                  <Button onClick={handleSaveAndTest} disabled={testStatus === "testing"} className="w-full">
-                    {testStatus === "testing" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Key className="mr-2 h-4 w-4" />}
-                    {testStatus === "testing" ? t("platform.refreshing") : t("settings.llm.testConnection")}
-                  </Button>
-                  {testStatus === "success" && (
-                    <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-600 dark:text-emerald-400">
-                      <CheckCircle className="h-4 w-4 shrink-0" />
-                      <span>{t("onboarding.testSuccess")}</span>
-                    </div>
-                  )}
-                  {testStatus === "failed" && (
-                    <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-600 dark:text-amber-400">
-                      <AlertCircle className="h-4 w-4 shrink-0" />
-                      <span>{t("onboarding.testFailed")}</span>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="flex items-center gap-2 rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
-                  <Info className="h-4 w-4 shrink-0" />
-                  <span>{t("onboarding.skipProvider")}</span>
-                </div>
-              )}
-            </div>
-          )}
-
-          {step === 5 && (
-            <div className="flex flex-col items-center gap-4 py-4 text-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary/60 shadow-lg shadow-primary/20">
-                <Brain className="h-8 w-8 text-primary-foreground" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold">{t("onboarding.stepAnalysis")}</h3>
-                <p className="mt-1 text-sm text-muted-foreground">{t("onboarding.stepAnalysisDesc")}</p>
-              </div>
-            </div>
-          )}
+        <div>
+          <p className="text-sm font-medium kl-ink">{t("onboarding.bannerTitle")}</p>
+          <p className="text-xs kl-muted">{t("onboarding.bannerDesc")}</p>
         </div>
-
-        {/* Navigation buttons */}
-        <div className="flex items-center justify-between pt-4 border-t">
-          <div className="flex gap-2">
-            {step > 0 && (
-              <Button variant="ghost" size="sm" onClick={handleBack}>
-                <ArrowLeft className="mr-1 h-4 w-4" /> {t("onboarding.back")}
-              </Button>
-            )}
-          </div>
-          <div className="flex gap-2">
-            <Button variant="ghost" size="sm" onClick={handleSkip}>
-              {t("onboarding.skip")}
-            </Button>
-            {step === 4 && testStatus !== "success" && provider && (
-              <Button variant="ghost" size="sm" onClick={handleNext}>
-                {t("onboarding.testSkip")}
-              </Button>
-            )}
-            <Button size="sm" onClick={handleNext}>
-              {step === total - 1 ? t("onboarding.finish") : t("onboarding.next")}
-              {step < total - 1 && <ChevronRight className="ml-1 h-4 w-4" />}
-            </Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+      <div className="flex items-center gap-2">
+        <Button variant="outline" size="sm" onClick={onClose} className="kl-font-body text-xs">
+          {t("onboarding.skip")}
+        </Button>
+        <Button size="sm" onClick={onOpenSettings} className="kl-font-body text-xs">
+          <SettingsIcon className="mr-1.5 h-3.5 w-3.5" /> {t("onboarding.configure")}
+        </Button>
+      </div>
+    </div>
   );
 }
 
